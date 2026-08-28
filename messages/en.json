@@ -1,0 +1,19 @@
+{
+  "NavBar": {
+    "home": "Home",
+    "dashboard": "Dashboard"
+  },
+  "Dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome, {name}."
+  },
+  "Auth": {
+    "signInWithGoogle": "Sign in with Google",
+    "signOut": "Sign out"
+  },
+  "LocaleSwitcher": {
+    "label": "Language",
+    "en": "English",
+    "ja": "日本語"
+  }
+}
