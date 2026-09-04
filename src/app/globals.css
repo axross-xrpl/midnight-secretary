@@ -3,11 +3,77 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Design tokens ported from the reference frontend (AI secretary demo design sheet) */
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --card-inner: #fafbfc;
+  --table-head-bg: #f7f8fa;
+  --border: #e5e8ec;
+  --border-sub: #eef0f3;
+  --divider-strong: #dde1e7;
+  --ghost-border: #c9cfd8;
+  --text: #1a1d21;
+  --muted: #6b7280;
+  --faint: #9aa1aa;
+  --accent: #185fa5;
+  --accent-bg: #edf3fa;
+  --accent-border: #b9d0e6;
+  --ok: #15803d;
+  --ok-bg: #dcfce7;
+  --done-bg: #f2fbf5;
+  --done-border: #bbe3c9;
+  --warn: #92400e;
+  --warn-bg: #fef3c7;
+  --danger: #b91c1c;
+  --danger-bg: #fef2f2;
+  --note: #8a6d1f;
+  --note-bg: #fef9e7;
+  --neutral-bg: #edeff3;
+  --public: #b45309;
+  --public-bg: #fdf6e7;
+  --private: #7c3aed;
+  --private-bg: #f3f0fa;
+  --rail: #2563eb;
+  --air: #0ea5e9;
+  --hotel: #7c3aed;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-card-inner: var(--card-inner);
+  --color-table-head: var(--table-head-bg);
+  --color-border: var(--border);
+  --color-border-sub: var(--border-sub);
+  --color-divider-strong: var(--divider-strong);
+  --color-ghost-border: var(--ghost-border);
+  --color-ink: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-bg: var(--accent-bg);
+  --color-accent-border: var(--accent-border);
+  --color-ok: var(--ok);
+  --color-ok-bg: var(--ok-bg);
+  --color-done-bg: var(--done-bg);
+  --color-done-border: var(--done-border);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-note: var(--note);
+  --color-note-bg: var(--note-bg);
+  --color-neutral-bg: var(--neutral-bg);
+  --color-public: var(--public);
+  --color-public-bg: var(--public-bg);
+  --color-private: var(--private);
+  --color-private-bg: var(--private-bg);
+  --color-rail: var(--rail);
+  --color-air: var(--air);
+  --color-hotel: var(--hotel);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -16,11 +82,45 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --bg: #0b0d11;
+    --surface: #14171c;
+    --card-inner: #171b21;
+    --table-head-bg: #191d24;
+    --border: #262b33;
+    --border-sub: #1f242b;
+    --divider-strong: #323945;
+    --ghost-border: #3a414c;
+    --text: #e6e8eb;
+    --muted: #9aa1aa;
+    --faint: #6b7280;
+    --accent: #6aa5e0;
+    --accent-bg: #142638;
+    --accent-border: #24405c;
+    --ok: #4ade80;
+    --ok-bg: #0f2a1a;
+    --done-bg: #0f231a;
+    --done-border: #1f4a33;
+    --warn: #fbbf24;
+    --warn-bg: #2d2410;
+    --danger: #f87171;
+    --danger-bg: #2a1414;
+    --note: #e0c36a;
+    --note-bg: #2a2410;
+    --neutral-bg: #242a33;
+    --public: #e0a941;
+    --public-bg: #2e2612;
+    --private: #b39df0;
+    --private-bg: #261c3e;
+    --rail: #60a5fa;
+    --air: #38bdf8;
+    --hotel: #b39df0;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family:
+    var(--font-geist-sans), "Hiragino Sans", "Noto Sans JP", Helvetica, Arial,
+    sans-serif;
 }
