@@ -159,14 +159,14 @@
     "total": "{amount} {currency}"
   },
   "MandateCard": {
-    "title": "Your mandate",
+    "title": "Your spending allowance",
     "badge": "Private state",
     "remaining": "Remaining",
     "cap": "Cap",
     "spent": "Spent",
     "purpose": "Purpose",
     "expires": "Expires",
-    "initial": "M",
+    "initial": "A",
     "usedPercent": "{percent}% of the cap used"
   },
   "EventList": {
@@ -199,9 +199,9 @@
     "lodging": "{hotel}, {nights, plural, one {# night} other {# nights}}",
     "approve": "Approve plan",
     "discard": "Discard",
-    "pay": "Pay under mandate",
+    "pay": "Pay from the allowance",
     "proving": "Generating the zero-knowledge proof...",
-    "provingHint": "The proof shows the payment fits your mandate without revealing the cap, what you spent, or who you are.",
+    "provingHint": "The proof shows the payment fits your spending allowance without revealing the cap, what you spent, or who you are.",
     "authorizedTitle": "Payment authorized",
     "publicHash": "Public hash",
     "paymentRef": "Payment reference",
@@ -212,8 +212,8 @@
     "writtenBody": "The trip is on your calendar as {id}.",
     "reset": "Start another",
     "errors": {
-      "overBudget": "Over budget: this trip costs {requested} but only {remaining} remains on the mandate.",
-      "expired": "The mandate expired on {date}.",
+      "overBudget": "Over budget: this trip costs {requested} but only {remaining} remains on the allowance.",
+      "expired": "The allowance expired on {date}.",
       "proofFailed": "Proof generation failed. Try again."
     },
     "inProgress": "In progress"
@@ -225,11 +225,11 @@
       "eyebrow": "Public ledger",
       "title": "What the network records",
       "who": "Anyone can read this through the indexer.",
-      "commitments": "Mandate commitments",
+      "commitments": "Allowance commitments",
       "authorizations": "Authorizations",
       "none": "None yet",
       "count": "Authorized payments",
-      "note": "No amounts, caps, dates, or identities appear here. The hashes prove a payment fit a mandate, nothing more."
+      "note": "No amounts, caps, dates, or identities appear here. The hashes prove a payment fit an allowance, nothing more."
     },
     "private": {
       "eyebrow": "Private state",
