@@ -1,1 +1,20 @@
 * text=auto eol=lf
+
+# Images
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.avif  binary
+*.ico   binary
+*.svg   text
+*.mp4   binary
+
+# Documents
+*.pdf   binary
+
+# Midnight build artifacts (proving and verifying keys, binary ZK IR)
+*.prover   binary
+*.verifier binary
+*.bzkir    binary
