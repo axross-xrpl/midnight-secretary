@@ -3,7 +3,16 @@
 import { useFormatter, useTranslations } from "next-intl";
 import type { ReactElement } from "react";
 import { match } from "ts-pattern";
-import { cardClass, primaryButtonClass } from "./styles";
+import {
+  accentPillClass,
+  emptyStateClass,
+  eventIcon,
+  labelClass,
+  neutralPillClass,
+  rowCardClass,
+  sectionLabelClass,
+  smallPrimaryButtonClass,
+} from "./styles";
 import type { CalendarEventView } from "./types";
 
 type Props = {
@@ -29,33 +38,33 @@ const EventItem = ({ event, busy, onPropose }: ItemProps): ReactElement => {
         dateStyle: "medium",
         timeStyle: "short",
       });
+  const detail =
+    event.location === undefined ? when : `${when} · ${event.location}`;
 
   return (
-    <li className="flex flex-wrap items-center justify-between gap-3 py-3">
-      <div className="flex min-w-0 flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">{event.title}</span>
-          {match(event.classification)
-            .with({ kind: "trip" }, ({ destination }) => (
-              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                {t("tripChip", { destination })}
-              </span>
-            ))
-            .with({ kind: "other" }, () => undefined)
-            .exhaustive()}
-        </div>
-        <span className="text-sm text-zinc-600 dark:text-zinc-400">{when}</span>
-        {event.location === undefined ? undefined : (
-          <span className="text-sm text-zinc-500 dark:text-zinc-500">
-            {event.location}
-          </span>
-        )}
+    <li className={rowCardClass}>
+      <span className="text-xl" aria-hidden="true">
+        {eventIcon[event.classification.kind]}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="text-[13.5px] font-semibold">{event.title}</div>
+        <div className={labelClass}>{detail}</div>
       </div>
+      {match(event.classification)
+        .with({ kind: "trip" }, ({ destination }) => (
+          <span className={accentPillClass}>
+            {t("tripChip", { destination })}
+          </span>
+        ))
+        .with({ kind: "other" }, () => (
+          <span className={neutralPillClass}>{t("otherChip")}</span>
+        ))
+        .exhaustive()}
       {match(event.classification)
         .with({ kind: "trip" }, () => (
           <button
             type="button"
-            className={primaryButtonClass}
+            className={smallPrimaryButtonClass}
             disabled={busy}
             onClick={() => onPropose(event)}
           >
@@ -69,24 +78,22 @@ const EventItem = ({ event, busy, onPropose }: ItemProps): ReactElement => {
 };
 
 /**
- * Upcoming calendar events with a "propose a plan" action on the ones that
- * look like trips.
+ * Upcoming calendar events, one row card each, with a "propose a plan"
+ * action on the ones that look like trips.
  */
 export const EventList = ({ events, busy, onPropose }: Props): ReactElement => {
   const t = useTranslations("EventList");
 
   return (
-    <section className={`${cardClass} flex flex-col gap-2`}>
-      <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold">{t("title")}</h2>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          {t("subtitle")}
-        </p>
+    <section className="flex flex-col gap-2">
+      <div className="flex flex-col gap-0.5">
+        <h2 className={sectionLabelClass}>{t("title")}</h2>
+        <p className={labelClass}>{t("subtitle")}</p>
       </div>
       {events.length === 0 ? (
-        <p className="text-sm text-zinc-500">{t("empty")}</p>
+        <p className={emptyStateClass}>{t("empty")}</p>
       ) : (
-        <ul className="divide-y divide-black/8 dark:divide-white/[.145]">
+        <ul className="flex flex-col gap-2">
           {events.map((event) => (
             <EventItem
               key={event.id}

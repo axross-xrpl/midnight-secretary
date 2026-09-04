@@ -1,41 +1,104 @@
 /**
- * Shared Tailwind class strings for the dashboard so every card and button
- * reads as one system.
+ * Shared Tailwind class strings and icon maps for the dashboard.
+ * Ported from the reference frontend's design sheet so cards, rows, badges, and buttons read as that system.
  */
+
+/** Plain content card (profile and task cards in the reference). */
 export const cardClass =
-  "rounded-2xl border border-black/8 bg-white p-5 dark:border-white/[.145] dark:bg-zinc-950";
+  "rounded-xl border border-border bg-surface p-[18px] px-5";
 
-/**
- * Filled call-to-action button, matching the sign-in button in the nav bar.
- */
+/** Card with a tinted body and a white footer for actions (proposal and summary cards). */
+export const panelCardClass =
+  "overflow-hidden rounded-xl border border-border bg-card-inner";
+
+/** Body area of a panel card. */
+export const panelBodyClass = "flex flex-col gap-4 p-3.5 px-4";
+
+/** Footer area of a panel card that holds the action buttons. */
+export const panelFooterClass =
+  "flex flex-wrap gap-2 border-t border-border bg-surface p-3 px-4";
+
+/** One list row rendered as its own card (detection list in the reference). */
+export const rowCardClass =
+  "flex flex-wrap items-center gap-3.5 rounded-xl border border-border bg-surface p-3.5 px-5";
+
+/** Empty state box. */
+export const emptyStateClass =
+  "rounded-xl border border-border bg-surface p-6 text-center text-[13px] text-muted";
+
+/** Filled call-to-action button. */
 export const primaryButtonClass =
-  "rounded-full bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-black dark:hover:bg-zinc-200";
+  "cursor-pointer rounded-[10px] bg-accent px-[18px] py-2 text-[13px] font-semibold text-white disabled:cursor-default disabled:opacity-40";
+
+/** Filled button for the decisive step (approve and pay). */
+export const strongButtonClass =
+  "cursor-pointer rounded-[10px] bg-accent px-[18px] py-[9px] text-[13.5px] font-bold text-white disabled:cursor-default disabled:opacity-40";
+
+/** Outlined secondary button. */
+export const ghostButtonClass =
+  "cursor-pointer rounded-[10px] border border-ghost-border bg-surface px-[18px] py-2 text-[13px] font-medium text-ink disabled:cursor-default disabled:opacity-40";
+
+/** Compact filled button used inside list rows. */
+export const smallPrimaryButtonClass =
+  "cursor-pointer rounded-[9px] bg-accent px-3.5 py-1.5 text-[12px] font-semibold text-white disabled:cursor-default disabled:opacity-50";
+
+/** Filled button on the done card. */
+export const okButtonClass =
+  "cursor-pointer rounded-[10px] bg-ok px-4 py-2 text-[12.5px] font-semibold text-white";
+
+/** Label above a section. */
+export const sectionLabelClass = "text-[12.5px] font-bold text-muted";
+
+/** Secondary line under a title. */
+export const labelClass = "text-[11.5px] text-muted";
+
+/** Small faint caption. */
+export const faintLabelClass = "text-[11px] text-faint";
+
+const pillClass = "rounded-full px-2.5 py-[3px] text-[11px] font-semibold";
+
+/** Neutral pill (category chips). */
+export const neutralPillClass = `${pillClass} bg-neutral-bg text-muted`;
+
+/** Accent pill (highlighted chips). */
+export const accentPillClass = `${pillClass} bg-accent-bg text-accent`;
+
+/** Pill for anything on the public ledger. */
+export const publicPillClass = `${pillClass} bg-public-bg text-public`;
+
+/** Pill for anything in private state. */
+export const privatePillClass = `${pillClass} bg-private-bg text-private`;
+
+/** Pill for a step in progress. */
+export const warnPillClass = `${pillClass} bg-warn-bg text-warn`;
+
+/** Informational note box. */
+export const noteClass =
+  "rounded-[10px] bg-note-bg px-3 py-2 text-[11px] leading-relaxed text-note";
+
+/** Error box. */
+export const dangerBoxClass =
+  "rounded-[10px] bg-danger-bg px-4 py-2.5 text-[12.5px] font-semibold text-danger";
+
+/** Icon shown in front of a calendar event, by classification. */
+export const eventIcon = {
+  trip: "\u{1F9F3}",
+  other: "\u{1F4C5}",
+} as const satisfies Record<"trip" | "other", string>;
+
+/** Icon and circle color for a trip item, by transport mode or lodging. */
+export const vendorMark = {
+  rail: { icon: "\u{1F684}", circleClass: "bg-rail" },
+  air: { icon: "✈", circleClass: "bg-air" },
+  lodging: { icon: "\u{1F3E8}", circleClass: "bg-hotel" },
+} as const satisfies Record<
+  "rail" | "air" | "lodging",
+  { icon: string; circleClass: string }
+>;
 
 /**
- * Outlined secondary button.
- */
-export const secondaryButtonClass =
-  "rounded-full border border-black/10 px-4 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/[.145] dark:text-zinc-300 dark:hover:bg-zinc-900";
-
-/**
- * Small uppercase label above a value.
- */
-export const labelClass =
-  "text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400";
-
-/**
- * Left accent for anything that lives in private state (violet).
- */
-export const privateAccentClass = "border-l-4 border-l-violet-500";
-
-/**
- * Left accent for anything on the public ledger (amber).
- */
-export const publicAccentClass = "border-l-4 border-l-amber-500";
-
-/**
- * Number format options for a display amount. Structurally compatible with
- * next-intl's `NumberFormatOptions`.
+ * Number format options for a display amount.
+ * Structurally compatible with next-intl's `NumberFormatOptions`.
  */
 export type MoneyFormatOptions = {
   style: "currency";

@@ -5,11 +5,20 @@ import type { ReactElement } from "react";
 import { match } from "ts-pattern";
 import { shortHash } from "./flow";
 import {
-  cardClass,
+  dangerBoxClass,
+  emptyStateClass,
+  ghostButtonClass,
   labelClass,
   moneyFormatOptions,
+  noteClass,
+  okButtonClass,
+  panelBodyClass,
+  panelCardClass,
+  panelFooterClass,
   primaryButtonClass,
-  secondaryButtonClass,
+  strongButtonClass,
+  vendorMark,
+  warnPillClass,
 } from "./styles";
 import type {
   AuthorizationView,
@@ -31,11 +40,16 @@ const STEP_KEYS = ["proposed", "approved", "paid", "written"] as const;
 
 type StepStatus = "done" | "current" | "todo";
 
-const stepStatusClass = {
-  done: "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-black",
-  current:
-    "border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100",
-  todo: "border-zinc-300 text-zinc-400 dark:border-zinc-700 dark:text-zinc-500",
+const stepCircleClass = {
+  done: "bg-ok text-white",
+  current: "bg-accent text-white",
+  todo: "bg-neutral-bg text-faint",
+} as const satisfies Record<StepStatus, string>;
+
+const stepLabelClass = {
+  done: "text-muted",
+  current: "font-bold text-ink",
+  todo: "text-muted",
 } as const satisfies Record<StepStatus, string>;
 
 /**
@@ -70,32 +84,49 @@ const StepIndicator = ({ state }: { state: FlowState }): ReactElement => {
   const finished = state.step === "written";
 
   return (
-    <ol className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+    <ol className="flex flex-wrap items-center gap-y-2">
       {STEP_KEYS.map((key, index) => {
         const status = finished ? "done" : statusOf(index, current);
 
         return (
           <li
             key={key}
-            className="flex items-center gap-2"
+            className="flex items-center"
             aria-current={status === "current" ? "step" : undefined}
           >
+            {index === 0 ? undefined : (
+              <span
+                className="mx-2 h-0.5 w-2.5 bg-divider-strong"
+                aria-hidden="true"
+              />
+            )}
             <span
-              className={`grid size-6 place-items-center rounded-full border text-xs font-semibold tabular-nums ${stepStatusClass[status]}`}
+              className={`flex h-[18px] w-[18px] flex-none items-center justify-center rounded-full text-[10px] font-bold tabular-nums ${stepCircleClass[status]}`}
             >
-              {index + 1}
+              {status === "done" ? "✓" : index + 1}
             </span>
-            <span
-              className={
-                status === "todo" ? "text-zinc-400 dark:text-zinc-500" : ""
-              }
-            >
+            <span className={`ml-2 text-[12.5px] ${stepLabelClass[status]}`}>
               {t(`steps.${key}`)}
             </span>
           </li>
         );
       })}
     </ol>
+  );
+};
+
+const VendorCircle = ({
+  kind,
+}: {
+  kind: keyof typeof vendorMark;
+}): ReactElement => {
+  return (
+    <span
+      className={`flex h-[26px] w-[26px] flex-none items-center justify-center rounded-full text-xs text-white ${vendorMark[kind].circleClass}`}
+      aria-hidden="true"
+    >
+      {vendorMark[kind].icon}
+    </span>
   );
 };
 
@@ -109,45 +140,47 @@ const TripItemRow = ({ item }: { item: TripItemView }): ReactElement => {
 
   return match(item)
     .with({ kind: "transport" }, (transport) => (
-      <li className="flex flex-wrap items-baseline justify-between gap-2 py-2">
-        <div className="flex flex-col">
-          <span>
+      <li className="flex flex-wrap items-center gap-2.5 py-2">
+        <VendorCircle kind={transport.mode} />
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-medium">
             {t("transport", {
               from: transport.from,
               to: transport.to,
               mode: t(`modes.${transport.mode}`),
             })}
           </span>
-          <span className="text-sm text-zinc-500 dark:text-zinc-400">
+          <span className={`block tabular-nums ${labelClass}`}>
             {format.dateTimeRange(
               new Date(transport.departAt),
               new Date(transport.arriveAt),
               { dateStyle: "medium", timeStyle: "short" },
             )}
-            {" / "}
+            {" · "}
             {transport.vendor}
           </span>
-        </div>
-        <span className="tabular-nums">{price}</span>
+        </span>
+        <span className="text-[13px] font-bold tabular-nums">{price}</span>
       </li>
     ))
     .with({ kind: "lodging" }, (lodging) => (
-      <li className="flex flex-wrap items-baseline justify-between gap-2 py-2">
-        <div className="flex flex-col">
-          <span>
+      <li className="flex flex-wrap items-center gap-2.5 py-2">
+        <VendorCircle kind="lodging" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-medium">
             {t("lodging", { hotel: lodging.hotel, nights: lodging.nights })}
           </span>
-          <span className="text-sm text-zinc-500 dark:text-zinc-400">
+          <span className={`block tabular-nums ${labelClass}`}>
             {format.dateTimeRange(
               new Date(lodging.checkIn),
               new Date(lodging.checkOut),
               { dateStyle: "medium" },
             )}
-            {" / "}
+            {" · "}
             {lodging.vendor}
           </span>
-        </div>
-        <span className="tabular-nums">{price}</span>
+        </span>
+        <span className="text-[13px] font-bold tabular-nums">{price}</span>
       </li>
     ))
     .exhaustive();
@@ -171,24 +204,26 @@ const PlanDetails = ({ plan }: { plan: TripPlanView }): ReactElement => {
   const format = useFormatter();
 
   return (
-    <div className="flex flex-col gap-3">
-      <ul className="divide-y divide-black/8 dark:divide-white/[.145]">
+    <div className="flex flex-col">
+      <ul className="flex flex-col divide-y divide-border-sub">
         {plan.items.map((item) => (
           <TripItemRow key={itemKey(item)} item={item} />
         ))}
       </ul>
-      <div className="flex flex-wrap items-baseline justify-between gap-2 border-t border-black/8 pt-3 dark:border-white/[.145]">
-        <span className={labelClass}>{t("total")}</span>
-        <span className="text-xl font-semibold tabular-nums">
+      <div className="mt-0.5 flex flex-wrap items-baseline justify-end gap-2 border-t-2 border-divider-strong pt-2.5">
+        <span className="text-xs text-muted">{t("total")}</span>
+        <span className="text-[19px] font-bold tabular-nums">
           {format.number(
             plan.total.amount,
             moneyFormatOptions(plan.total.currency),
           )}
         </span>
       </div>
-      <div className="flex flex-col gap-1">
-        <span className={labelClass}>{t("rationale")}</span>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+      <div className="mt-3 border-t border-dashed border-divider-strong pt-2.5">
+        <div className="mb-1 text-xs font-semibold text-accent">
+          {t("rationale")}
+        </div>
+        <p className="text-[12px] leading-relaxed text-muted">
           {plan.rationale}
         </p>
       </div>
@@ -203,19 +238,19 @@ const Waiting = ({
   message: string;
   hint?: string;
 }): ReactElement => {
+  const t = useTranslations("TripStepper");
+
   return (
-    <div
-      className="flex flex-col gap-1 rounded-xl bg-zinc-100 px-4 py-3 dark:bg-zinc-900"
-      role="status"
-      aria-busy="true"
-    >
-      <span className="flex items-center gap-2 font-medium">
-        <span className="size-2 animate-pulse rounded-full bg-zinc-900 dark:bg-zinc-100" />
+    <div className="flex flex-col gap-2" role="status" aria-busy="true">
+      <span className="flex flex-wrap items-center gap-2.5 text-[12.5px] font-semibold">
+        <span
+          className="h-2 w-2 animate-pulse rounded-full bg-accent"
+          aria-hidden="true"
+        />
         {message}
+        <span className={warnPillClass}>{t("inProgress")}</span>
       </span>
-      {hint === undefined ? undefined : (
-        <span className="text-sm text-zinc-600 dark:text-zinc-400">{hint}</span>
-      )}
+      {hint === undefined ? undefined : <p className={noteClass}>{hint}</p>}
     </div>
   );
 };
@@ -227,21 +262,26 @@ const AuthorizationSummary = ({
 }): ReactElement => {
   const t = useTranslations("TripStepper");
   const format = useFormatter();
+  const rowClass = "flex flex-wrap items-center gap-3 p-3 px-3.5";
+  const keyClass = "w-[120px] flex-none text-[10.5px] font-bold text-faint";
 
   return (
-    <dl className="grid gap-3 rounded-xl bg-amber-50 px-4 py-3 text-sm dark:bg-amber-950/40 [grid-template-columns:repeat(auto-fit,minmax(10rem,1fr))]">
-      <div>
-        <dt className={labelClass}>{t("publicHash")}</dt>
-        <dd className="font-mono" title={authorization.publicHash}>
+    <dl className="flex flex-col divide-y divide-border-sub overflow-hidden rounded-xl border border-border-sub bg-surface text-[12.5px]">
+      <div className={rowClass}>
+        <dt className={keyClass}>{t("publicHash")}</dt>
+        <dd
+          className="font-mono text-[10.5px] text-accent"
+          title={authorization.publicHash}
+        >
           {shortHash(authorization.publicHash)}
         </dd>
       </div>
-      <div>
-        <dt className={labelClass}>{t("paymentRef")}</dt>
-        <dd className="font-mono">{authorization.paymentRef}</dd>
+      <div className={rowClass}>
+        <dt className={keyClass}>{t("paymentRef")}</dt>
+        <dd className="font-mono text-[10.5px]">{authorization.paymentRef}</dd>
       </div>
-      <div>
-        <dt className={labelClass}>{t("authorizedAt")}</dt>
+      <div className={rowClass}>
+        <dt className={keyClass}>{t("authorizedAt")}</dt>
         <dd>
           {format.dateTime(new Date(authorization.authorizedAt), {
             dateStyle: "medium",
@@ -278,13 +318,52 @@ const ErrorMessage = ({ error }: { error: PaymentError }): ReactElement => {
     .exhaustive();
 
   return (
-    <p
-      className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
-      role="alert"
-    >
+    <p className={dangerBoxClass} role="alert">
       {text}
     </p>
   );
+};
+
+const DoneCard = ({
+  authorization,
+  calendarEventId,
+  onReset,
+}: {
+  authorization: AuthorizationView;
+  calendarEventId: string;
+  onReset: () => void;
+}): ReactElement => {
+  const t = useTranslations("TripStepper");
+
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-done-border bg-done-bg p-4 text-center">
+      <div
+        className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-ok text-lg text-white"
+        aria-hidden="true"
+      >
+        ✓
+      </div>
+      <div>
+        <h3 className="text-[14.5px] font-bold">{t("writtenTitle")}</h3>
+        <p className="mt-1 text-[12.5px] text-muted">
+          {t("writtenBody", { id: calendarEventId })}
+        </p>
+      </div>
+      <div className="text-left">
+        <AuthorizationSummary authorization={authorization} />
+      </div>
+      <div className="flex justify-center">
+        <button type="button" className={okButtonClass} onClick={onReset}>
+          {t("reset")}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+type Rendered = {
+  body: ReactElement;
+  actions?: ReactElement;
 };
 
 /**
@@ -300,111 +379,100 @@ export const TripStepper = ({
 }: Props): ReactElement => {
   const t = useTranslations("TripStepper");
 
-  const body = match(state)
-    .with({ step: "idle" }, () => (
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">{t("idle")}</p>
-    ))
-    .with({ step: "proposing" }, ({ event }) => (
-      <Waiting message={t("proposing", { title: event.title })} />
-    ))
-    .with({ step: "proposed" }, ({ plan }) => (
-      <div className="flex flex-col gap-4">
-        <PlanDetails plan={plan} />
-        <div className="flex flex-wrap gap-2">
+  const rendered: Rendered = match(state)
+    .with({ step: "idle" }, () => ({
+      body: <p className={emptyStateClass}>{t("idle")}</p>,
+    }))
+    .with({ step: "proposing" }, ({ event }) => ({
+      body: <Waiting message={t("proposing", { title: event.title })} />,
+    }))
+    .with({ step: "proposed" }, ({ plan }) => ({
+      body: <PlanDetails plan={plan} />,
+      actions: (
+        <>
           <button
             type="button"
-            className={primaryButtonClass}
+            className={strongButtonClass}
             onClick={onApprove}
           >
             {t("approve")}
           </button>
-          <button
-            type="button"
-            className={secondaryButtonClass}
-            onClick={onReset}
-          >
+          <button type="button" className={ghostButtonClass} onClick={onReset}>
             {t("discard")}
           </button>
-        </div>
-      </div>
-    ))
-    .with({ step: "approved" }, ({ plan }) => (
-      <div className="flex flex-col gap-4">
-        <PlanDetails plan={plan} />
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className={primaryButtonClass} onClick={onPay}>
+        </>
+      ),
+    }))
+    .with({ step: "approved" }, ({ plan }) => ({
+      body: <PlanDetails plan={plan} />,
+      actions: (
+        <>
+          <button type="button" className={strongButtonClass} onClick={onPay}>
             {t("pay")}
           </button>
-          <button
-            type="button"
-            className={secondaryButtonClass}
-            onClick={onReset}
-          >
+          <button type="button" className={ghostButtonClass} onClick={onReset}>
             {t("discard")}
           </button>
-        </div>
-      </div>
-    ))
-    .with({ step: "proving" }, ({ plan }) => (
-      <div className="flex flex-col gap-4">
-        <PlanDetails plan={plan} />
-        <Waiting message={t("proving")} hint={t("provingHint")} />
-      </div>
-    ))
-    .with({ step: "authorized" }, ({ authorization }) => (
-      <div className="flex flex-col gap-4">
-        <h3 className="font-semibold">{t("authorizedTitle")}</h3>
-        <AuthorizationSummary authorization={authorization} />
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className={primaryButtonClass}
-            onClick={onWriteBack}
-          >
-            {t("writeBack")}
-          </button>
-        </div>
-      </div>
-    ))
-    .with({ step: "writing" }, ({ authorization }) => (
-      <div className="flex flex-col gap-4">
-        <AuthorizationSummary authorization={authorization} />
-        <Waiting message={t("writing")} />
-      </div>
-    ))
-    .with({ step: "written" }, ({ authorization, calendarEventId }) => (
-      <div className="flex flex-col gap-4">
-        <h3 className="font-semibold">{t("writtenTitle")}</h3>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          {t("writtenBody", { id: calendarEventId })}
-        </p>
-        <AuthorizationSummary authorization={authorization} />
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className={secondaryButtonClass}
-            onClick={onReset}
-          >
-            {t("reset")}
-          </button>
-        </div>
-      </div>
-    ))
-    .with({ step: "failed" }, ({ plan, error }) => (
-      <div className="flex flex-col gap-4">
-        <PlanDetails plan={plan} />
-        <ErrorMessage error={error} />
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className={secondaryButtonClass}
-            onClick={onReset}
-          >
-            {t("reset")}
-          </button>
-        </div>
-      </div>
-    ))
+        </>
+      ),
+    }))
+    .with({ step: "proving" }, ({ plan }) => ({
+      body: (
+        <>
+          <PlanDetails plan={plan} />
+          <Waiting message={t("proving")} hint={t("provingHint")} />
+        </>
+      ),
+    }))
+    .with({ step: "authorized" }, ({ authorization }) => ({
+      body: (
+        <>
+          <h3 className="text-[13.5px] font-semibold">
+            {t("authorizedTitle")}
+          </h3>
+          <AuthorizationSummary authorization={authorization} />
+        </>
+      ),
+      actions: (
+        <button
+          type="button"
+          className={primaryButtonClass}
+          onClick={onWriteBack}
+        >
+          {t("writeBack")}
+        </button>
+      ),
+    }))
+    .with({ step: "writing" }, ({ authorization }) => ({
+      body: (
+        <>
+          <AuthorizationSummary authorization={authorization} />
+          <Waiting message={t("writing")} />
+        </>
+      ),
+    }))
+    .with({ step: "written" }, ({ authorization, calendarEventId }) => ({
+      body: (
+        <DoneCard
+          authorization={authorization}
+          calendarEventId={calendarEventId}
+          onReset={onReset}
+        />
+      ),
+    }))
+    .with({ step: "failed" }, ({ plan, error }) => ({
+      body: (
+        <>
+          <PlanDetails plan={plan} />
+          <ErrorMessage error={error} />
+        </>
+      ),
+      actions: (
+        <button type="button" className={ghostButtonClass} onClick={onReset}>
+          {t("reset")}
+        </button>
+      ),
+    }))
     .exhaustive();
 
   const heading =
@@ -413,12 +481,17 @@ export const TripStepper = ({
       : t("titleFor", { title: state.event.title });
 
   return (
-    <section className={`${cardClass} flex flex-col gap-5`}>
-      <div className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold">{heading}</h2>
-        <StepIndicator state={state} />
+    <section className={panelCardClass}>
+      <div className={panelBodyClass}>
+        <div className="flex flex-col gap-3">
+          <h2 className="text-[13.5px] font-semibold">{heading}</h2>
+          <StepIndicator state={state} />
+        </div>
+        {rendered.body}
       </div>
-      {body}
+      {rendered.actions === undefined ? undefined : (
+        <div className={panelFooterClass}>{rendered.actions}</div>
+      )}
     </section>
   );
 };

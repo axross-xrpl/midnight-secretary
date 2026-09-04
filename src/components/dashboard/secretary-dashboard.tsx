@@ -158,8 +158,8 @@ export const SecretaryDashboard = ({ now }: Props): ReactElement => {
   }, [state, now, mandate]);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))]">
+    <div className="flex flex-col gap-5">
+      <div className="grid items-start gap-3.5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))]">
         <MandateCard mandate={mandate} />
         <EventList
           events={events}
