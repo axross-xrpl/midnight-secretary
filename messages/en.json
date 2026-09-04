@@ -24,7 +24,9 @@
     "cap": "Cap",
     "spent": "Spent",
     "purpose": "Purpose",
-    "expires": "Expires"
+    "expires": "Expires",
+    "initial": "M",
+    "usedPercent": "{percent}% of the cap used"
   },
   "EventList": {
     "title": "Upcoming events",
@@ -32,7 +34,8 @@
     "tripChip": "Trip to {destination}",
     "propose": "Propose a plan",
     "allDay": "all day",
-    "empty": "No events in the next 14 days."
+    "empty": "No events in the next 14 days.",
+    "otherChip": "Other"
   },
   "TripStepper": {
     "title": "Trip plan",
@@ -71,7 +74,8 @@
       "overBudget": "Over budget: this trip costs {requested} but only {remaining} remains on the mandate.",
       "expired": "The mandate expired on {date}.",
       "proofFailed": "Proof generation failed. Try again."
-    }
+    },
+    "inProgress": "In progress"
   },
   "LedgerPanel": {
     "title": "Two ledgers, one payment",

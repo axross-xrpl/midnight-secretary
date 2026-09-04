@@ -24,7 +24,9 @@
     "cap": "上限",
     "spent": "使用済み",
     "purpose": "用途",
-    "expires": "有効期限"
+    "expires": "有効期限",
+    "initial": "委",
+    "usedPercent": "上限の {percent}% を使用"
   },
   "EventList": {
     "title": "今後の予定",
@@ -32,7 +34,8 @@
     "tripChip": "{destination} への出張",
     "propose": "計画を提案",
     "allDay": "終日",
-    "empty": "今後 14 日の予定はありません。"
+    "empty": "今後 14 日の予定はありません。",
+    "otherChip": "その他"
   },
   "TripStepper": {
     "title": "出張計画",
@@ -71,7 +74,8 @@
       "overBudget": "予算超過: この出張は {requested} かかりますが、委任の残りは {remaining} です。",
       "expired": "委任は {date} に期限切れになりました。",
       "proofFailed": "証明の生成に失敗しました。もう一度お試しください。"
-    }
+    },
+    "inProgress": "処理中"
   },
   "LedgerPanel": {
     "title": "2 つの台帳、1 つの支払い",
