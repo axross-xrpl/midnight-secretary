@@ -23,6 +23,7 @@
     "next-intl": "^4.13.7",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "ts-pattern": "^5.9.0",
     "zod": "^4.5.4"
   },
   "devDependencies": {
