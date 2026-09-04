@@ -159,14 +159,14 @@
     "total": "{amount} {currency}"
   },
   "MandateCard": {
-    "title": "あなたの委任",
+    "title": "あなたの支払い枠",
     "badge": "プライベート状態",
     "remaining": "残り",
     "cap": "上限",
     "spent": "使用済み",
     "purpose": "用途",
     "expires": "有効期限",
-    "initial": "委",
+    "initial": "枠",
     "usedPercent": "上限の {percent}% を使用"
   },
   "EventList": {
@@ -199,9 +199,9 @@
     "lodging": "{hotel}、{nights}泊",
     "approve": "計画を承認",
     "discard": "取り消す",
-    "pay": "委任で支払う",
+    "pay": "支払い枠で支払う",
     "proving": "ゼロ知識証明を生成中...",
-    "provingHint": "この証明は、上限額、使用額、あなたの身元を明かさずに、支払いが委任の範囲内であることを示します。",
+    "provingHint": "この証明は、上限額、使用額、あなたの身元を明かさずに、支払いが支払い枠の範囲内であることを示します。",
     "authorizedTitle": "支払いが承認されました",
     "publicHash": "公開ハッシュ",
     "paymentRef": "支払い参照",
@@ -212,8 +212,8 @@
     "writtenBody": "出張を {id} としてカレンダーに登録しました。",
     "reset": "別の予定を選ぶ",
     "errors": {
-      "overBudget": "予算超過: この出張は {requested} かかりますが、委任の残りは {remaining} です。",
-      "expired": "委任は {date} に期限切れになりました。",
+      "overBudget": "予算超過: この出張は {requested} かかりますが、支払い枠の残りは {remaining} です。",
+      "expired": "支払い枠は {date} に期限切れになりました。",
       "proofFailed": "証明の生成に失敗しました。もう一度お試しください。"
     },
     "inProgress": "処理中"
@@ -225,11 +225,11 @@
       "eyebrow": "公開台帳",
       "title": "ネットワークに記録されるもの",
       "who": "indexer を通じて誰でも読めます。",
-      "commitments": "委任のコミットメント",
+      "commitments": "支払い枠のコミットメント",
       "authorizations": "承認",
       "none": "まだありません",
       "count": "承認済みの支払い",
-      "note": "金額、上限、日付、身元はここに現れません。ハッシュは支払いが委任に収まったことだけを証明します。"
+      "note": "金額、上限、日付、身元はここに現れません。ハッシュは支払いが支払い枠に収まったことだけを証明します。"
     },
     "private": {
       "eyebrow": "プライベート状態",
