@@ -5,7 +5,8 @@
   },
   "Dashboard": {
     "title": "Dashboard",
-    "welcome": "Welcome, {name}."
+    "welcome": "Welcome, {name}.",
+    "sampleNotice": "Sample data. Calendar, fare catalog, and contract wiring arrive in a later change."
   },
   "Auth": {
     "signInWithGoogle": "Sign in with Google",
@@ -15,5 +16,87 @@
     "label": "Language",
     "en": "English",
     "ja": "日本語"
+  },
+  "MandateCard": {
+    "title": "Your mandate",
+    "badge": "Private state",
+    "remaining": "Remaining",
+    "cap": "Cap",
+    "spent": "Spent",
+    "purpose": "Purpose",
+    "expires": "Expires"
+  },
+  "EventList": {
+    "title": "Upcoming events",
+    "subtitle": "The next 14 days from your Google Calendar. Trips get a plan proposal.",
+    "tripChip": "Trip to {destination}",
+    "propose": "Propose a plan",
+    "allDay": "all day",
+    "empty": "No events in the next 14 days."
+  },
+  "TripStepper": {
+    "title": "Trip plan",
+    "titleFor": "Trip plan for {title}",
+    "steps": {
+      "proposed": "Proposed",
+      "approved": "Approved",
+      "paid": "Paid",
+      "written": "On calendar"
+    },
+    "idle": "Pick an event that looks like a trip and the secretary drafts a plan from the fare catalog.",
+    "proposing": "Drafting a plan for {title}...",
+    "total": "Total",
+    "rationale": "Why this plan",
+    "transport": "{from} to {to} ({mode})",
+    "modes": {
+      "rail": "rail",
+      "air": "air"
+    },
+    "lodging": "{hotel}, {nights, plural, one {# night} other {# nights}}",
+    "approve": "Approve plan",
+    "discard": "Discard",
+    "pay": "Pay under mandate",
+    "proving": "Generating the zero-knowledge proof...",
+    "provingHint": "The proof shows the payment fits your mandate without revealing the cap, what you spent, or who you are.",
+    "authorizedTitle": "Payment authorized",
+    "publicHash": "Public hash",
+    "paymentRef": "Payment reference",
+    "authorizedAt": "Authorized at",
+    "writeBack": "Add to calendar",
+    "writing": "Writing the trip to Google Calendar...",
+    "writtenTitle": "Done",
+    "writtenBody": "The trip is on your calendar as {id}.",
+    "reset": "Start another",
+    "errors": {
+      "overBudget": "Over budget: this trip costs {requested} but only {remaining} remains on the mandate.",
+      "expired": "The mandate expired on {date}.",
+      "proofFailed": "Proof generation failed. Try again."
+    }
+  },
+  "LedgerPanel": {
+    "title": "Two ledgers, one payment",
+    "subtitle": "What everyone can see next to what only you can see.",
+    "public": {
+      "eyebrow": "Public ledger",
+      "title": "What the network records",
+      "who": "Anyone can read this through the indexer.",
+      "commitments": "Mandate commitments",
+      "authorizations": "Authorizations",
+      "none": "None yet",
+      "count": "Authorized payments",
+      "note": "No amounts, caps, dates, or identities appear here. The hashes prove a payment fit a mandate, nothing more."
+    },
+    "private": {
+      "eyebrow": "Private state",
+      "title": "What stays with you",
+      "who": "Only you and your secretary can read this.",
+      "cap": "Cap",
+      "spent": "Spent",
+      "remaining": "Remaining",
+      "expires": "Expires",
+      "purpose": "Purpose",
+      "commitment": "Commitment",
+      "note": "Held off-chain and proven on-chain. The commitment is the only link to the public side."
+    }
   }
 }
