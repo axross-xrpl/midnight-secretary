@@ -1,5 +1,15 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Setup
+
+Node.js 24 is pinned with [mise](https://mise.jdx.dev/). Install mise, then run:
+
+```bash
+mise trust     # trust this repository's mise.toml
+mise install   # install the pinned Node.js
+npm install    # install dependencies (this also installs the git hooks)
+```
+
 ## Getting Started
 
 First, run the development server:
