@@ -28,9 +28,10 @@ export default function LocaleSwitcher() {
             locale={locale}
             aria-current={isActive}
             className={
-              isActive
-                ? "rounded-full bg-white px-3 py-1 font-medium text-black shadow-sm dark:bg-black dark:text-white"
-                : "rounded-full px-3 py-1 text-zinc-500 hover:text-black dark:text-zinc-400 dark:hover:text-white"
+              "flex w-16 items-center justify-center rounded-full py-1 text-center font-medium " +
+              (isActive
+                ? "bg-white text-black shadow-sm dark:bg-black dark:text-white"
+                : "text-zinc-500 hover:text-black dark:text-zinc-400 dark:hover:text-white")
             }
           >
             {t(locale)}
