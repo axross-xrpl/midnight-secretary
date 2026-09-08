@@ -1,7 +1,8 @@
 {
   "NavBar": {
     "home": "ホーム",
-    "dashboard": "ダッシュボード"
+    "dashboard": "ダッシュボード",
+    "tasks": "タスク"
   },
   "Dashboard": {
     "title": "ダッシュボード",
@@ -15,5 +16,25 @@
     "label": "言語",
     "en": "English",
     "ja": "日本語"
+  },
+  "TasksPage": {
+    "title": "タスク"
+  },
+  "CalendarScan": {
+    "scan": "カレンダーをスキャン",
+    "scanning": "スキャン中...",
+    "helper": "Google カレンダーの今後 30 日分の予定を読み取ります。",
+    "count": "今後 30 日の予定 {count} 件",
+    "empty": "今後 30 日の予定はありません。",
+    "noTitle": "(タイトルなし)",
+    "noLocation": "場所未設定",
+    "errors": {
+      "unauthenticated": "カレンダーを読むには Google でサインインし直してください。",
+      "refreshFailed": "Google のサインインが期限切れです。サインインし直してください。",
+      "forbidden": "この Google アカウントはカレンダーへのアクセスを許可していません。サインインし直して許可してください。",
+      "http": "スキャンに失敗しました。Google カレンダーがエラーを返しました。サーバのログをご確認ください。",
+      "network": "スキャンに失敗しました。サーバから Google カレンダーに接続できませんでした。",
+      "schema": "スキャンに失敗しました。応答の形が想定と違います。サーバのログをご確認ください。"
+    }
   }
 }
