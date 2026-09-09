@@ -27,6 +27,8 @@ export default getRequestConfig(async () => {
 
   return {
     locale: requested,
+    // 日時の表示に使うタイムゾーンを固定し、サーバとブラウザで同じ文字列にする
+    timeZone: "Asia/Tokyo",
     messages: messagesByLocale[requested],
   };
 });

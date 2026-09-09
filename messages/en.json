@@ -1,7 +1,8 @@
 {
   "NavBar": {
     "home": "Home",
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "tasks": "Tasks"
   },
   "Dashboard": {
     "title": "Dashboard",
@@ -15,5 +16,25 @@
     "label": "Language",
     "en": "English",
     "ja": "日本語"
+  },
+  "TasksPage": {
+    "title": "Tasks"
+  },
+  "CalendarScan": {
+    "scan": "Scan calendar",
+    "scanning": "Scanning...",
+    "helper": "Reads the next 30 days of your Google Calendar.",
+    "count": "{count, plural, one {# event} other {# events}} in the next 30 days",
+    "empty": "No events in the next 30 days.",
+    "noTitle": "(No title)",
+    "noLocation": "No location",
+    "errors": {
+      "unauthenticated": "Sign in with Google again to scan the calendar.",
+      "refreshFailed": "The Google sign-in expired. Sign in again.",
+      "forbidden": "This Google account did not grant calendar access. Sign in again and allow it.",
+      "http": "Scan failed. Google Calendar returned an error; check the server log.",
+      "network": "Scan failed. The server could not reach Google Calendar.",
+      "schema": "Scan failed. The response had an unexpected shape; check the server log."
+    }
   }
 }
