@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Result } from "@/lib/result";
-import { ok } from "@/lib/result";
+import { all, err, fromThrowable, ok } from "@/lib/result";
+import type { SafeParseLike } from "@/lib/schema";
 
 /**
  * port 1 つの実装をどこから持ってくるか
@@ -32,11 +33,24 @@ export type AuthSource = z.infer<typeof authSourceSchema>;
 export type SourceMode = z.infer<typeof sourceModeSchema>;
 
 /**
+ * 切り替えられる port の一覧を、パースされ画面に並ぶ順で持つ
+ *
+ * ここに port を足すと、コンパイラが他に必要な箇所をすべて列挙する
+ */
+export const PORT_NAMES = [
+  "calendar",
+  "catalog",
+  "planner",
+  "mandate",
+  "store",
+] as const;
+
+/**
  * 独立して切り替えられる port
  *
  * レーンの担当者 1 人につき 1 つ
  */
-export type PortName = "calendar" | "catalog" | "planner" | "mandate" | "store";
+export type PortName = (typeof PORT_NAMES)[number];
 
 /**
  * auth の両方の variant に共通する source
@@ -61,16 +75,18 @@ export type PortSources =
  * `parsePortSources` が読む環境変数
  *
  * 値は上のスキーマのリテラル
+ * `nextAuthUrl` は next-auth 自身の変数で、ここでは dev サインインを localhost に限るためだけに読む
  */
 export const SOURCE_ENV_KEYS = {
   mode: "SECRETARY_MODE",
   auth: "SECRETARY_AUTH",
+  nextAuthUrl: "NEXTAUTH_URL",
   calendar: "SECRETARY_CALENDAR",
   catalog: "SECRETARY_CATALOG",
   planner: "SECRETARY_PLANNER",
   mandate: "SECRETARY_MANDATE",
   store: "SECRETARY_STORE",
-} as const satisfies Record<PortName | "mode" | "auth", string>;
+} as const satisfies Record<PortName | "mode" | "auth" | "nextAuthUrl", string>;
 
 /**
  * すべて real
@@ -117,7 +133,76 @@ export type SourcesError =
       value: string;
       allowed: readonly string[];
     }
-  | { kind: "realCalendarNeedsGoogleAuth" };
+  | { kind: "realCalendarNeedsGoogleAuth" }
+  | { kind: "devAuthRequiresLocalhost"; nextAuthUrl: string };
+
+// zod の enum のうちこのモジュールが必要とする部分で、受け付けるリテラルと throw しないパース
+type EnumSchema<T extends string> = {
+  options: readonly T[];
+  safeParse: (value: unknown) => SafeParseLike<T>;
+};
+
+// dev サインインはボタンを押した人を誰でも信用するので、公開ホストで応答してはならない
+const LOCALHOST_HOSTNAMES: readonly string[] = [
+  "localhost",
+  "127.0.0.1",
+  "[::1]",
+];
+
+const parseEnvValue = <T extends string>(
+  key: string,
+  raw: string | undefined,
+  fallback: T,
+  schema: EnumSchema<T>,
+): Result<T, SourcesError> => {
+  if (raw === undefined) {
+    return ok(fallback);
+  }
+
+  const parsed = schema.safeParse(raw);
+
+  if (!parsed.success) {
+    return err({
+      kind: "invalidValue",
+      key,
+      value: raw,
+      allowed: schema.options,
+    });
+  }
+
+  return ok(parsed.data);
+};
+
+const presetFor = (mode: SourceMode): PortSources => {
+  if (mode === "demo") {
+    return DEMO_SOURCES;
+  }
+
+  return REAL_SOURCES;
+};
+
+const checkDevAuthUrl = (
+  raw: string | undefined,
+): Result<undefined, SourcesError> => {
+  const rejected: SourcesError = {
+    kind: "devAuthRequiresLocalhost",
+    nextAuthUrl: raw ?? "",
+  };
+  const url = fromThrowable(
+    () => new URL(raw ?? ""),
+    () => rejected,
+  );
+
+  if (!url.ok) {
+    return url;
+  }
+
+  if (!LOCALHOST_HOSTNAMES.includes(url.value.hostname)) {
+    return err(rejected);
+  }
+
+  return ok(undefined);
+};
 
 /**
  * 環境変数から port の source を解決する
@@ -126,9 +211,71 @@ export type SourcesError =
  * `SECRETARY_AUTH=dev` と `SECRETARY_CALENDAR=real` の組み合わせは、黙って格下げせずに拒否する
  */
 export const parsePortSources = (
-  _env: EnvLike,
+  env: EnvLike,
 ): Result<PortSources, SourcesError> => {
-  return ok(REAL_SOURCES);
+  const mode = parseEnvValue(
+    SOURCE_ENV_KEYS.mode,
+    env[SOURCE_ENV_KEYS.mode],
+    "normal",
+    sourceModeSchema,
+  );
+
+  if (!mode.ok) {
+    return mode;
+  }
+
+  const preset = presetFor(mode.value);
+  const auth = parseEnvValue(
+    SOURCE_ENV_KEYS.auth,
+    env[SOURCE_ENV_KEYS.auth],
+    preset.auth,
+    authSourceSchema,
+  );
+
+  if (!auth.ok) {
+    return auth;
+  }
+
+  const ports = all(
+    PORT_NAMES.map((port) =>
+      parseEnvValue(
+        SOURCE_ENV_KEYS[port],
+        env[SOURCE_ENV_KEYS[port]],
+        preset[port],
+        portSourceSchema,
+      ),
+    ),
+  );
+
+  if (!ports.ok) {
+    return ports;
+  }
+
+  // パースした値は PORT_NAMES の順で返る
+  const [calendar, catalog, planner, mandate, store] = ports.value;
+
+  if (auth.value === "dev" && calendar === "real") {
+    return err({ kind: "realCalendarNeedsGoogleAuth" });
+  }
+
+  if (auth.value === "dev") {
+    const localhost = checkDevAuthUrl(env[SOURCE_ENV_KEYS.nextAuthUrl]);
+
+    if (!localhost.ok) {
+      return localhost;
+    }
+
+    return ok({
+      auth: "dev",
+      calendar: "fake",
+      catalog,
+      planner,
+      mandate,
+      store,
+    });
+  }
+
+  return ok({ auth: "google", calendar, catalog, planner, mandate, store });
 };
 
 /**
@@ -136,6 +283,6 @@ export const parsePortSources = (
  *
  * 空ならプロセスはすべて real で動いている
  */
-export const activeFakes = (_sources: PortSources): readonly PortName[] => {
-  return [];
+export const activeFakes = (sources: PortSources): readonly PortName[] => {
+  return PORT_NAMES.filter((port) => sources[port] === "fake");
 };

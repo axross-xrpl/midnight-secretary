@@ -15,7 +15,11 @@ const links = [
   // show the link once the user is signed in.
 ] as const;
 
-export default function NavBar() {
+type NavBarProps = {
+  signInProvider: string;
+};
+
+export default function NavBar({ signInProvider }: NavBarProps) {
   const t = useTranslations("NavBar");
   const { status } = useSession();
 
@@ -32,7 +36,7 @@ export default function NavBar() {
       </nav>
       <div className="flex items-center gap-4">
         <LocaleSwitcher />
-        <AuthStatus />
+        <AuthStatus signInProvider={signInProvider} />
       </div>
     </header>
   );

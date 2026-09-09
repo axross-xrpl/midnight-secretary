@@ -1,5 +1,4 @@
 import type { Result } from "@/lib/result";
-import { err } from "@/lib/result";
 import type {
   IsoDateTime,
   MandateId,
@@ -7,6 +6,7 @@ import type {
   WalletAddress,
 } from "./identifiers";
 import type { Money, MoneyError } from "./money";
+import { subtractMoney } from "./money";
 
 /**
  * ユーザから秘書への支払いの委任を、アプリケーションから見た形で表したもの
@@ -161,9 +161,5 @@ export type MandatePort = {
 export const remainingAllowance = (
   mandate: Mandate,
 ): Result<Money, MoneyError> => {
-  return err({
-    kind: "currencyMismatch",
-    expected: mandate.cap.currency,
-    actual: mandate.spent.currency,
-  });
+  return subtractMoney(mandate.cap, mandate.spent);
 };

@@ -1,10 +1,13 @@
 import type { NewTripId } from "@/application/deps";
 import type { EnvLike } from "@/application/sources";
-import type { SecretaryFactories } from "@/application/wiring";
+import type { RequestContext, SecretaryFactories } from "@/application/wiring";
+import type { CalendarPort } from "@/domain/calendar";
 import type { CalendarEventId, IsoDateTime } from "@/domain/identifiers";
-import type { FakeMandateIds } from "./mandate/fake";
+import { err } from "@/lib/result";
 import { createFakeCalendar, seedCalendarEvents } from "./calendar/fake";
+import { createGoogleCalendar } from "./calendar/google";
 import { createFakeCatalog, seedCatalog } from "./catalog/fake";
+import type { FakeMandateIds } from "./mandate/fake";
 import { createFakeMandate } from "./mandate/fake";
 import { createFakePlanner } from "./planner/fake";
 import { createFakeStore } from "./store/fake";
@@ -21,6 +24,21 @@ export type ProcessResources = {
   newTripId: NewTripId;
   newEventId: () => CalendarEventId;
   mandateIds: FakeMandateIds;
+};
+
+// Google のトークンが無いリクエストはユーザのカレンダーに届かないので、空のふりをするよりそう伝える方がよい
+const UNAUTHENTICATED_CALENDAR: CalendarPort = {
+  listEvents: async () => err({ kind: "unauthenticated" }),
+  getEvent: async () => err({ kind: "unauthenticated" }),
+  insertEvent: async () => err({ kind: "unauthenticated" }),
+};
+
+const googleCalendarFor = (context: RequestContext): CalendarPort => {
+  if (context.googleAccessToken === undefined) {
+    return UNAUTHENTICATED_CALENDAR;
+  }
+
+  return createGoogleCalendar(context.googleAccessToken, { fetch });
 };
 
 /**
@@ -45,7 +63,7 @@ export const createSecretaryFactories = (
   const fakeStore = createFakeStore();
 
   return {
-    calendar: { real: () => fakeCalendar, fake: () => fakeCalendar },
+    calendar: { real: googleCalendarFor, fake: () => fakeCalendar },
     catalog: { real: () => fakeCatalog, fake: () => fakeCatalog },
     planner: { real: () => fakePlanner, fake: () => fakePlanner },
     mandate: { real: () => fakeMandate, fake: () => fakeMandate },

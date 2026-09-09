@@ -4,9 +4,16 @@ import { LogIn, LogOut } from "lucide-react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 
-export default function AuthStatus() {
+type AuthStatusProps = {
+  signInProvider: string;
+};
+
+export default function AuthStatus({ signInProvider }: AuthStatusProps) {
   const t = useTranslations("Auth");
   const { data: session, status } = useSession();
+  // demo モードの dev サインインでは Google の文言を出さない
+  const signInLabel =
+    signInProvider === "google" ? t("signInWithGoogle") : t("signInAsDemoUser");
 
   if (status === "loading") {
     return null;
@@ -28,11 +35,11 @@ export default function AuthStatus() {
   return (
     <button
       type="button"
-      onClick={() => signIn("google")}
+      onClick={() => signIn(signInProvider)}
       className="flex items-center gap-1.5 rounded-full bg-black px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
     >
       <LogIn size={16} />
-      {t("signInWithGoogle")}
+      {signInLabel}
     </button>
   );
 }

@@ -65,16 +65,16 @@ export const selectPort = <P>(
  * `PortSources` を読むのはここだけで、use case はどれが Fake かを知らない
  */
 export const buildSecretaryDeps = (
-  _sources: PortSources,
+  sources: PortSources,
   factories: SecretaryFactories,
   context: RequestContext,
 ): SecretaryDeps => {
   return {
-    calendar: factories.calendar.fake(context),
-    catalog: factories.catalog.fake(context),
-    planner: factories.planner.fake(context),
-    mandate: factories.mandate.fake(context),
-    store: factories.store.fake(context),
+    calendar: selectPort(sources.calendar, factories.calendar, context),
+    catalog: selectPort(sources.catalog, factories.catalog, context),
+    planner: selectPort(sources.planner, factories.planner, context),
+    mandate: selectPort(sources.mandate, factories.mandate, context),
+    store: selectPort(sources.store, factories.store, context),
     newTripId: factories.newTripId,
   };
 };

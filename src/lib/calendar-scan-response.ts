@@ -4,13 +4,19 @@ import type { SchemaError } from "./schema";
 import { fromZod } from "./schema";
 
 /**
- * 予定の開始または終了
+ * 予定がいつ行われるか
  *
  * 終日の予定は日付だけを持ち、時刻ありの予定は ISO 8601 の日時を持つ
+ * 終日の終了日は排他 (その日は含まない)
  */
 export const scanEventTimeSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("allDay"), date: z.string() }),
-  z.object({ kind: z.literal("timed"), dateTime: z.string() }),
+  z.object({
+    kind: z.literal("allDay"),
+    startDate: z.string(),
+    endDate: z.string(),
+  }),
+
+  z.object({ kind: z.literal("timed"), start: z.string(), end: z.string() }),
 ]);
 
 /**
@@ -18,10 +24,10 @@ export const scanEventTimeSchema = z.discriminatedUnion("kind", [
  */
 export const scanEventSchema = z.object({
   id: z.string(),
-  summary: z.string(),
+  title: z.string(),
+  when: scanEventTimeSchema,
   location: z.string().optional(),
-  start: scanEventTimeSchema,
-  end: scanEventTimeSchema,
+  description: z.string().optional(),
 });
 
 /**
@@ -36,6 +42,7 @@ export const scanResponseSchema = z.object({
  */
 export const scanErrorKindSchema = z.enum([
   "unauthenticated",
+  "tokenExpired",
   "refreshFailed",
   "forbidden",
   "http",
@@ -51,7 +58,7 @@ export const scanErrorResponseSchema = z.object({
 });
 
 /**
- * 予定の開始または終了
+ * 予定がいつ行われるか
  */
 export type ScanEventTime = z.infer<typeof scanEventTimeSchema>;
 

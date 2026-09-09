@@ -10,6 +10,55 @@ mise install   # install the pinned Node.js
 npm install    # install dependencies (this also installs the git hooks)
 ```
 
+## Run it
+
+Every port (calendar, fare catalog, planner, spending allowance, storage) can be served either by the
+real system or by an in-process fake, so the app runs with nothing else set up.
+
+### Demo: no Google project, database, LLM key, or Midnight node
+
+```bash
+cp .env.example .env.local
+# .env.local: set NEXTAUTH_SECRET (openssl rand -base64 32) and uncomment SECRETARY_MODE=demo
+npm run build
+npm start
+```
+
+Open [http://localhost:3000](http://localhost:3000) and sign in with the dev sign-in button. Every page
+carries a line naming the ports that are stand-ins. The source variables are read when the server
+starts, so `SECRETARY_MODE=demo npm start` works as well; a misconfiguration stops the server there
+instead of degrading at runtime.
+
+The dev sign-in trusts whoever clicks the button, so it only starts when `NEXTAUTH_URL` points at
+localhost, and it forces the calendar to the fake (that session has no Google token).
+
+### With your own Google Calendar
+
+1. In the Google Cloud Console, create a project and enable the Google Calendar API.
+2. Create an OAuth client (Web application) with the redirect URI
+   `http://localhost:3000/api/auth/callback/google`, and add your account as a test user on the
+   consent screen.
+3. In `.env.local`, set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `NEXTAUTH_SECRET`, and
+   `NEXTAUTH_URL=http://localhost:3000`, and leave `SECRETARY_MODE` unset (everything real).
+4. `npm run build && npm start`, sign in with Google, then open **Tasks** and scan the calendar.
+
+To keep the real calendar while the ports other lanes own stay fake, set only what you need, for
+example `SECRETARY_CATALOG=fake`.
+
+### Source variables
+
+| Variable | Values | Default |
+| --- | --- | --- |
+| `SECRETARY_MODE` | `normal`, `demo` | `normal` |
+| `SECRETARY_AUTH` | `google`, `dev` | from the mode |
+| `SECRETARY_CALENDAR` | `real`, `fake` | from the mode |
+| `SECRETARY_CATALOG` | `real`, `fake` | from the mode |
+| `SECRETARY_PLANNER` | `real`, `fake` | from the mode |
+| `SECRETARY_MANDATE` | `real`, `fake` | from the mode |
+| `SECRETARY_STORE` | `real`, `fake` | from the mode |
+
+Precedence: a per-port variable beats `SECRETARY_MODE`, which beats the `normal` default (everything real).
+
 ## Getting Started
 
 First, run the development server:

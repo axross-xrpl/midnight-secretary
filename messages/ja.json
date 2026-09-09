@@ -11,7 +11,18 @@
   },
   "Auth": {
     "signInWithGoogle": "Googleでサインイン",
+    "signInAsDemoUser": "デモユーザーでサインイン",
     "signOut": "サインアウト"
+  },
+  "FakeNotice": {
+    "message": "デモモード: {ports} は本物ではありません。",
+    "ports": {
+      "calendar": "カレンダー",
+      "catalog": "料金表",
+      "planner": "計画の提案",
+      "mandate": "支払い枠",
+      "store": "保存データ"
+    }
   },
   "LocaleSwitcher": {
     "label": "言語",
@@ -127,6 +138,7 @@
     "noLocation": "場所未設定",
     "errors": {
       "unauthenticated": "カレンダーを読むには Google でサインインし直してください。",
+      "tokenExpired": "Google のセッションが期限切れです。サインインし直してください。",
       "refreshFailed": "Google のサインインが期限切れです。サインインし直してください。",
       "forbidden": "この Google アカウントはカレンダーへのアクセスを許可していません。サインインし直して許可してください。",
       "http": "スキャンに失敗しました。Google カレンダーがエラーを返しました。サーバのログをご確認ください。",
