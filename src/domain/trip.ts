@@ -1,0 +1,141 @@
+import type { CalendarEvent, CalendarEventDraft } from "./calendar";
+import type { CalendarEventId, IsoDateTime, TripId } from "./identifiers";
+import type { Authorization } from "./mandate";
+import type { TripPlan } from "./plan";
+
+/**
+ * 秘書が提案したプラン
+ *
+ * まだ何も確定していない
+ */
+export type ProposedTrip = {
+  status: "proposed";
+  id: TripId;
+  event: CalendarEvent;
+  plan: TripPlan;
+  proposedAt: IsoDateTime;
+};
+
+/**
+ * ユーザが承認したプラン
+ *
+ * 支払えるのは承認済みの出張だけ
+ * `authorizations` は候補ごとの支払いのうち済んだもので、承認直後は空
+ * 途中で失敗した支払いを再試行するとき、済んだ候補を飛ばすためにここに残す
+ */
+export type ApprovedTrip = {
+  status: "approved";
+  id: TripId;
+  event: CalendarEvent;
+  plan: TripPlan;
+  proposedAt: IsoDateTime;
+  approvedAt: IsoDateTime;
+  authorizations: readonly Authorization[];
+};
+
+/**
+ * ユーザの mandate のもとで候補ごとの支払いがすべて承認され、送金された出張
+ *
+ * `authorizations` は計画の候補 (往路、復路、あれば宿泊) と同じ数になる
+ */
+export type PaidTrip = {
+  status: "paid";
+  id: TripId;
+  event: CalendarEvent;
+  plan: TripPlan;
+  proposedAt: IsoDateTime;
+  approvedAt: IsoDateTime;
+  authorizations: readonly Authorization[];
+  paidAt: IsoDateTime;
+};
+
+/**
+ * ユーザのカレンダーに書き戻された支払い済みの出張
+ */
+export type WrittenTrip = {
+  status: "written";
+  id: TripId;
+  event: CalendarEvent;
+  plan: TripPlan;
+  proposedAt: IsoDateTime;
+  approvedAt: IsoDateTime;
+  authorizations: readonly Authorization[];
+  paidAt: IsoDateTime;
+  writtenEventId: CalendarEventId;
+  writtenAt: IsoDateTime;
+};
+
+/**
+ * 出張が取りうるすべての状態
+ *
+ * 永続化されるのは `status` タグ
+ */
+export type Trip = ProposedTrip | ApprovedTrip | PaidTrip | WrittenTrip;
+
+/**
+ * 永続化される出張の状態
+ */
+export type TripStatus = "proposed" | "approved" | "paid" | "written";
+
+/**
+ * カレンダーに書き戻す予定のロケール別の文言
+ *
+ * UI の境界で作られる
+ */
+export type EventText = {
+  title: string;
+  description: string;
+};
+
+/**
+ * ユーザの承認を記録する
+ */
+export const markApproved = (
+  trip: ProposedTrip,
+  approvedAt: IsoDateTime,
+): ApprovedTrip => {
+  return { ...trip, status: "approved", approvedAt, authorizations: [] };
+};
+
+/**
+ * 候補ごとの支払いがすべて済んだことを記録する
+ *
+ * `authorizations` は計画の候補と同じ数で、順序は往路、復路、宿泊
+ */
+export const markPaid = (
+  trip: ApprovedTrip,
+  authorizations: readonly Authorization[],
+  paidAt: IsoDateTime,
+): PaidTrip => {
+  return { ...trip, status: "paid", authorizations, paidAt };
+};
+
+/**
+ * カレンダーへの書き戻しを記録する
+ */
+export const markWritten = (
+  trip: PaidTrip,
+  writtenEventId: CalendarEventId,
+  writtenAt: IsoDateTime,
+): WrittenTrip => {
+  return { ...trip, status: "written", writtenEventId, writtenAt };
+};
+
+/**
+ * 支払い済みの出張のカレンダーの予定を組み立てる (出発から到着まで、場所は目的地)
+ */
+export const calendarDraftForTrip = (
+  trip: PaidTrip,
+  text: EventText,
+): CalendarEventDraft => {
+  return {
+    title: text.title,
+    when: {
+      kind: "timed",
+      start: trip.plan.outbound.departAt,
+      end: trip.plan.inbound.arriveAt,
+    },
+    location: trip.plan.intent.destination,
+    description: text.description,
+  };
+};
