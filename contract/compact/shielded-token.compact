@@ -1,0 +1,96 @@
+pragma language_version >= 0.23;
+
+import CompactStandardLibrary;
+
+witness localNonceSeed(): Bytes<32>;
+witness minterSecretKey(): Bytes<32>;
+
+export ledger token_color: Bytes<32>;
+export ledger initialized: Boolean;
+export ledger mints: Counter;
+export ledger minter: Bytes<32>;
+
+// Remaining budget mint_and_send() may mint. Starts at 0 -- see token.compact's
+// sendAllowance for why a fresh deploy is deliberately unable to mint.
+export ledger mintAllowance: Uint<64>;
+
+constructor() {
+  minter = disclose(deriveMinterKey(minterSecretKey()));
+  initialized = false;
+}
+
+export circuit deriveMinterKey(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "tutorial:shielded:minter:v1"), sk]);
+}
+
+export circuit getMintCount(): Uint<64> {
+  return mints.read();
+}
+
+export circuit getInitialized(): Boolean {
+  return initialized;
+}
+
+export circuit getMintAllowance(): Uint<64> {
+  return mintAllowance;
+}
+
+// Owner-gated. Absolute set, not additive -- same reasoning as token.compact's
+// setSendAllowance.
+export circuit setMintAllowance(newAllowance: Uint<64>): [] {
+  assert(minter == deriveMinterKey(minterSecretKey()), "not authorized to set allowance");
+  mintAllowance = disclose(newAllowance);
+}
+
+// Owner-gated, arbitrary-recipient mint -- mirrors token.compact's sendToken:
+// only the owner (here "minter") can call it, and it can be called repeatedly
+// for any recipient. Unlike the unshielded side, this MINTS new supply on
+// every call rather than distributing from a fixed pool set at deploy time --
+// minting a fixed shielded supply during construction is the pattern that
+// currently fails the ledger's effects check (see the linked GitHub issue).
+// Also note: unlike sendToken, the recipient gets no automatic wallet
+// notification for a shielded coin sent by someone else -- they need to be
+// told out-of-band to look for it.
+//
+// On what this leaks. disclose() here is an acknowledgement, not a
+// publication -- it silences the taint analysis and emits nothing by itself.
+// What actually reaches the public transcript was read off the generated
+// Impact ops:
+//   - amount: PUBLIC, unavoidably. mintShieldedToken pushes the raw value as a
+//     plaintext cell into the kernel's per-domain mint-accounting map so the
+//     ledger can police supply. Every mint primitive does this; there is no
+//     variant that hides the minted amount, and dropping disclose(amount) just
+//     fails to compile ("might disclose the value of a token mint").
+//   - recipient: NOT published. sendImmediateShielded/mintShieldedToken push
+//     only persistentHash("midnight:zswap-cc[v1]", coinInfo, recipientBytes);
+//     the raw key never enters the transcript. disclose() is demanded because
+//     that hash is a guessing oracle: anyone who can reconstruct the whole
+//     coinInfo can test a candidate recipient against it. The nonce comes from
+//     the witness seed and is never published, so that guess is not feasible
+//     for an outside observer -- but the caller, who knows the nonce, can
+//     confirm any recipient they suspect. Routing the recipient through a
+//     witness instead of a parameter would not change any of this; it is the
+//     commitment, not the parameter, that the analysis is flagging.
+export circuit mint_and_send(recipient: ZswapCoinPublicKey, amount: Uint<64>, nonceIndex: Uint<128>): [] {
+  assert(minter == deriveMinterKey(minterSecretKey()), "not authorized to mint");
+  const amt = disclose(amount);
+  assert(amt > 0, "amount must be non-zero");
+  assert(amt <= mintAllowance, "amount exceeds remaining mint allowance");
+  mintAllowance = mintAllowance - amt;
+  const domain = pad(32, "tutorial:shielded:token");
+  const nonce = disclose(evolveNonce(disclose(nonceIndex), localNonceSeed()));
+  const coin = mintShieldedToken(
+    domain,
+    amt,
+    nonce,
+    right<ZswapCoinPublicKey, ContractAddress>(kernel.self())
+  );
+  sendImmediateShielded(
+    coin,
+    left<ZswapCoinPublicKey, ContractAddress>(disclose(recipient)),
+    coin.value
+  );
+  token_color = coin.color;
+  initialized = true;
+  mints.increment(1);
+}

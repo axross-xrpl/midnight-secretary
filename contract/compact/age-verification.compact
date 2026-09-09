@@ -1,0 +1,82 @@
+pragma language_version >= 0.23;
+
+import CompactStandardLibrary;
+
+// Dates are a single Uint<32> in YYYYMMDD form (e.g. 19900215). Chosen over
+// epoch days so the CLI/.env values stay human-readable, and over a compound
+// struct so the age test is one Uint comparison. Lexicographic order on
+// YYYYMMDD coincides with chronological order, which is what makes the plain
+// `<=` correct. 99991231 fits in Uint<32>.
+witness dateOfBirth(): Uint<32>;
+
+// Per-registrant hiding randomness for the DOB commitment. Without it the
+// commitment would be brute-forcible: there are only ~40k plausible YYYYMMDD
+// values, so an unsalted hash of a birthdate is not hiding at all.
+witness dobSalt(): Bytes<32>;
+
+witness identitySecret(): Bytes<32>;
+
+// identity -> DOB commitment. A Map (rather than the single-value ledger
+// fields used by token.compact / shielded-token.compact) lets many distinct
+// people each register once against one deployment.
+//
+// Cost of the Map: its key is a public argument to every member()/lookup(),
+// so proveAdult reveals WHICH registered identity is proving. The identity is
+// a pseudonym, never a wallet address, but it is stable, so repeated proofs
+// are linkable to each other. Hiding that would mean replacing the Map with a
+// MerkleTree of commitments plus a witness-supplied membership path -- the
+// only ledger structure whose lookups do not publish the probed key.
+export ledger registrations: Map<Bytes<32>, Bytes<32>>;
+
+export pure circuit deriveIdentity(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "midnight-secretary:age-id:v1"), sk]);
+}
+
+// sk is committed alongside the DOB even though the Map key already binds the
+// entry to an identity: it means a commitment cannot be re-registered under a
+// different identity by anyone who learns only (dob, salt).
+export pure circuit deriveDobCommitment(dob: Uint<32>, salt: Bytes<32>, sk: Bytes<32>): Bytes<32> {
+  return persistentCommit<Vector<3, Bytes<32>>>(
+           [pad(32, "midnight-secretary:age-dob:v1"), (dob as Field) as Bytes<32>, sk],
+           salt
+           );
+}
+
+// One-shot per identity. Re-registration is refused so a caller cannot swap in
+// a more convenient birthdate after the fact -- the whole binding value of the
+// commitment depends on it being fixed before any cutoff is known.
+export circuit register(): [] {
+  const sk = identitySecret();
+  const identity = disclose(deriveIdentity(sk));
+  assert(!registrations.member(identity), "Identity already registered");
+  registrations.insert(identity, deriveDobCommitment(dateOfBirth(), dobSalt(), sk));
+}
+
+// cutoffDate is supplied by the verifier (today minus 20 years for Japanese
+// alcohol/tobacco), not computed here -- a circuit has no clock, and the
+// merchant is already trusted to know the date the same way a bouncer trusts
+// their own watch.
+//
+// Returns the answer rather than asserting on it: a merchant terminal needs to
+// observe "no" as a settled result, and an aborted transaction is
+// indistinguishable from a network failure.
+//
+// Residual leak, by construction: each call answers one yes/no question about
+// the birthdate, so N calls with different cutoffs binary-search it (~15 for a
+// day-exact answer over a century). One proof leaks only "born on or before
+// this date", which is the intent. This is not exploitable by the verifier
+// alone -- only the holder of the witness can produce a proof at all -- so it
+// needs the user to be talked into repeated proofs against cutoffs the
+// verifier chose. Callers should treat an unusual run of cutoff values from
+// one merchant as the attack it would be.
+export circuit proveAdult(cutoffDate: Uint<32>): Boolean {
+  const sk = identitySecret();
+  const identity = disclose(deriveIdentity(sk));
+  assert(registrations.member(identity), "Identity not registered");
+  // Binds the answer to the DOB registered earlier; without this the caller
+  // could supply any birthdate at proof time.
+  assert(registrations.lookup(identity) == deriveDobCommitment(dateOfBirth(), dobSalt(), sk),
+         "Date of birth does not match registration"
+         );
+  return disclose(dateOfBirth() <= cutoffDate);
+}

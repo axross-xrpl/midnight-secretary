@@ -1,0 +1,100 @@
+pragma language_version >= 0.23;
+
+import CompactStandardLibrary;
+
+export sealed ledger _name: Opaque<"string">;
+export sealed ledger _symbol: Opaque<"string">;
+// NOT sealed: set from mintSupply(), not the constructor -- see mintSupply
+// below for why minting was moved out of the constructor.
+export ledger tokenColor: Bytes<32>;
+export ledger supplyMinted: Boolean;
+
+// Remaining budget sendToken() may spend. Starts at 0, so a freshly deployed
+// contract cannot send anything until the owner calls setSendAllowance --
+// deliberate, so a leaked/compromised agent process on a fresh deploy has a
+// zero budget rather than the whole supply.
+export ledger sendAllowance: Uint<128>;
+
+export struct OwnerSecretKey { bytes: Bytes<32>; }
+export struct OwnerPublicKey { bytes: Bytes<32>; }
+
+export sealed ledger contractOwner: OwnerPublicKey;
+
+witness getOwnerSecretKey(): OwnerSecretKey;
+
+export pure circuit deriveOwnerPublicKey(sk: OwnerSecretKey): OwnerPublicKey {
+  return OwnerPublicKey {
+    bytes: persistentHash<Vector<2, Bytes<32>>>([
+      pad(32, "midnight-secretary:owner:v1"),
+      sk.bytes
+    ])
+  };
+}
+
+constructor(name_: Opaque<"string">, symbol_: Opaque<"string">) {
+    _name = disclose(name_);
+    _symbol = disclose(symbol_);
+    supplyMinted = false;
+    contractOwner = disclose(deriveOwnerPublicKey(getOwnerSecretKey()));
+}
+
+// Owner-gated, callable exactly once. Mints the fixed total supply to the
+// contract itself. Split out from the constructor as a test: minting a
+// shielded token from inside a constructor was confirmed broken earlier
+// (ledger effects-check failure) -- this checks whether minting UNSHIELDED
+// tokens from the constructor has the same undocumented constraint, since
+// the contract's own unshieldedBalance() read back 0 immediately after a
+// constructor-time mint despite no error being thrown.
+export circuit mintSupply(totalSupply: Uint<64>): [] {
+    assert(contractOwner == deriveOwnerPublicKey(getOwnerSecretKey()),
+           "Only owner can mint supply");
+    assert(!supplyMinted, "Supply already minted");
+    // The literal domain separator is NOT a collision risk across deployments:
+    // mintUnshieldedToken derives the color as
+    // persistentCommit([domainSep, kernel.self().bytes], "midnight:derive_token"),
+    // so the contract's own address is already mixed in and two deployments of
+    // this file mint two distinct, non-fungible colors.
+    tokenColor = mintUnshieldedToken(
+        pad(32, "midnight-secretary:token"),
+        disclose(totalSupply),
+        left<ContractAddress, UserAddress>(kernel.self())
+    );
+    supplyMinted = true;
+}
+
+// Returns the name of the token.
+export circuit getName(): Opaque<"string"> {
+  return _name;
+}
+
+// Returns the symbol of the token.
+export circuit getSymbol(): Opaque<"string"> {
+  return _symbol;
+}
+
+export circuit getTokenColor(): Bytes<32> {
+  return tokenColor;
+}
+
+export circuit getSendAllowance(): Uint<128> {
+  return sendAllowance;
+}
+
+// Owner-gated. Sets the remaining send budget to an absolute value rather than
+// adding to it, so a top-up cannot accidentally stack an already-large
+// leftover budget on top of the new one.
+export circuit setSendAllowance(newAllowance: Uint<128>): [] {
+    assert(contractOwner == deriveOwnerPublicKey(getOwnerSecretKey()),
+           "Only owner can set allowance");
+    sendAllowance = disclose(newAllowance);
+}
+
+// Sends the specified amount of tokens to the recipient address.Like faucet, this function can only be called by the contract owner.
+export circuit sendToken(recipient: Either<ContractAddress, UserAddress>, amount: Uint<128>): [] {
+    assert(contractOwner == deriveOwnerPublicKey(getOwnerSecretKey()),
+           "Only owner can send tokens");
+    const amt = disclose(amount);
+    assert(amt <= sendAllowance, "Amount exceeds remaining send allowance");
+    sendAllowance = sendAllowance - amt;
+    sendUnshielded(tokenColor, amt, disclose(recipient));
+}

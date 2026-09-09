@@ -9,6 +9,12 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+/contract/node_modules
+/contract/src/managed
+/contract/dist
+/contract/get-seed.mjs
+/contract/midnight-level-db
+/public/zk-config
 
 # testing
 /coverage
@@ -32,6 +38,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
