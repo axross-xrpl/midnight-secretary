@@ -1,0 +1,372 @@
+@startuml db-design
+' AI秘書デモ — DB設計の ER 図
+' 出典: docs/db-design.md（列の詳細・制約はそちらを参照）
+
+title AI秘書デモ — DB設計（再設計版 / Neon・PostgreSQL）
+
+hide circle
+skinparam linetype ortho
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #185FA5
+  ArrowColor #6B7280
+  FontColor #1A1D21
+}
+skinparam note {
+  BackgroundColor #FEF9E7
+  BorderColor #DDD0A0
+}
+
+' ==================== ユーザー・旅程・決済 ====================
+
+entity "user_profiles\nユーザーと設定" as profiles {
+  * user_id : text <<PK>>
+  --
+  email : text <<UK>>
+  full_name : text
+  address : text
+  .. 検証に使う属性（述語の元） ..
+  birth_date : date
+  nationality : text
+  residence_pref : text
+  .. 拠点（交通検索の起点） ..
+  home_city : text
+  home_spot : text
+  .. 提案の重み付け ..
+  dining_genres : text[]
+  leisure_genres : text[]
+  budget_jpyc : integer
+  priority : text
+  ..
+  wallet_address : text
+  created_at : timestamptz
+  updated_at : timestamptz
+}
+
+entity "trips\n旅程ヘッダ" as trips {
+  * id : uuid <<PK>>
+  --
+  user_id : text <<FK>>
+  title : text
+  origin_city : text
+  destination_city : text
+  start_date : date
+  end_date : date
+  status : text
+  .. カレンダー検知 ..
+  source_event_id : text
+  detection_confidence : text
+  ..
+  created_at : timestamptz
+  updated_at : timestamptz
+}
+
+entity "trip_items\n旅程明細＝確定した予約" as items {
+  * id : uuid <<PK>>
+  --
+  trip_id : uuid <<FK>>
+  seq : integer
+  .. 参照先の判別（5値1層） ..
+  category : text
+  service_id : uuid
+  .. 確定時点のスナップショット ..
+  name_snapshot : text
+  unit_price_jpyc : integer
+  quantity : integer
+  price_jpyc : integer
+  payee_snapshot : text
+  ..
+  start_at : timestamptz
+  end_at : timestamptz
+  status : text
+  booking_ref : text
+  google_event_id : text
+  created_at : timestamptz
+  updated_at : timestamptz
+}
+
+entity "payments\n決済台帳（エスクロー）" as payments {
+  * ref_id : text <<PK>>
+  --
+  trip_item_id : uuid <<FK>>
+  payee : text
+  amount_jpyc : integer
+  expiry : timestamptz
+  status : text
+  deposit_tx : text
+  release_tx : text
+  refund_tx : text
+  created_at : timestamptz
+  updated_at : timestamptz
+}
+
+' ==================== サービス2テーブル ====================
+
+entity "transport_services\n交通手段（鉄道・航空）" as transport {
+  * id : uuid <<PK>>
+  --
+  code : text <<UK>>
+  name : text
+  mode : text
+  .. 区間 ..
+  from_city : text
+  to_city : text
+  from_spot : text
+  to_spot : text
+  depart_time : time
+  arrive_time : time
+  duration_min : integer
+  price_jpyc : integer
+  .. door-to-door の内訳 ..
+  origin_access_min : integer
+  boarding_buffer_min : integer
+  arrival_buffer_min : integer
+  destination_access_min : integer
+  access_fare_jpyc : integer
+  ..
+  seat_class : text
+  wallet_address : text
+  active : boolean
+  created_at : timestamptz
+  updated_at : timestamptz
+}
+
+entity "place_services\n場所で消費するサービス\n（宿泊・飲食・レジャー）" as place {
+  * id : uuid <<PK>>
+  --
+  code : text <<UK>>
+  kind : text
+  .. 3種別すべて必須 ..
+  name : text
+  city : text
+  address : text
+  nearest_station : text
+  station_access_min : integer
+  price_jpyc : integer
+  required_verifications : text[]
+  .. 飲食・レジャー ..
+  item_name : text
+  genre : text
+  open_from : time
+  open_to : time
+  .. 宿泊 ..
+  checkin_from : time
+  checkout_by : time
+  rating : numeric(2,1)
+  breakfast_included : boolean
+  .. 飲食 ..
+  has_alcohol : boolean
+  seats : text
+  .. 年齢確認を要求する場合 ..
+  age_limit : integer
+  ..
+  wallet_address : text
+  active : boolean
+  created_at : timestamptz
+  updated_at : timestamptz
+}
+
+' ==================== 導出（テーブルを増やさない） ====================
+
+entity "service_catalog\n横断一覧（VIEW）" as catalog <<view>> #F5F6F8 {
+  id : uuid
+  category : text
+  code : text
+  name : text
+  price_jpyc : integer
+  location : text
+  wallet_address : text
+  active : boolean
+  updated_at : timestamptz
+}
+
+' --- 外部キーあり（実線） ---
+profiles ||--o{ trips     : "所有"
+trips    ||--o{ items     : "明細（CASCADE）"
+items    ||-left-o| payments : "決済"
+
+' --- 論理参照（FK制約は張らない。category で参照先を判別する） ---
+items }o..|| transport : "category='rail' / 'air'"
+items }o..|| place     : "category='hotel' / 'restaurant' / 'leisure'"
+
+' --- VIEW の構成元 ---
+transport ..> catalog : "UNION ALL"
+place     ..> catalog : "UNION ALL"
+
+' --- 設計の要点 ---
+note top of profiles
+  **user_id = Google アカウントの sub**
+  NextAuth は JWT 戦略でDBアダプタを持たないため
+  外部IDをそのまま主キーにする
+
+  address は**表示用**。移動時間の算出には使わない
+  （拠点は transport_services の行が持つ → §9）
+  home_city が交通検索の from_city になる
+
+  dining_genres / leisure_genres は配列で持つ。
+  検索は「サービス行の genre と一致するか」だけで
+  子テーブルと結合を増やす利益が無い
+end note
+
+note bottom of trips
+  end_date 未設定＝ヒアリング前。
+  end_date > start_date で宿泊を伴うことを表す
+  （日帰り/宿泊のフラグを別に持たない）
+
+  UNIQUE (user_id, source_event_id) で
+  **再スキャン時の旅程の二重作成を防ぐ**
+
+  合計金額は列に持たない。
+  trip_items の合計で導出する
+  （明細と合計がずれる状態を作らないため）
+end note
+
+note right of items
+  **確定時点のスナップショットを持つ**
+  サービス行は画面から編集・無効化できるため
+  （active=false）、参照だけにすると
+  過去の旅程と決済履歴が後から書き換わる
+
+  → **履歴の表示はサービス行を参照しなくても成立する**
+    （共通ヘッダ案を却下した根拠・§4.3）
+
+  price_jpyc = unit_price_jpyc × quantity
+  （泊数・人数・枚数）。決済と合計はこの列だけを見る
+
+  タスクリストの1行・決済の1単位・
+  カレンダー登録の1イベントが、すべてこの粒度で対応する
+end note
+
+note bottom of payments
+  **第一版からの変更**
+  ＋ trip_item_id : 決済対象の明細を参照
+  − trip_id : 参照先の無い孤児列だった
+  − service_kind / service_id : trip_items と重複
+
+  UNIQUE (trip_item_id) WHERE status <> 'failed'
+  → 1明細につき有効な決済は1件。
+    再試行は failed にしてから新しい ref_id で行う
+
+  status : deposited → released
+           （異常系: expiry 超過で refunded）
+end note
+
+note top of transport
+  door-to-door を1行で計算できる
+  （移動条件テーブル・都市マスタを持たない）
+
+  所要 = origin_access_min + boarding_buffer_min
+       + duration_min + arrival_buffer_min
+       + destination_access_min
+  総額 = price_jpyc + access_fare_jpyc
+
+  検算: 鉄道 187分/15,010 ・ 航空 235分/14,350
+
+  **割り切り**: origin_access_min は
+  デモユーザーの拠点1点を前提とした値
+
+  「手配可能な都市」は
+  DISTINCT to_city から導出する
+
+  鉄道と航空は列が完全に一致するため
+  mode で区別して1テーブルに置く
+end note
+
+note bottom of place
+  **第一版の3テーブルを統合**（§4）
+  lodging / dining / leisure_services
+  → 固有列の一致率 55% / 75% / **90%**
+    （交通は 13% のため分けたまま）
+
+  共通6列は3種別すべてで必須 → NOT NULL を維持
+  name / city / address / nearest_station
+  / station_access_min / price_jpyc
+
+  種別で**使わない列は CHECK で NULL に固定**する
+  （種別ごとに1本ずつ・§8）
+  → 「型で守る」から「CHECK で守る」に変わるだけで
+    強度は同等。CRUD・API は4系統→2系統に減る
+
+  checkin_from / checkout_by は open_* に統合しない。
+  チェックイン15:00→チェックアウト翌10:00 が
+  CHECK (open_from < open_to) に必ず違反するため（§4.4）
+
+  最寄り駅からの時間（station_access_min）で
+  到着地点→目的地の追加時間を測る
+end note
+
+note bottom of catalog
+  一覧・検索・種別フィルタ（種別=全て）は
+  この VIEW を1本読むだけで済む
+
+  mode と kind が**そのまま category** になるため
+  変換を挟まずに UNION ALL できる
+
+  location : 交通は「品川 → 新大阪」、
+             場所系は city
+  詳細の取得と更新は category から実テーブルを決める
+end note
+
+note as N_category
+  **コードの固定値は category の5値だけ**（§7）
+
+  category  参照先テーブル        判別条件
+  rail      transport_services   mode='rail'
+  air       transport_services   mode='air'
+  hotel     place_services       kind='hotel'
+  restaurant place_services      kind='restaurant'
+  leisure   place_services       kind='leisure'
+
+  trip_items は category **1列だけ**を持つ
+  （第一版の service_kind は廃止）
+  表示名・色・アイコン・価格の単位はコード側
+end note
+
+note as N_verification
+  **認証種別もコードの固定値**（3値・§7.2）
+
+  verification  検証する属性     述語の元
+  age           年齢            birth_date + age_limit
+  nationality   国籍            nationality
+  residence     居住都道府県     residence_pref
+
+  サービス行は required_verifications（text[]）で
+  「**どの属性の証明を要求するか**」だけを宣言する。
+  値そのものを受け取る前提を置かない
+  （Midnight では述語の証明だけを提示できる）
+
+  CHECK で双方向に縛る:
+    ('age' = ANY(required_verifications))
+      = (age_limit IS NOT NULL)
+  → 「確認を要求するのにしきい値が無い」
+    「しきい値があるのに要求しない」を両方拒否する
+
+  **has_alcohol とは独立**。
+  ビールを出す中華料理店は has_alcohol=true でも
+  入店の年齢確認は不要（提供時に判断）。
+  バーは has_alcohol=true かつ {age}
+end note
+
+note as N_wallet
+  **wallet_address は役割が逆になる**
+  user_profiles : 秘書ウォレット＝**支払元**
+  サービス2テーブル : 取引先の**送金先**
+  どちらも公開アドレスのみ（秘密鍵は持たない）
+
+  形式の CHECK は置かない（長さと NOT NULL のみ）。
+  Midnight と EVM でアドレス形式が異なるため
+  検証はアプリ層に置く
+
+  事業者マスタ・売り手エージェントを持たないため
+  サービステーブル同士に関連は無い
+end note
+
+note as N_money
+  **金額はすべて円単位の整数**（*_jpyc）
+  オンチェーンの最小単位への変換は決済層だけで行い
+  DBには持ち込まない（integer が溢れるため）
+end note
+
+@enduml

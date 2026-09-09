@@ -2,7 +2,8 @@
   "NavBar": {
     "home": "Home",
     "dashboard": "Dashboard",
-    "tasks": "Tasks"
+    "tasks": "Tasks",
+    "settings": "Settings"
   },
   "Dashboard": {
     "title": "Dashboard",
@@ -19,6 +20,102 @@
   },
   "TasksPage": {
     "title": "Tasks"
+  },
+  "SettingsNav": {
+    "title": "Settings",
+    "profile": "Profile",
+    "services": "Services",
+    "wallet": "Wallet"
+  },
+  "ServiceManagement": {
+    "eyebrow": "Settings",
+    "title": "Service management",
+    "description": "Manage the transport, hotel, restaurant, and leisure services used by the AI secretary.",
+    "search": "Search services",
+    "searchPlaceholder": "Search name or code",
+    "categoryFilter": "Filter by category",
+    "allCategories": "All",
+    "includeInactive": "Show inactive",
+    "resultCount": "{count, plural, one {# result} other {# results}}",
+    "loading": "Updating…",
+    "loadFailed": "The service list could not be loaded.",
+    "empty": "No services match these filters.",
+    "inactive": "Inactive",
+    "location": "Location / route",
+    "price": "Price",
+    "selectTitle": "Select a service",
+    "selectDescription": "Select a service on the left to see its summary. These destinations are currently supported.",
+    "formComingNext": "The registration and editing form will be added to this area in the next implementation stage.",
+    "categories": {
+      "rail": "Rail",
+      "air": "Air",
+      "hotel": "Hotel",
+      "restaurant": "Restaurant",
+      "leisure": "Leisure"
+    },
+    "stationAccess": "{station} · {minutes} min",
+    "units": {
+      "oneWay": "one way",
+      "perNight": "night",
+      "perPerson": "person",
+      "perTicket": "ticket"
+    },
+    "verifications": {
+      "ageWithLimit": "Age {limit}+",
+      "age": "Age check",
+      "nationality": "Nationality check",
+      "residence": "Residence check"
+    },
+    "detail": {
+      "loading": "Loading the service details…",
+      "failed": "The service details could not be loaded.",
+      "notFound": "This service no longer exists. Reload the list.",
+      "retry": "Try again",
+      "doorToDoor": "Door to door",
+      "doorToDoorNote": "Includes access to and from the station or airport, and time spent waiting before boarding.",
+      "total": "Total",
+      "duration": "{hours}h {minutes}m",
+      "durationMinutes": "{minutes} min",
+      "section": {
+        "route": "Route",
+        "price": "Price",
+        "overview": "Overview",
+        "access": "Access",
+        "stay": "Stay",
+        "hours": "Opening hours"
+      },
+      "breakdown": {
+        "originAccess": "Home to departure point",
+        "boardingBuffer": "Wait before boarding",
+        "ride": "On board",
+        "arrivalBuffer": "After arrival",
+        "destinationAccess": "Arrival point to destination"
+      },
+      "route": "Route",
+      "cities": "Cities",
+      "schedule": "Schedule",
+      "rideTime": "Time on board",
+      "seatClass": "Seat class",
+      "fare": "Fare",
+      "accessFare": "Access fare",
+      "plan": "Plan",
+      "itemName": "Item",
+      "genre": "Genre",
+      "rating": "Rating",
+      "city": "City",
+      "address": "Address",
+      "stationAccessLabel": "Nearest station",
+      "checkin": "Check-in from",
+      "checkout": "Check-out by",
+      "breakfast": "Breakfast",
+      "hours": "Opening hours",
+      "alcohol": "Serves alcohol",
+      "seats": "Seating",
+      "walletAddress": "Payout address",
+      "verifications": "Required checks",
+      "yes": "Yes",
+      "no": "No"
+    }
   },
   "CalendarScan": {
     "scan": "Scan calendar",

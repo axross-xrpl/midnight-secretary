@@ -2,7 +2,8 @@
   "NavBar": {
     "home": "ホーム",
     "dashboard": "ダッシュボード",
-    "tasks": "タスク"
+    "tasks": "タスク",
+    "settings": "設定"
   },
   "Dashboard": {
     "title": "ダッシュボード",
@@ -19,6 +20,102 @@
   },
   "TasksPage": {
     "title": "タスク"
+  },
+  "SettingsNav": {
+    "title": "設定",
+    "profile": "プロフィール",
+    "services": "サービス",
+    "wallet": "ウォレット"
+  },
+  "ServiceManagement": {
+    "eyebrow": "設定",
+    "title": "サービス管理",
+    "description": "AI秘書が提案に利用する交通・宿泊・飲食・レジャーのサービスを管理します。",
+    "search": "サービスを検索",
+    "searchPlaceholder": "名称・識別子で検索",
+    "categoryFilter": "種別で絞り込む",
+    "allCategories": "すべて",
+    "includeInactive": "無効も表示",
+    "resultCount": "{count}件",
+    "loading": "更新中…",
+    "loadFailed": "サービス一覧を読み込めませんでした。",
+    "empty": "条件に一致するサービスはありません。",
+    "inactive": "無効",
+    "location": "場所・区間",
+    "price": "価格",
+    "selectTitle": "サービスを選択",
+    "selectDescription": "左の一覧からサービスを選ぶと概要を確認できます。現在手配可能な都市は次のとおりです。",
+    "formComingNext": "登録・編集フォームは次の実装工程でこの領域に追加します。",
+    "categories": {
+      "rail": "鉄道",
+      "air": "航空",
+      "hotel": "宿泊",
+      "restaurant": "飲食",
+      "leisure": "レジャー"
+    },
+    "stationAccess": "{station} 徒歩{minutes}分",
+    "units": {
+      "oneWay": "片道",
+      "perNight": "1泊",
+      "perPerson": "1人",
+      "perTicket": "1枚"
+    },
+    "verifications": {
+      "ageWithLimit": "{limit}歳以上",
+      "age": "年齢確認",
+      "nationality": "国籍確認",
+      "residence": "住居確認"
+    },
+    "detail": {
+      "loading": "サービスの内容を読み込んでいます…",
+      "failed": "サービスの内容を読み込めませんでした。",
+      "notFound": "このサービスは見つかりませんでした。一覧を読み直してください。",
+      "retry": "もう一度試す",
+      "doorToDoor": "拠点から目的地まで",
+      "doorToDoorNote": "駅・空港までの移動と、乗車前後の待ち時間を含めた所要と総額です。",
+      "total": "総額",
+      "duration": "{hours}時間{minutes}分",
+      "durationMinutes": "{minutes}分",
+      "section": {
+        "route": "区間",
+        "price": "料金",
+        "overview": "概要",
+        "access": "場所",
+        "stay": "宿泊",
+        "hours": "営業時間"
+      },
+      "breakdown": {
+        "originAccess": "拠点→出発地点",
+        "boardingBuffer": "乗車・搭乗前の待ち",
+        "ride": "乗車・搭乗",
+        "arrivalBuffer": "降車・降機後",
+        "destinationAccess": "到着地点→目的地"
+      },
+      "route": "区間",
+      "cities": "都市",
+      "schedule": "時刻",
+      "rideTime": "乗車・搭乗時間",
+      "seatClass": "席種",
+      "fare": "運賃",
+      "accessFare": "前後アクセスの運賃",
+      "plan": "プラン名",
+      "itemName": "商品名",
+      "genre": "ジャンル",
+      "rating": "評価",
+      "city": "都市",
+      "address": "住所",
+      "stationAccessLabel": "最寄り駅",
+      "checkin": "チェックイン",
+      "checkout": "チェックアウト",
+      "breakfast": "朝食",
+      "hours": "営業・開催時間",
+      "alcohol": "アルコール提供",
+      "seats": "席",
+      "walletAddress": "送金先",
+      "verifications": "要求する本人確認",
+      "yes": "あり",
+      "no": "なし"
+    }
   },
   "CalendarScan": {
     "scan": "カレンダーをスキャン",
