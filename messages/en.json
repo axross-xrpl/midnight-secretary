@@ -145,5 +145,16 @@
       "network": "Scan failed. The server could not reach Google Calendar.",
       "schema": "Scan failed. The response had an unexpected shape; check the server log."
     }
+  },
+  "WriteBack": {
+    "title": "Trip to {destination}",
+    "description": "{purpose}\nOutbound: {outbound}\nReturn: {inbound}\nLodging: {lodging}\nTotal: {total}\nArranged by Secretary.",
+    "transport": "{vendor} ({mode})",
+    "mode": {
+      "rail": "Rail",
+      "air": "Air"
+    },
+    "noLodging": "None",
+    "total": "{amount} {currency}"
   }
 }

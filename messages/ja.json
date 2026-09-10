@@ -145,5 +145,16 @@
       "network": "スキャンに失敗しました。サーバから Google カレンダーに接続できませんでした。",
       "schema": "スキャンに失敗しました。応答の形が想定と違います。サーバのログをご確認ください。"
     }
+  },
+  "WriteBack": {
+    "title": "{destination} 出張",
+    "description": "{purpose}\n往路: {outbound}\n復路: {inbound}\n宿泊: {lodging}\n合計: {total}\n秘書が手配しました。",
+    "transport": "{vendor} ({mode})",
+    "mode": {
+      "rail": "鉄道",
+      "air": "航空"
+    },
+    "noLodging": "なし",
+    "total": "{amount} {currency}"
   }
 }

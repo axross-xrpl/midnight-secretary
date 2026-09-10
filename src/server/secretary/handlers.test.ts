@@ -1,0 +1,435 @@
+import { NextRequest } from "next/server";
+import { beforeEach, describe, expect, test } from "vitest";
+import type { SecretaryContext } from "@/adapters/auth/session";
+import {
+  createFakeCalendar,
+  seedCalendarEvents,
+} from "@/adapters/calendar/fake";
+import { createFakeCatalog, seedCatalog } from "@/adapters/catalog/fake";
+import type { FakeMandateIds } from "@/adapters/mandate/fake";
+import { createFakeMandate } from "@/adapters/mandate/fake";
+import { createFakePlanner } from "@/adapters/planner/fake";
+import { createFakeStore } from "@/adapters/store/fake";
+import type { NewTripId, SecretaryDeps } from "@/application/deps";
+import type {
+  CalendarEventId,
+  IsoDateTime,
+  MandateId,
+  TripId,
+} from "@/domain/identifiers";
+import {
+  mustParse,
+  parseCalendarEventId,
+  parseIsoDateTime,
+  parseMandateId,
+  parseTripId,
+  parseUserId,
+} from "@/domain/identifiers.parse";
+import {
+  parseMandateResponse,
+  parseSecretaryFailure,
+  parseTripResponse,
+} from "@/lib/secretary-response";
+import type { SecretaryHandlerDeps } from "./handlers";
+import {
+  handleApproveTrip,
+  handlePayForTrip,
+  handleProposeTrip,
+  handleSetUpMandate,
+  handleWriteBackTrip,
+} from "./handlers";
+import type { WriteBackTranslate } from "./write-back-text";
+
+const at = (raw: string): IsoDateTime => {
+  return mustParse(parseIsoDateTime(raw));
+};
+
+const eventId = (raw: string): CalendarEventId => {
+  return mustParse(parseCalendarEventId(raw));
+};
+
+const mandateId = (raw: string): MandateId => {
+  return mustParse(parseMandateId(raw));
+};
+
+const tripId = (raw: string): TripId => {
+  return mustParse(parseTripId(raw));
+};
+
+const NOW = at("2026-09-09T00:00:00Z");
+
+const USER = mustParse(parseUserId("user-1"));
+
+const UNKNOWN_TRIP_ID = "99999999-0000-4000-8000-000000000000";
+
+const MANDATE_BODY = {
+  cap: 200000,
+  expiresAt: "2026-12-31T23:59:59+09:00",
+  purpose: "出張手配",
+};
+
+// 連番の採番はテスト設定に閉じているので、閉じたカウンタで数える
+const testTripIds = (): NewTripId => {
+  const state = { issued: 0 };
+
+  return () => {
+    state.issued = state.issued + 1;
+
+    return tripId(`0000000${state.issued}-0000-4000-8000-000000000000`);
+  };
+};
+
+const testEventIds = (): (() => CalendarEventId) => {
+  const state = { issued: 0 };
+
+  return () => {
+    state.issued = state.issued + 1;
+
+    return eventId(`written-${state.issued}`);
+  };
+};
+
+const testMandateIds = (): FakeMandateIds => {
+  const state = { issued: 0, sent: 0 };
+
+  return {
+    newMandateId: () => {
+      state.issued = state.issued + 1;
+
+      return mandateId(`mandate-${state.issued}`);
+    },
+    newCommitment: () => `commitment-${state.issued}`,
+    newTransactionId: () => {
+      state.sent = state.sent + 1;
+
+      return `tx-${state.sent}`;
+    },
+    hashAuthorization: (id, ref) => `hash:${id}:${ref}`,
+  };
+};
+
+const testDeps = (): SecretaryDeps => {
+  return {
+    calendar: createFakeCalendar({
+      events: seedCalendarEvents(NOW),
+      newEventId: testEventIds(),
+    }),
+    catalog: createFakeCatalog(seedCatalog()),
+    planner: createFakePlanner(),
+    mandate: createFakeMandate({ mandates: [], ids: testMandateIds() }),
+    store: createFakeStore(),
+    newTripId: testTripIds(),
+  };
+};
+
+// キーと values の名前をそのまま文字列にする Stub
+const stubTranslate: WriteBackTranslate = (key, values) => {
+  if (values === undefined) {
+    return key;
+  }
+
+  return `${key}:${Object.keys(values).join(",")}`;
+};
+
+// Fake は状態を持つので、同じテストの中の複数リクエストには同じ文脈を返す
+const handlerDepsFor = (context: SecretaryContext): SecretaryHandlerDeps => {
+  return {
+    resolveContext: async () => ({ ok: true, value: context }),
+    loadTranslate: async () => stubTranslate,
+  };
+};
+
+const signedOutDeps = (): SecretaryHandlerDeps => {
+  return {
+    resolveContext: async () => ({
+      ok: false,
+      error: { kind: "unauthenticated" },
+    }),
+    loadTranslate: async () => stubTranslate,
+  };
+};
+
+const postRequest = (path: string, body?: unknown): NextRequest => {
+  if (body === undefined) {
+    return new NextRequest(`http://localhost${path}`, { method: "POST" });
+  }
+
+  return new NextRequest(`http://localhost${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+};
+
+const brokenJsonRequest = (path: string): NextRequest => {
+  return new NextRequest(`http://localhost${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{",
+  });
+};
+
+// テストごとに Fake を組み直すので、文脈と deps は 1 つの入れ物に置いて beforeEach で入れ替える
+const state = {
+  context: { userId: USER, deps: testDeps(), now: NOW },
+  deps: signedOutDeps(),
+};
+
+beforeEach(() => {
+  state.context = { userId: USER, deps: testDeps(), now: NOW };
+  state.deps = handlerDepsFor(state.context);
+});
+
+const setUpMandateRequest = async (): Promise<Response> => {
+  return handleSetUpMandate(
+    postRequest("/api/secretary/mandate", MANDATE_BODY),
+    state.deps,
+  );
+};
+
+const proposeRequest = async (event: string): Promise<Response> => {
+  return handleProposeTrip(
+    postRequest("/api/secretary/trips", { eventId: event, locale: "ja" }),
+    state.deps,
+  );
+};
+
+const approveRequest = async (id: string): Promise<Response> => {
+  return handleApproveTrip(
+    postRequest(`/api/secretary/trips/${id}/approve`),
+    id,
+    state.deps,
+  );
+};
+
+const payRequest = async (id: string): Promise<Response> => {
+  return handlePayForTrip(
+    postRequest(`/api/secretary/trips/${id}/pay`),
+    id,
+    state.deps,
+  );
+};
+
+const writeBackRequest = async (id: string): Promise<Response> => {
+  return handleWriteBackTrip(
+    postRequest(`/api/secretary/trips/${id}/write-back`, { locale: "ja" }),
+    id,
+    state.deps,
+  );
+};
+
+// 提案された出張の id を、共有スキーマを通して取り出す
+const proposedTripId = async (event: string): Promise<string> => {
+  const trip = parseTripResponse(await (await proposeRequest(event)).json());
+
+  if (!trip.ok) {
+    throw new Error("test: the proposed trip could not be parsed");
+  }
+
+  return trip.value.id;
+};
+
+describe("サインインしていないとき", () => {
+  test("5 つの handler すべてが 401 を返す", async () => {
+    const deps = signedOutDeps();
+    const responses = await Promise.all([
+      handleSetUpMandate(postRequest("/api/secretary/mandate", {}), deps),
+      handleProposeTrip(postRequest("/api/secretary/trips", {}), deps),
+      handleApproveTrip(postRequest("/approve"), UNKNOWN_TRIP_ID, deps),
+      handlePayForTrip(postRequest("/pay"), UNKNOWN_TRIP_ID, deps),
+      handleWriteBackTrip(
+        postRequest("/write-back", {}),
+        UNKNOWN_TRIP_ID,
+        deps,
+      ),
+    ]);
+
+    expect(responses.map((response) => response.status)).toStrictEqual([
+      401, 401, 401, 401, 401,
+    ]);
+    expect(parseSecretaryFailure(await responses[0].json())).toStrictEqual({
+      code: "unauthorized",
+    });
+  });
+});
+
+describe("handleSetUpMandate", () => {
+  test("mandate を作ると 201 で mandate を返す", async () => {
+    const response = await setUpMandateRequest();
+
+    expect(response.status).toBe(201);
+    expect(parseMandateResponse(await response.json())).toStrictEqual({
+      ok: true,
+      value: {
+        id: "mandate-1",
+        cap: { amount: 200000, currency: "DEMO" },
+        spent: { amount: 0, currency: "DEMO" },
+        expiresAt: "2026-12-31T23:59:59+09:00",
+        purpose: "出張手配",
+        commitment: "commitment-1",
+      },
+    });
+  });
+
+  test("同じユーザの 2 回目は 409 で mandateExists を返す", async () => {
+    await setUpMandateRequest();
+
+    const response = await setUpMandateRequest();
+
+    expect(response.status).toBe(409);
+    expect(parseSecretaryFailure(await response.json())).toStrictEqual({
+      code: "secretary",
+      error: {
+        source: "flow",
+        error: { kind: "mandateExists", mandateId: "mandate-1" },
+      },
+    });
+  });
+
+  test("JSON として読めない body は 422 になる", async () => {
+    const response = await handleSetUpMandate(
+      brokenJsonRequest("/api/secretary/mandate"),
+      state.deps,
+    );
+
+    expect(response.status).toBe(422);
+    expect(parseSecretaryFailure(await response.json())).toStrictEqual({
+      code: "invalid_request",
+      issues: [{ path: [], message: "invalid JSON" }],
+    });
+  });
+
+  test("形の違う body は 422 で issues を返す", async () => {
+    const response = await handleSetUpMandate(
+      postRequest("/api/secretary/mandate", { cap: "200000" }),
+      state.deps,
+    );
+
+    expect(response.status).toBe(422);
+
+    const failure = parseSecretaryFailure(await response.json());
+
+    expect(failure.code).toBe("invalid_request");
+    expect(failure).toHaveProperty("issues");
+  });
+});
+
+describe("handleProposeTrip", () => {
+  test("日帰りの予定は 201 で proposed を返す", async () => {
+    await setUpMandateRequest();
+
+    const response = await proposeRequest("seed-2");
+
+    expect(response.status).toBe(201);
+
+    const trip = parseTripResponse(await response.json());
+
+    expect(trip.ok && trip.value.status).toBe("proposed");
+    expect(trip.ok && trip.value.plan.total).toStrictEqual({
+      amount: 29440,
+      currency: "DEMO",
+    });
+  });
+
+  test("mandate が無ければ 409 で noMandate を返す", async () => {
+    const response = await proposeRequest("seed-2");
+
+    expect(response.status).toBe(409);
+    expect(parseSecretaryFailure(await response.json())).toStrictEqual({
+      code: "secretary",
+      error: { source: "flow", error: { kind: "noMandate" } },
+    });
+  });
+});
+
+describe("承認から書き戻しまで", () => {
+  test("approve、pay、write-back が 200 で状態を進める", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-3");
+
+    const approved = await approveRequest(id);
+
+    expect(approved.status).toBe(200);
+    expect(parseTripResponse(await approved.json())).toMatchObject({
+      ok: true,
+      value: { status: "approved" },
+    });
+
+    const paid = await payRequest(id);
+
+    expect(paid.status).toBe(200);
+    expect(parseTripResponse(await paid.json())).toMatchObject({
+      ok: true,
+      value: { status: "paid", authorizations: [{}, {}, {}] },
+    });
+
+    const written = await writeBackRequest(id);
+
+    expect(written.status).toBe(200);
+    expect(parseTripResponse(await written.json())).toMatchObject({
+      ok: true,
+      value: { status: "written", writtenEventId: "written-1" },
+    });
+  });
+
+  test("書き戻した予定のタイトルは Stub の翻訳関数の値になる", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-3");
+
+    await approveRequest(id);
+    await payRequest(id);
+    await writeBackRequest(id);
+
+    const inserted = await state.context.deps.calendar.getEvent(
+      eventId("written-1"),
+    );
+
+    expect(inserted.ok && inserted.value?.title).toBe("title:destination");
+  });
+
+  test("承認を 2 回すると 409 で wrongStatus を返す", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-2");
+
+    await approveRequest(id);
+
+    const response = await approveRequest(id);
+
+    expect(response.status).toBe(409);
+    expect(parseSecretaryFailure(await response.json())).toStrictEqual({
+      code: "secretary",
+      error: {
+        source: "flow",
+        error: {
+          kind: "wrongStatus",
+          tripId: id,
+          expected: "proposed",
+          actual: "approved",
+        },
+      },
+    });
+  });
+
+  test("UUID でない tripId は 422 になる", async () => {
+    const response = await approveRequest("trip-1");
+
+    expect(response.status).toBe(422);
+    expect(parseSecretaryFailure(await response.json())).toStrictEqual({
+      code: "invalid_request",
+      issues: [{ path: ["tripId"], message: "invalid" }],
+    });
+  });
+
+  test("知らない UUID は 404 になる", async () => {
+    const response = await approveRequest(UNKNOWN_TRIP_ID);
+
+    expect(response.status).toBe(404);
+    expect(parseSecretaryFailure(await response.json())).toStrictEqual({
+      code: "secretary",
+      error: {
+        source: "flow",
+        error: { kind: "tripNotFound", tripId: UNKNOWN_TRIP_ID },
+      },
+    });
+  });
+});
