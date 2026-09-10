@@ -1,15 +1,22 @@
 "use client";
 
+import type { DateTimeFormatOptions } from "next-intl";
 import { useFormatter, useTranslations } from "next-intl";
 import type { ReactElement } from "react";
 import { match } from "ts-pattern";
-import { shortHash } from "./flow";
+import type {
+  AuthorizationResponse,
+  TripPlanResponse,
+  TripResponse,
+} from "@/lib/secretary-response";
+import { FailureNotice } from "./failure-notice";
+import { stepIndexOf } from "./flow";
+import type { FormatNumber, PlanRow } from "./format";
+import { moneyText, nightsOf, planRows, shortHash } from "./format";
 import {
-  dangerBoxClass,
   emptyStateClass,
   ghostButtonClass,
   labelClass,
-  moneyFormatOptions,
   noteClass,
   okButtonClass,
   panelBodyClass,
@@ -20,23 +27,30 @@ import {
   vendorMark,
   warnPillClass,
 } from "./styles";
-import type {
-  AuthorizationView,
-  FlowState,
-  PaymentError,
-  TripItemView,
-  TripPlanView,
-} from "./types";
+import type { RequestFailure, Step, StepperState } from "./types";
 
 type Props = {
-  state: FlowState;
-  onApprove: () => void;
-  onPay: () => void;
-  onWriteBack: () => void;
-  onReset: () => void;
+  state: StepperState;
+  onApprove: (trip: TripResponse) => void;
+  onRepropose: (eventId: string) => void;
+  onPay: (trip: TripResponse) => void;
+  onWriteBack: (trip: TripResponse) => void;
+  onDismiss: () => void;
+  onDeselect: () => void;
 };
 
 const STEP_KEYS = ["proposed", "approved", "paid", "written"] as const;
+
+const TIMED_OPTIONS: DateTimeFormatOptions = {
+  dateStyle: "medium",
+  timeStyle: "short",
+};
+
+// 宿泊は日付だけの文字列なので、時差で前日にずれないよう UTC のまま出す
+const DATE_OPTIONS: DateTimeFormatOptions = {
+  dateStyle: "medium",
+  timeZone: "UTC",
+};
 
 type StepStatus = "done" | "current" | "todo";
 
@@ -52,20 +66,6 @@ const stepLabelClass = {
   todo: "text-muted",
 } as const satisfies Record<StepStatus, string>;
 
-/**
- * Index of the step the flow is at or working toward. -1 before anything
- * has started.
- */
-export const currentStepIndex = (state: FlowState): number => {
-  return match(state.step)
-    .with("idle", () => -1)
-    .with("proposing", "proposed", () => 0)
-    .with("approved", () => 1)
-    .with("proving", "authorized", "failed", () => 2)
-    .with("writing", "written", () => 3)
-    .exhaustive();
-};
-
 const statusOf = (index: number, current: number): StepStatus => {
   if (index < current) {
     return "done";
@@ -78,10 +78,14 @@ const statusOf = (index: number, current: number): StepStatus => {
   return "todo";
 };
 
-const StepIndicator = ({ state }: { state: FlowState }): ReactElement => {
+const isFinished = (state: StepperState): boolean => {
+  return state.kind === "arranged" && state.trip.status === "written";
+};
+
+const StepIndicator = ({ state }: { state: StepperState }): ReactElement => {
   const t = useTranslations("TripStepper");
-  const current = currentStepIndex(state);
-  const finished = state.step === "written";
+  const current = stepIndexOf(state);
+  const finished = isFinished(state);
 
   return (
     <ol className="flex flex-wrap items-center gap-y-2">
@@ -130,93 +134,86 @@ const VendorCircle = ({
   );
 };
 
-const TripItemRow = ({ item }: { item: TripItemView }): ReactElement => {
+const TripItemRow = ({ row }: { row: PlanRow }): ReactElement => {
   const t = useTranslations("TripStepper");
   const format = useFormatter();
-  const price = format.number(
-    item.price.amount,
-    moneyFormatOptions(item.price.currency),
-  );
+  const formatNumber: FormatNumber = (amount) => {
+    return format.number(amount);
+  };
 
-  return match(item)
-    .with({ kind: "transport" }, (transport) => (
+  return match(row)
+    .with({ kind: "transport" }, ({ offer }) => (
       <li className="flex flex-wrap items-center gap-2.5 py-2">
-        <VendorCircle kind={transport.mode} />
+        <VendorCircle kind={offer.mode} />
         <span className="min-w-0 flex-1">
           <span className="block text-[13px] font-medium">
             {t("transport", {
-              from: transport.from,
-              to: transport.to,
-              mode: t(`modes.${transport.mode}`),
+              from: offer.origin,
+              to: offer.destination,
+              mode: t(`modes.${offer.mode}`),
             })}
           </span>
           <span className={`block tabular-nums ${labelClass}`}>
             {format.dateTimeRange(
-              new Date(transport.departAt),
-              new Date(transport.arriveAt),
-              { dateStyle: "medium", timeStyle: "short" },
+              new Date(offer.departAt),
+              new Date(offer.arriveAt),
+              TIMED_OPTIONS,
             )}
             {" · "}
-            {transport.vendor}
+            {offer.vendor}
           </span>
         </span>
-        <span className="text-[13px] font-bold tabular-nums">{price}</span>
+        <span className="text-[13px] font-bold tabular-nums">
+          {moneyText(offer.price, formatNumber)}
+        </span>
       </li>
     ))
-    .with({ kind: "lodging" }, (lodging) => (
+    .with({ kind: "lodging" }, ({ offer }) => (
       <li className="flex flex-wrap items-center gap-2.5 py-2">
         <VendorCircle kind="lodging" />
         <span className="min-w-0 flex-1">
           <span className="block text-[13px] font-medium">
-            {t("lodging", { hotel: lodging.hotel, nights: lodging.nights })}
+            {t("lodging", {
+              hotel: offer.name,
+              nights: nightsOf(offer.checkIn, offer.checkOut),
+            })}
           </span>
           <span className={`block tabular-nums ${labelClass}`}>
             {format.dateTimeRange(
-              new Date(lodging.checkIn),
-              new Date(lodging.checkOut),
-              { dateStyle: "medium" },
+              new Date(offer.checkIn),
+              new Date(offer.checkOut),
+              DATE_OPTIONS,
             )}
             {" · "}
-            {lodging.vendor}
+            {offer.vendor}
           </span>
         </span>
-        <span className="text-[13px] font-bold tabular-nums">{price}</span>
+        <span className="text-[13px] font-bold tabular-nums">
+          {moneyText(offer.price, formatNumber)}
+        </span>
       </li>
     ))
     .exhaustive();
 };
 
-const itemKey = (item: TripItemView): string => {
-  return match(item)
-    .with(
-      { kind: "transport" },
-      ({ from, to, departAt }) => `transport-${from}-${to}-${departAt}`,
-    )
-    .with(
-      { kind: "lodging" },
-      ({ hotel, checkIn }) => `lodging-${hotel}-${checkIn}`,
-    )
-    .exhaustive();
-};
-
-const PlanDetails = ({ plan }: { plan: TripPlanView }): ReactElement => {
+const PlanDetails = ({ plan }: { plan: TripPlanResponse }): ReactElement => {
   const t = useTranslations("TripStepper");
   const format = useFormatter();
+  const formatNumber: FormatNumber = (amount) => {
+    return format.number(amount);
+  };
 
   return (
     <div className="flex flex-col">
       <ul className="flex flex-col divide-y divide-border-sub">
-        {plan.items.map((item) => (
-          <TripItemRow key={itemKey(item)} item={item} />
+        {planRows(plan).map((row) => (
+          <TripItemRow key={row.offer.id} row={row} />
         ))}
       </ul>
       <div className="mt-0.5 flex flex-wrap items-baseline justify-end gap-2 border-t-2 border-divider-strong pt-2.5">
         <span className="text-xs text-muted">{t("total")}</span>
         <span className="text-[19px] font-bold tabular-nums">
-          {format.number(
-            plan.total.amount,
-            moneyFormatOptions(plan.total.currency),
-          )}
+          {moneyText(plan.total, formatNumber)}
         </span>
       </div>
       <div className="mt-3 border-t border-dashed border-divider-strong pt-2.5">
@@ -255,13 +252,20 @@ const Waiting = ({
   );
 };
 
-const AuthorizationSummary = ({
+type AuthorizationsProps = {
+  authorizations: readonly AuthorizationResponse[];
+};
+
+const AuthorizationRow = ({
   authorization,
 }: {
-  authorization: AuthorizationView;
+  authorization: AuthorizationResponse;
 }): ReactElement => {
   const t = useTranslations("TripStepper");
   const format = useFormatter();
+  const formatNumber: FormatNumber = (amount) => {
+    return format.number(amount);
+  };
   const rowClass = "flex flex-wrap items-center gap-3 p-3 px-3.5";
   const keyClass = "w-[120px] flex-none text-[10.5px] font-bold text-faint";
 
@@ -281,58 +285,158 @@ const AuthorizationSummary = ({
         <dd className="font-mono text-[10.5px]">{authorization.paymentRef}</dd>
       </div>
       <div className={rowClass}>
+        <dt className={keyClass}>{t("amount")}</dt>
+        <dd className="font-bold tabular-nums">
+          {moneyText(authorization.amount, formatNumber)}
+        </dd>
+      </div>
+      <div className={rowClass}>
         <dt className={keyClass}>{t("authorizedAt")}</dt>
         <dd>
-          {format.dateTime(new Date(authorization.authorizedAt), {
-            dateStyle: "medium",
-            timeStyle: "short",
-          })}
+          {format.dateTime(new Date(authorization.authorizedAt), TIMED_OPTIONS)}
+        </dd>
+      </div>
+      <div className={rowClass}>
+        <dt className={keyClass}>{t("transaction")}</dt>
+        <dd className="font-mono text-[10.5px]">
+          {authorization.settlement.transactionId}
         </dd>
       </div>
     </dl>
   );
 };
 
-const ErrorMessage = ({ error }: { error: PaymentError }): ReactElement => {
-  const t = useTranslations("TripStepper");
-  const format = useFormatter();
-  const text = match(error)
-    .with({ kind: "overBudget" }, ({ remaining, requested }) =>
-      t("errors.overBudget", {
-        requested: format.number(
-          requested.amount,
-          moneyFormatOptions(requested.currency),
-        ),
-        remaining: format.number(
-          remaining.amount,
-          moneyFormatOptions(remaining.currency),
-        ),
-      }),
-    )
-    .with({ kind: "expired" }, ({ expiresAt }) =>
-      t("errors.expired", {
-        date: format.dateTime(new Date(expiresAt), { dateStyle: "medium" }),
-      }),
-    )
-    .with({ kind: "proofFailed" }, () => t("errors.proofFailed"))
-    .exhaustive();
-
+const AuthorizationList = ({
+  authorizations,
+}: AuthorizationsProps): ReactElement => {
   return (
-    <p className={dangerBoxClass} role="alert">
-      {text}
-    </p>
+    <div className="flex flex-col gap-2">
+      {authorizations.map((authorization) => (
+        <AuthorizationRow
+          key={authorization.paymentRef}
+          authorization={authorization}
+        />
+      ))}
+    </div>
   );
 };
 
-const DoneCard = ({
-  authorization,
-  calendarEventId,
-  onReset,
+type BusyBodyProps = {
+  step: Step;
+  event: { title: string };
+  trip?: TripResponse;
+};
+
+const BusyBody = ({ step, event, trip }: BusyBodyProps): ReactElement => {
+  const t = useTranslations("TripStepper");
+  const waiting = match(step)
+    .with("propose", () => (
+      <Waiting message={t("proposing", { title: event.title })} />
+    ))
+    .with("approve", () => <Waiting message={t("approving")} />)
+    .with("pay", () => (
+      <Waiting message={t("proving")} hint={t("provingHint")} />
+    ))
+    .with("writeBack", () => <Waiting message={t("writing")} />)
+    .exhaustive();
+
+  if (trip === undefined) {
+    return waiting;
+  }
+
+  return (
+    <>
+      <PlanDetails plan={trip.plan} />
+      {waiting}
+    </>
+  );
+};
+
+type FailedBodyProps = {
+  failure: RequestFailure;
+  trip?: TripResponse;
+};
+
+const FailedBody = ({ failure, trip }: FailedBodyProps): ReactElement => {
+  if (trip === undefined) {
+    return <FailureNotice failure={failure} />;
+  }
+
+  return (
+    <>
+      <PlanDetails plan={trip.plan} />
+      <FailureNotice failure={failure} />
+    </>
+  );
+};
+
+type PlanWithAuthorizationsProps = {
+  plan: TripPlanResponse;
+  authorizations: readonly AuthorizationResponse[];
+};
+
+// 途中で失敗した支払いを再試行するときは、済んだ候補が残っている
+const ApprovedBody = ({
+  plan,
+  authorizations,
+}: PlanWithAuthorizationsProps): ReactElement => {
+  const t = useTranslations("TripStepper");
+
+  if (authorizations.length === 0) {
+    return <PlanDetails plan={plan} />;
+  }
+
+  return (
+    <>
+      <PlanDetails plan={plan} />
+      <AuthorizationList authorizations={authorizations} />
+      <p className={noteClass}>{t("partiallyPaid")}</p>
+    </>
+  );
+};
+
+const PaidBody = ({
+  plan,
+  authorizations,
+}: PlanWithAuthorizationsProps): ReactElement => {
+  const t = useTranslations("TripStepper");
+
+  return (
+    <>
+      <PlanDetails plan={plan} />
+      <h3 className="text-[13.5px] font-semibold">{t("authorizedTitle")}</h3>
+      <AuthorizationList authorizations={authorizations} />
+    </>
+  );
+};
+
+const PayAction = ({
+  resume,
+  onPay,
 }: {
-  authorization: AuthorizationView;
-  calendarEventId: string;
-  onReset: () => void;
+  resume: boolean;
+  onPay: () => void;
 }): ReactElement => {
+  const t = useTranslations("TripStepper");
+
+  return (
+    <button type="button" className={strongButtonClass} onClick={onPay}>
+      {resume ? t("resumePay") : t("pay")}
+    </button>
+  );
+};
+
+type DoneCardProps = {
+  writtenEventId: string;
+  authorizations: readonly AuthorizationResponse[];
+  onDeselect: () => void;
+};
+
+const DoneCard = ({
+  writtenEventId,
+  authorizations,
+  onDeselect,
+}: DoneCardProps): ReactElement => {
   const t = useTranslations("TripStepper");
 
   return (
@@ -346,15 +450,15 @@ const DoneCard = ({
       <div>
         <h3 className="text-[14.5px] font-bold">{t("writtenTitle")}</h3>
         <p className="mt-1 text-[12.5px] text-muted">
-          {t("writtenBody", { id: calendarEventId })}
+          {t("writtenBody", { id: writtenEventId })}
         </p>
       </div>
       <div className="text-left">
-        <AuthorizationSummary authorization={authorization} />
+        <AuthorizationList authorizations={authorizations} />
       </div>
       <div className="flex justify-center">
-        <button type="button" className={okButtonClass} onClick={onReset}>
-          {t("reset")}
+        <button type="button" className={okButtonClass} onClick={onDeselect}>
+          {t("another")}
         </button>
       </div>
     </div>
@@ -367,116 +471,99 @@ type Rendered = {
 };
 
 /**
- * The one-path trip flow for the selected event: proposed, approved, paid
- * under the mandate, written back to the calendar.
+ * 選んだ予定の一本道 (提案、承認、支払い枠での支払い、カレンダーへの登録)
+ *
+ * 休止状態は props の trip から、進行中の 1 手はクライアントの状態から来る
  */
 export const TripStepper = ({
   state,
   onApprove,
+  onRepropose,
   onPay,
   onWriteBack,
-  onReset,
+  onDismiss,
+  onDeselect,
 }: Props): ReactElement => {
   const t = useTranslations("TripStepper");
 
   const rendered: Rendered = match(state)
-    .with({ step: "idle" }, () => ({
+    .with({ kind: "idle" }, () => ({
       body: <p className={emptyStateClass}>{t("idle")}</p>,
     }))
-    .with({ step: "proposing" }, ({ event }) => ({
-      body: <Waiting message={t("proposing", { title: event.title })} />,
+    .with({ kind: "unarranged" }, () => ({
+      body: <p className={emptyStateClass}>{t("unarranged")}</p>,
     }))
-    .with({ step: "proposed" }, ({ plan }) => ({
-      body: <PlanDetails plan={plan} />,
+    .with({ kind: "busy" }, ({ step, event, trip }) => ({
+      body: <BusyBody step={step} event={event} trip={trip} />,
+    }))
+    .with({ kind: "failed" }, ({ failure, trip }) => ({
+      body: <FailedBody failure={failure} trip={trip} />,
       actions: (
-        <>
-          <button
-            type="button"
-            className={strongButtonClass}
-            onClick={onApprove}
-          >
-            {t("approve")}
-          </button>
-          <button type="button" className={ghostButtonClass} onClick={onReset}>
-            {t("discard")}
-          </button>
-        </>
+        <button type="button" className={ghostButtonClass} onClick={onDismiss}>
+          {t("dismiss")}
+        </button>
       ),
     }))
-    .with({ step: "approved" }, ({ plan }) => ({
-      body: <PlanDetails plan={plan} />,
+    .with(
+      { kind: "arranged", trip: { status: "proposed" } },
+      ({ event, trip }) => ({
+        body: <PlanDetails plan={trip.plan} />,
+        actions: (
+          <>
+            <button
+              type="button"
+              className={strongButtonClass}
+              onClick={() => onApprove(trip)}
+            >
+              {t("approve")}
+            </button>
+            <button
+              type="button"
+              className={ghostButtonClass}
+              onClick={() => onRepropose(event.id)}
+            >
+              {t("repropose")}
+            </button>
+          </>
+        ),
+      }),
+    )
+    .with({ kind: "arranged", trip: { status: "approved" } }, ({ trip }) => ({
+      body: (
+        <ApprovedBody plan={trip.plan} authorizations={trip.authorizations} />
+      ),
       actions: (
-        <>
-          <button type="button" className={strongButtonClass} onClick={onPay}>
-            {t("pay")}
-          </button>
-          <button type="button" className={ghostButtonClass} onClick={onReset}>
-            {t("discard")}
-          </button>
-        </>
+        <PayAction
+          resume={trip.authorizations.length > 0}
+          onPay={() => onPay(trip)}
+        />
       ),
     }))
-    .with({ step: "proving" }, ({ plan }) => ({
-      body: (
-        <>
-          <PlanDetails plan={plan} />
-          <Waiting message={t("proving")} hint={t("provingHint")} />
-        </>
-      ),
-    }))
-    .with({ step: "authorized" }, ({ authorization }) => ({
-      body: (
-        <>
-          <h3 className="text-[13.5px] font-semibold">
-            {t("authorizedTitle")}
-          </h3>
-          <AuthorizationSummary authorization={authorization} />
-        </>
-      ),
+    .with({ kind: "arranged", trip: { status: "paid" } }, ({ trip }) => ({
+      body: <PaidBody plan={trip.plan} authorizations={trip.authorizations} />,
       actions: (
         <button
           type="button"
           className={primaryButtonClass}
-          onClick={onWriteBack}
+          onClick={() => onWriteBack(trip)}
         >
           {t("writeBack")}
         </button>
       ),
     }))
-    .with({ step: "writing" }, ({ authorization }) => ({
-      body: (
-        <>
-          <AuthorizationSummary authorization={authorization} />
-          <Waiting message={t("writing")} />
-        </>
-      ),
-    }))
-    .with({ step: "written" }, ({ authorization, calendarEventId }) => ({
+    .with({ kind: "arranged", trip: { status: "written" } }, ({ trip }) => ({
       body: (
         <DoneCard
-          authorization={authorization}
-          calendarEventId={calendarEventId}
-          onReset={onReset}
+          writtenEventId={trip.writtenEventId}
+          authorizations={trip.authorizations}
+          onDeselect={onDeselect}
         />
-      ),
-    }))
-    .with({ step: "failed" }, ({ plan, error }) => ({
-      body: (
-        <>
-          <PlanDetails plan={plan} />
-          <ErrorMessage error={error} />
-        </>
-      ),
-      actions: (
-        <button type="button" className={ghostButtonClass} onClick={onReset}>
-          {t("reset")}
-        </button>
       ),
     }))
     .exhaustive();
 
   const heading =
-    state.step === "idle"
+    state.kind === "idle"
       ? t("title")
       : t("titleFor", { title: state.event.title });
 

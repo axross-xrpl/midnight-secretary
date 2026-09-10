@@ -42,6 +42,12 @@ export const ghostButtonClass =
 export const smallPrimaryButtonClass =
   "cursor-pointer rounded-[9px] bg-accent px-3.5 py-1.5 text-[12px] font-semibold text-white disabled:cursor-default disabled:opacity-50";
 
+/**
+ * 一覧の行に置く控えめなボタン (`ghostButtonClass` を行の大きさに合わせたもの)
+ */
+export const smallGhostButtonClass =
+  "cursor-pointer rounded-[9px] border border-ghost-border bg-surface px-3.5 py-1.5 text-[12px] font-medium text-ink disabled:cursor-default disabled:opacity-50";
+
 /** Filled button on the done card. */
 export const okButtonClass =
   "cursor-pointer rounded-[10px] bg-ok px-4 py-2 text-[12.5px] font-semibold text-white";
@@ -72,6 +78,11 @@ export const privatePillClass = `${pillClass} bg-private-bg text-private`;
 /** Pill for a step in progress. */
 export const warnPillClass = `${pillClass} bg-warn-bg text-warn`;
 
+/**
+ * やり終えたことを示すバッジ
+ */
+export const okPillClass = `${pillClass} bg-ok-bg text-ok`;
+
 /** Informational note box. */
 export const noteClass =
   "rounded-[10px] bg-note-bg px-3 py-2 text-[11px] leading-relaxed text-note";
@@ -80,11 +91,13 @@ export const noteClass =
 export const dangerBoxClass =
   "rounded-[10px] bg-danger-bg px-4 py-2.5 text-[12.5px] font-semibold text-danger";
 
-/** Icon shown in front of a calendar event, by classification. */
+/**
+ * 予定の行の先頭に出すアイコン (手配済みかどうかで分ける)
+ */
 export const eventIcon = {
-  trip: "\u{1F9F3}",
-  other: "\u{1F4C5}",
-} as const satisfies Record<"trip" | "other", string>;
+  unarranged: "\u{1F4C5}",
+  arranged: "\u{1F9F3}",
+} as const satisfies Record<"unarranged" | "arranged", string>;
 
 /** Icon and circle color for a trip item, by transport mode or lodging. */
 export const vendorMark = {
@@ -95,21 +108,3 @@ export const vendorMark = {
   "rail" | "air" | "lodging",
   { icon: string; circleClass: string }
 >;
-
-/**
- * Number format options for a display amount.
- * Structurally compatible with next-intl's `NumberFormatOptions`.
- */
-export type MoneyFormatOptions = {
-  style: "currency";
-  currency: string;
-  maximumFractionDigits: 0;
-};
-
-/**
- * Options for a display amount in the given currency.
- * JPY has no minor unit, so fractions are never shown.
- */
-export const moneyFormatOptions = (currency: string): MoneyFormatOptions => {
-  return { style: "currency", currency, maximumFractionDigits: 0 };
-};

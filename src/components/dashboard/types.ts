@@ -1,157 +1,101 @@
-/**
- * Display-ready amount in the smallest unit of its currency.
- * JPY has no minor unit, so `amount` is yen.
- */
-export type MoneyView = {
-  amount: number;
-  currency: "JPY";
-};
+import type { TripStatus } from "@/domain/trip";
+import type { ScanEvent } from "@/lib/calendar-scan-response";
+import type { SecretaryFailure, TripResponse } from "@/lib/secretary-response";
 
 /**
- * The delegation as the user sees it. This is private state: only the user
- * and the secretary can read it.
- */
-export type MandateView = {
-  id: string;
-  cap: MoneyView;
-  spent: MoneyView;
-  expiresAt: string;
-  purpose: string;
-  commitment: string;
-};
-
-/**
- * Whether a calendar event looks like a trip the secretary can arrange.
- */
-export type EventClassification =
-  | { kind: "trip"; destination: string }
-  | { kind: "other" };
-
-/**
- * A calendar event ready for display. Times are ISO 8601 strings.
- */
-export type CalendarEventView = {
-  id: string;
-  title: string;
-  start: string;
-  end: string;
-  allDay: boolean;
-  location?: string;
-  classification: EventClassification;
-};
-
-/**
- * One purchasable item of a proposed trip.
- */
-export type TripItemView =
-  | {
-      kind: "transport";
-      mode: "rail" | "air";
-      from: string;
-      to: string;
-      departAt: string;
-      arriveAt: string;
-      vendor: string;
-      price: MoneyView;
-    }
-  | {
-      kind: "lodging";
-      hotel: string;
-      checkIn: string;
-      checkOut: string;
-      nights: number;
-      vendor: string;
-      price: MoneyView;
-    };
-
-/**
- * A trip plan proposed for one calendar event.
- */
-export type TripPlanView = {
-  id: string;
-  eventId: string;
-  destination: string;
-  items: readonly TripItemView[];
-  total: MoneyView;
-  rationale: string;
-};
-
-/**
- * Proof that a payment was authorized under the mandate.
- * `publicHash` is the only value that reaches the public ledger.
- */
-export type AuthorizationView = {
-  paymentRef: string;
-  publicHash: string;
-  authorizedAt: string;
-  amount: MoneyView;
-};
-
-/**
- * What anyone can read from the public ledger.
- * Deliberately free of amounts, caps, and identities.
+ * 公開台帳の見え方
+ *
+ * domain の `PublicLedgerView` と同じ形で brand を外したもの
+ * Server Component の props でしか渡らないので zod スキーマは持たない
  */
 export type PublicLedgerView = {
   commitments: readonly { mandateId: string; commitment: string }[];
-  authorizationHashes: readonly string[];
+  authorizations: readonly { publicHash: string }[];
   authorizedCount: number;
 };
 
 /**
- * Expected failures when paying under the mandate.
+ * 画面が扱う失敗
+ *
+ * サーバの封筒 (`SecretaryFailure`) に、ブラウザ側で起こる 2 つを足したもの
  */
-export type PaymentError =
-  | { kind: "overBudget"; remaining: MoneyView; requested: MoneyView }
-  | { kind: "expired"; expiresAt: string }
-  | { kind: "proofFailed" };
+export type RequestFailure =
+  | SecretaryFailure
+  | { code: "network" }
+  | { code: "schema" };
 
 /**
- * The one Wave 1 path, one step at a time. Each step carries exactly the data
- * produced so far, so no step can render a value it does not have.
+ * 出張を 1 段進める操作
+ *
+ * `propose` は提案し直し (破棄) にも使う
  */
-export type FlowState =
-  | { step: "idle" }
-  | { step: "proposing"; event: CalendarEventView }
-  | { step: "proposed"; event: CalendarEventView; plan: TripPlanView }
-  | { step: "approved"; event: CalendarEventView; plan: TripPlanView }
-  | { step: "proving"; event: CalendarEventView; plan: TripPlanView }
-  | {
-      step: "authorized";
-      event: CalendarEventView;
-      plan: TripPlanView;
-      authorization: AuthorizationView;
-    }
-  | {
-      step: "writing";
-      event: CalendarEventView;
-      plan: TripPlanView;
-      authorization: AuthorizationView;
-    }
-  | {
-      step: "written";
-      event: CalendarEventView;
-      plan: TripPlanView;
-      authorization: AuthorizationView;
-      calendarEventId: string;
-    }
-  | {
-      step: "failed";
-      event: CalendarEventView;
-      plan: TripPlanView;
-      error: PaymentError;
-    };
+export type Step = "propose" | "approve" | "pay" | "writeBack";
 
 /**
- * Events that move the flow forward. The reducer ignores an action that does
- * not fit the current step.
+ * いま進行中の 1 手
+ *
+ * 予定ごとの休止状態は持たない (props の trips から導出する)
+ */
+export type Activity =
+  | { kind: "idle" }
+  | { kind: "busy"; step: Step; eventId: string }
+  | { kind: "failed"; step: Step; eventId: string; failure: RequestFailure };
+
+/**
+ * クライアントだけが持つ状態
+ *
+ * `fresh` は直近の応答で得た trip を id で引くもので、props の trips より新しい間だけ優先する
+ * `ignored` は画面内で隠した予定の id で、保存しない
+ */
+export type FlowState = {
+  activity: Activity;
+  fresh: Readonly<Record<string, TripResponse>>;
+  ignored: readonly string[];
+  selectedEventId?: string;
+};
+
+/**
+ * 状態を進める操作
  */
 export type FlowAction =
-  | { type: "propose"; event: CalendarEventView }
-  | { type: "planReady"; plan: TripPlanView }
-  | { type: "approve" }
-  | { type: "pay" }
-  | { type: "authorized"; authorization: AuthorizationView }
-  | { type: "failed"; error: PaymentError }
-  | { type: "writeBack" }
-  | { type: "written"; calendarEventId: string }
-  | { type: "reset" };
+  | { type: "select"; eventId: string }
+  | { type: "deselect" }
+  | { type: "ignore"; eventId: string }
+  | { type: "restoreIgnored" }
+  | { type: "start"; step: Step; eventId: string }
+  | { type: "succeed"; trip: TripResponse }
+  | { type: "fail"; failure: RequestFailure }
+  | { type: "dismiss" };
+
+/**
+ * 予定 1 件の休止状態
+ */
+export type EventRowState =
+  | { kind: "unarranged" }
+  | { kind: "arranged"; status: TripStatus };
+
+/**
+ * 一覧の 1 行
+ */
+export type EventRow = {
+  event: ScanEvent;
+  state: EventRowState;
+};
+
+/**
+ * ステッパーが描くもの
+ *
+ * `trip` が無い `busy` / `failed` は、まだ trip の無い予定への提案
+ */
+export type StepperState =
+  | { kind: "idle" }
+  | { kind: "unarranged"; event: ScanEvent }
+  | { kind: "arranged"; event: ScanEvent; trip: TripResponse }
+  | { kind: "busy"; step: Step; event: ScanEvent; trip?: TripResponse }
+  | {
+      kind: "failed";
+      step: Step;
+      event: ScanEvent;
+      trip?: TripResponse;
+      failure: RequestFailure;
+    };

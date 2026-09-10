@@ -6,9 +6,7 @@
     "settings": "Settings"
   },
   "Dashboard": {
-    "title": "Dashboard",
-    "welcome": "Welcome, {name}.",
-    "sampleNotice": "Sample data. Calendar, fare catalog, and contract wiring arrive in a later change."
+    "title": "Dashboard"
   },
   "Auth": {
     "signInWithGoogle": "Sign in with Google",
@@ -158,6 +156,22 @@
     "noLodging": "None",
     "total": "{amount} {currency}"
   },
+  "MandateForm": {
+    "title": "Set up your spending allowance",
+    "badge": "Private state",
+    "lead": "The secretary pays for trips from this allowance. The cap and what you spend stay private; only a commitment reaches the ledger.",
+    "cap": "Cap ({currency})",
+    "expiresAt": "Expires at",
+    "purpose": "Purpose",
+    "purposePlaceholder": "Business trips, September 2026",
+    "submit": "Create the allowance",
+    "submitting": "Creating...",
+    "errors": {
+      "cap": "Enter a whole number of at least 1.",
+      "expiresAt": "Pick a date and time after now.",
+      "purpose": "Enter what the allowance is for."
+    }
+  },
   "MandateCard": {
     "title": "Your spending allowance",
     "badge": "Private state",
@@ -171,12 +185,21 @@
   },
   "EventList": {
     "title": "Upcoming events",
-    "subtitle": "The next 14 days from your Google Calendar. Trips get a plan proposal.",
-    "tripChip": "Trip to {destination}",
+    "subtitle": "The next 30 days from your calendar. Pick one and the secretary proposes a plan.",
     "propose": "Propose a plan",
+    "ignore": "Ignore",
+    "show": "Show",
+    "needMandate": "Set up the allowance to propose plans.",
+    "ignored": "{count, plural, one {# event hidden} other {# events hidden}}",
+    "restore": "Show again",
     "allDay": "all day",
-    "empty": "No events in the next 14 days.",
-    "otherChip": "Other"
+    "empty": "No events in the next 30 days.",
+    "status": {
+      "proposed": "Proposed",
+      "approved": "Approved",
+      "paid": "Paid",
+      "written": "On calendar"
+    }
   },
   "TripStepper": {
     "title": "Trip plan",
@@ -187,8 +210,10 @@
       "paid": "Paid",
       "written": "On calendar"
     },
-    "idle": "Pick an event that looks like a trip and the secretary drafts a plan from the fare catalog.",
+    "idle": "Pick an event on the left and the secretary drafts a plan from the fare catalog.",
+    "unarranged": "Press \"Propose a plan\" on the event to start.",
     "proposing": "Drafting a plan for {title}...",
+    "approving": "Recording your approval...",
     "total": "Total",
     "rationale": "Why this plan",
     "transport": "{from} to {to} ({mode})",
@@ -198,24 +223,24 @@
     },
     "lodging": "{hotel}, {nights, plural, one {# night} other {# nights}}",
     "approve": "Approve plan",
-    "discard": "Discard",
+    "repropose": "Redo the plan",
     "pay": "Pay from the allowance",
+    "resumePay": "Resume the payment",
+    "partiallyPaid": "Some items are already paid. Resuming pays the rest.",
     "proving": "Generating the zero-knowledge proof...",
     "provingHint": "The proof shows the payment fits your spending allowance without revealing the cap, what you spent, or who you are.",
-    "authorizedTitle": "Payment authorized",
+    "authorizedTitle": "Payments authorized",
     "publicHash": "Public hash",
     "paymentRef": "Payment reference",
+    "amount": "Amount",
     "authorizedAt": "Authorized at",
+    "transaction": "Transaction",
     "writeBack": "Add to calendar",
     "writing": "Writing the trip to Google Calendar...",
     "writtenTitle": "Done",
     "writtenBody": "The trip is on your calendar as {id}.",
-    "reset": "Start another",
-    "errors": {
-      "overBudget": "Over budget: this trip costs {requested} but only {remaining} remains on the allowance.",
-      "expired": "The allowance expired on {date}.",
-      "proofFailed": "Proof generation failed. Try again."
-    },
+    "another": "Start another",
+    "dismiss": "Close",
     "inProgress": "In progress"
   },
   "LedgerPanel": {
@@ -235,6 +260,7 @@
       "eyebrow": "Private state",
       "title": "What stays with you",
       "who": "Only you and your secretary can read this.",
+      "none": "No allowance yet.",
       "cap": "Cap",
       "spent": "Spent",
       "remaining": "Remaining",
@@ -243,5 +269,63 @@
       "commitment": "Commitment",
       "note": "Held off-chain and proven on-chain. The commitment is the only link to the public side."
     }
+  },
+  "SecretaryError": {
+    "calendar": {
+      "unauthenticated": "Sign in with Google again to read the calendar.",
+      "tokenExpired": "The Google session expired. Sign in again.",
+      "forbidden": "This Google account did not grant calendar access.",
+      "http": "Google Calendar returned an error; check the server log.",
+      "network": "The server could not reach Google Calendar.",
+      "schema": "The calendar response had an unexpected shape."
+    },
+    "catalog": {
+      "unknownDestination": "The fare catalog has no fares for that destination.",
+      "unavailable": "The fare catalog is not reachable right now.",
+      "schema": "The fare catalog returned an unexpected shape."
+    },
+    "planner": {
+      "notATrip": "The secretary does not read this event as a trip.",
+      "noViableChoice": "The secretary found no workable combination of fares.",
+      "llm": "The planner did not respond; try again.",
+      "schema": "The planner answered in an unexpected shape."
+    },
+    "plan": {
+      "unknownOffer": "The plan referred to a fare that is not in the catalog.",
+      "lodgingRequired": "An overnight trip needs lodging, but the plan has none.",
+      "lodgingNotAllowed": "A day trip cannot include lodging.",
+      "overBudget": "Over budget: the plan totals {total} but only {budget} remains on the allowance.",
+      "currencyMismatch": "The fares mix currencies.",
+      "negativeResult": "The plan's amounts do not add up."
+    },
+    "mandate": {
+      "notFound": "The allowance was not found on the contract.",
+      "overBudget": "The payment of {requested} does not fit: {spent} of the {cap} cap is already spent.",
+      "expired": "The allowance has expired.",
+      "alreadyAuthorized": "This payment was already authorized.",
+      "proofFailed": "Proof generation failed; try again.",
+      "unavailable": "The allowance contract is not reachable right now."
+    },
+    "money": {
+      "currencyMismatch": "Amounts in different currencies were mixed.",
+      "negativeResult": "An amount went negative."
+    },
+    "store": {
+      "unavailable": "Storage is not reachable right now.",
+      "schema": "A stored record had an unexpected shape."
+    },
+    "flow": {
+      "noMandate": "Set up a spending allowance first.",
+      "mandateExists": "You already have a spending allowance.",
+      "eventNotFound": "That event is no longer on the calendar.",
+      "eventAlreadyArranged": "A trip for this event is already past the proposal stage.",
+      "tripNotFound": "That trip was not found.",
+      "wrongStatus": "The trip is not at the step this action needs; reload the page."
+    },
+    "unauthorized": "Your session ended. Sign in again.",
+    "invalid_request": "The request was rejected as invalid.",
+    "network": "The server could not be reached.",
+    "schema": "The response had an unexpected shape.",
+    "unknown": "Something went wrong."
   }
 }

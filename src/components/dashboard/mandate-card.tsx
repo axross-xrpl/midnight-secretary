@@ -2,43 +2,32 @@
 
 import { useFormatter, useTranslations } from "next-intl";
 import type { ReactElement } from "react";
-import { remainingAllowance } from "./flow";
+import type { MandateResponse } from "@/lib/secretary-response";
+import type { FormatNumber } from "./format";
+import { moneyText, remainingOf, usedPercent } from "./format";
 import {
   cardClass,
   faintLabelClass,
   labelClass,
-  moneyFormatOptions,
   privatePillClass,
 } from "./styles";
-import type { MandateView } from "./types";
 
 type Props = {
-  mandate: MandateView;
-};
-
-const usedPercent = (mandate: MandateView): number => {
-  if (mandate.cap.amount === 0) {
-    return 0;
-  }
-
-  return Math.min(
-    100,
-    Math.round((mandate.spent.amount / mandate.cap.amount) * 100),
-  );
+  mandate: MandateResponse;
 };
 
 /**
- * The user's spending mandate as held in private state: remaining, cap,
- * spent, expiry, and purpose. Laid out like the reference wallet card.
+ * 非公開データとして持っている支払い枠 (残り、上限、使用済み、期限、用途)
+ *
+ * 参考実装のウォレットカードと同じ並び
  */
 export const MandateCard = ({ mandate }: Props): ReactElement => {
   const t = useTranslations("MandateCard");
   const format = useFormatter();
-  const remaining = remainingAllowance(mandate);
-  const percent = usedPercent(mandate);
-  const money = (amount: number): string => {
-    return format.number(amount, moneyFormatOptions(mandate.cap.currency));
+  const formatNumber: FormatNumber = (amount) => {
+    return format.number(amount);
   };
+  const percent = usedPercent(mandate);
 
   return (
     <section className={`${cardClass} flex flex-col gap-4`}>
@@ -55,7 +44,7 @@ export const MandateCard = ({ mandate }: Props): ReactElement => {
             <span className={privatePillClass}>{t("badge")}</span>
           </div>
           <div className="text-2xl font-bold leading-snug tabular-nums">
-            {money(remaining.amount)}{" "}
+            {moneyText(remainingOf(mandate), formatNumber)}{" "}
             <span className="text-[13px] font-semibold text-muted">
               {t("remaining")}
             </span>
@@ -67,13 +56,13 @@ export const MandateCard = ({ mandate }: Props): ReactElement => {
         <div className="rounded-xl border border-border p-3 px-3.5">
           <dt className={labelClass}>{t("cap")}</dt>
           <dd className="text-base font-bold tabular-nums">
-            {money(mandate.cap.amount)}
+            {moneyText(mandate.cap, formatNumber)}
           </dd>
         </div>
         <div className="rounded-xl border border-border p-3 px-3.5">
           <dt className={labelClass}>{t("spent")}</dt>
           <dd className="text-base font-bold tabular-nums">
-            {money(mandate.spent.amount)}
+            {moneyText(mandate.spent, formatNumber)}
           </dd>
         </div>
       </dl>

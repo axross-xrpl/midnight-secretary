@@ -1,210 +1,445 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, expectTypeOf, test } from "vitest";
+import { tripIdAt } from "@/testing/ids";
+import type { TripStatus } from "@/domain/trip";
+import type { ScanEvent } from "@/lib/calendar-scan-response";
+import type { TripPlanResponse, TripResponse } from "@/lib/secretary-response";
 import {
-  appendAuthorization,
-  applyPayment,
-  checkPayment,
+  effectiveTrips,
+  eventRowsOf,
+  INITIAL_FLOW_STATE,
   isBusy,
-  paymentRefFor,
+  nextStepOf,
   reduceFlow,
-  remainingAllowance,
-  sampleAuthorization,
-  sampleHash,
-  shortHash,
+  STATUS_ORDER,
+  stepIndexOf,
+  stepperStateOf,
+  tripForEvent,
+  visibleEvents,
 } from "./flow";
-import type {
-  CalendarEventView,
-  FlowState,
-  MandateView,
-  PublicLedgerView,
-  TripPlanView,
-} from "./types";
+import type { FlowState, RequestFailure, Step } from "./types";
 
-const NOW = "2026-09-04T00:00:00.000Z";
+const TRIP_ID = tripIdAt(1);
 
-const mandate: MandateView = {
-  id: "m1",
-  cap: { amount: 150_000, currency: "JPY" },
-  spent: { amount: 20_000, currency: "JPY" },
-  expiresAt: "2026-10-04T00:00:00.000Z",
-  purpose: "trips",
-  commitment: "0xabc",
+const OTHER_TRIP_ID = tripIdAt(2);
+
+const NETWORK_FAILURE: RequestFailure = { code: "network" };
+
+const eventOf = (id: string, title: string): ScanEvent => {
+  return {
+    id,
+    title,
+    when: {
+      kind: "timed",
+      start: "2026-09-15T10:00:00+09:00",
+      end: "2026-09-15T17:00:00+09:00",
+    },
+  };
 };
 
-const event: CalendarEventView = {
-  id: "e1",
-  title: "Osaka",
-  start: "2026-09-07T04:00:00.000Z",
-  end: "2026-09-07T08:00:00.000Z",
-  allDay: false,
-  classification: { kind: "trip", destination: "Osaka" },
+const OSAKA = eventOf("seed-2", "大阪出張 (取引先訪問)");
+
+const MEETING = eventOf("seed-1", "チーム定例");
+
+const WRITTEN_EVENT = eventOf("written-1", "大阪 出張");
+
+const demo = (amount: number): { amount: number; currency: "DEMO" } => {
+  return { amount, currency: "DEMO" };
 };
 
-const plan: TripPlanView = {
-  id: "p1",
-  eventId: "e1",
-  destination: "Osaka",
-  items: [],
-  total: { amount: 41_440, currency: "JPY" },
-  rationale: "because",
+const RAIL = {
+  id: "rail-tokyo-osaka",
+  mode: "rail",
+  vendor: "デモ鉄道",
+  payee: "wallet-rail",
+  origin: "東京",
+  destination: "新大阪",
+  departAt: "2026-09-15T09:00:00+09:00",
+  arriveAt: "2026-09-15T11:30:00+09:00",
+  price: demo(14720),
+} as const;
+
+const PLAN: TripPlanResponse = {
+  intent: {
+    destination: "大阪",
+    departOn: "2026-09-15",
+    returnOn: "2026-09-15",
+    purpose: "取引先訪問",
+  },
+  outbound: RAIL,
+  inbound: { ...RAIL, id: "rail-osaka-tokyo" },
+  total: demo(29440),
+  rationale: "日帰りで往復できる",
 };
 
-describe("remainingAllowance", () => {
-  test("subtracts spent from cap", () => {
-    expect(remainingAllowance(mandate)).toStrictEqual({
-      amount: 130_000,
-      currency: "JPY",
-    });
-  });
-});
+type TripBase = {
+  id: string;
+  event: ScanEvent;
+  plan: TripPlanResponse;
+  proposedAt: string;
+};
 
-describe("checkPayment", () => {
-  test("allows a payment within the remaining allowance", () => {
-    expect(checkPayment(mandate, plan.total, NOW)).toBeUndefined();
-  });
+const baseOf = (id: string, event: ScanEvent): TripBase => {
+  return { id, event, plan: PLAN, proposedAt: "2026-09-10T00:00:00Z" };
+};
 
-  test("rejects a payment above the remaining allowance", () => {
-    const requested = { amount: 130_001, currency: "JPY" } as const;
+const proposedTrip = (id: string, event: ScanEvent): TripResponse => {
+  return { status: "proposed", ...baseOf(id, event) };
+};
 
-    expect(checkPayment(mandate, requested, NOW)).toStrictEqual({
-      kind: "overBudget",
-      remaining: { amount: 130_000, currency: "JPY" },
-      requested,
-    });
-  });
+const approvedTrip = (id: string, event: ScanEvent): TripResponse => {
+  return {
+    status: "approved",
+    ...baseOf(id, event),
+    approvedAt: "2026-09-10T00:01:00Z",
+    authorizations: [],
+  };
+};
 
-  test("rejects a payment after the mandate expired", () => {
-    expect(checkPayment(mandate, plan.total, mandate.expiresAt)).toStrictEqual({
-      kind: "expired",
-      expiresAt: mandate.expiresAt,
-    });
-  });
-});
+const paidTrip = (id: string, event: ScanEvent): TripResponse => {
+  return {
+    status: "paid",
+    ...baseOf(id, event),
+    approvedAt: "2026-09-10T00:01:00Z",
+    authorizations: [],
+    paidAt: "2026-09-10T00:02:00Z",
+  };
+};
 
-describe("applyPayment and appendAuthorization", () => {
-  test("applyPayment adds to spent without touching the cap", () => {
-    expect(applyPayment(mandate, plan.total)).toStrictEqual({
-      ...mandate,
-      spent: { amount: 61_440, currency: "JPY" },
-    });
-  });
+const writtenTrip = (
+  id: string,
+  event: ScanEvent,
+  writtenEventId: string,
+): TripResponse => {
+  return {
+    status: "written",
+    ...baseOf(id, event),
+    approvedAt: "2026-09-10T00:01:00Z",
+    authorizations: [],
+    paidAt: "2026-09-10T00:02:00Z",
+    writtenEventId,
+    writtenAt: "2026-09-10T00:03:00Z",
+  };
+};
 
-  test("appendAuthorization records the hash and increments the count", () => {
-    const ledger: PublicLedgerView = {
-      commitments: [{ mandateId: "m1", commitment: "0xabc" }],
-      authorizationHashes: [],
-      authorizedCount: 0,
-    };
+const PROPOSED = proposedTrip(TRIP_ID, OSAKA);
 
-    expect(appendAuthorization(ledger, "0xdef")).toStrictEqual({
-      ...ledger,
-      authorizationHashes: ["0xdef"],
-      authorizedCount: 1,
-    });
-  });
-});
+const APPROVED = approvedTrip(TRIP_ID, OSAKA);
 
-describe("hashes and references", () => {
-  test("paymentRefFor is derived from the plan id", () => {
-    expect(paymentRefFor("p1")).toBe("pay:p1");
-  });
+const PAID = paidTrip(TRIP_ID, OSAKA);
 
-  test("sampleHash is deterministic and 64 hex digits", () => {
-    expect(sampleHash("x")).toBe(sampleHash("x"));
-    expect(sampleHash("x")).toMatch(/^0x[0-9a-f]{64}$/);
-    expect(sampleHash("x")).not.toBe(sampleHash("y"));
-  });
+const WRITTEN = writtenTrip(TRIP_ID, OSAKA, WRITTEN_EVENT.id);
 
-  test("shortHash keeps the prefix and suffix", () => {
-    expect(shortHash("0x0123456789abcdef0123456789abcdef")).toBe(
-      "0x01234567...abcdef",
-    );
-    expect(shortHash("0xshort")).toBe("0xshort");
-  });
+const selectedState = (eventId: string): FlowState => {
+  return { ...INITIAL_FLOW_STATE, selectedEventId: eventId };
+};
 
-  test("sampleAuthorization uses the plan total and a deterministic hash", () => {
-    const first = sampleAuthorization(plan, mandate.id, NOW);
-    const second = sampleAuthorization(plan, mandate.id, NOW);
-
-    expect(first).toStrictEqual(second);
-    expect(first.paymentRef).toBe("pay:p1");
-    expect(first.amount).toStrictEqual(plan.total);
-  });
-});
+const busyState = (step: Step, eventId: string): FlowState => {
+  return {
+    ...INITIAL_FLOW_STATE,
+    activity: { kind: "busy", step, eventId },
+    selectedEventId: eventId,
+  };
+};
 
 describe("reduceFlow", () => {
-  const authorization = sampleAuthorization(plan, mandate.id, NOW);
+  test("一本道では 1 手ごとに fresh と選択中の予定が進む", () => {
+    const proposing = reduceFlow(INITIAL_FLOW_STATE, {
+      type: "start",
+      step: "propose",
+      eventId: OSAKA.id,
+    });
 
-  test("walks the whole path in order", () => {
-    const states: FlowState[] = [{ step: "idle" }];
-    const s1 = reduceFlow(states[0] ?? { step: "idle" }, {
-      type: "propose",
-      event,
+    expect(proposing.activity).toStrictEqual({
+      kind: "busy",
+      step: "propose",
+      eventId: OSAKA.id,
     });
-    const s2 = reduceFlow(s1, { type: "planReady", plan });
-    const s3 = reduceFlow(s2, { type: "approve" });
-    const s4 = reduceFlow(s3, { type: "pay" });
-    const s5 = reduceFlow(s4, { type: "authorized", authorization });
-    const s6 = reduceFlow(s5, { type: "writeBack" });
-    const s7 = reduceFlow(s6, { type: "written", calendarEventId: "c1" });
+    expect(proposing.selectedEventId).toBe(OSAKA.id);
+    expect(isBusy(proposing)).toBe(true);
 
-    expect(s1).toStrictEqual({ step: "proposing", event });
-    expect(s2).toStrictEqual({ step: "proposed", event, plan });
-    expect(s3).toStrictEqual({ step: "approved", event, plan });
-    expect(s4).toStrictEqual({ step: "proving", event, plan });
-    expect(s5).toStrictEqual({
-      step: "authorized",
-      event,
-      plan,
-      authorization,
+    const proposed = reduceFlow(proposing, { type: "succeed", trip: PROPOSED });
+
+    expect(proposed.activity).toStrictEqual({ kind: "idle" });
+    expect(proposed.fresh).toStrictEqual({ [TRIP_ID]: PROPOSED });
+    expect(proposed.selectedEventId).toBe(OSAKA.id);
+    expect(isBusy(proposed)).toBe(false);
+
+    const approving = reduceFlow(proposed, {
+      type: "start",
+      step: "approve",
+      eventId: OSAKA.id,
     });
-    expect(s6).toStrictEqual({ step: "writing", event, plan, authorization });
-    expect(s7).toStrictEqual({
-      step: "written",
-      event,
-      plan,
-      authorization,
-      calendarEventId: "c1",
+
+    expect(approving.activity).toStrictEqual({
+      kind: "busy",
+      step: "approve",
+      eventId: OSAKA.id,
     });
+
+    const approved = reduceFlow(approving, { type: "succeed", trip: APPROVED });
+
+    expect(approved.fresh).toStrictEqual({ [TRIP_ID]: APPROVED });
+
+    const paying = reduceFlow(approved, {
+      type: "start",
+      step: "pay",
+      eventId: OSAKA.id,
+    });
+    const paid = reduceFlow(paying, { type: "succeed", trip: PAID });
+
+    expect(paid.fresh).toStrictEqual({ [TRIP_ID]: PAID });
+
+    const writing = reduceFlow(paid, {
+      type: "start",
+      step: "writeBack",
+      eventId: OSAKA.id,
+    });
+    const written = reduceFlow(writing, { type: "succeed", trip: WRITTEN });
+
+    expect(written.activity).toStrictEqual({ kind: "idle" });
+    expect(written.fresh).toStrictEqual({ [TRIP_ID]: WRITTEN });
+    expect(written.selectedEventId).toBe(OSAKA.id);
   });
 
-  test("ignores an action that does not fit the current step", () => {
-    const proposed: FlowState = { step: "proposed", event, plan };
+  test("進行中は select / start / ignore で状態が変わらない", () => {
+    const busy = busyState("propose", OSAKA.id);
 
-    expect(reduceFlow(proposed, { type: "pay" })).toBe(proposed);
-    expect(reduceFlow({ step: "idle" }, { type: "approve" })).toStrictEqual({
-      step: "idle",
-    });
-  });
-
-  test("records a failure while proving and allows a new proposal after it", () => {
-    const proving: FlowState = { step: "proving", event, plan };
-    const failed = reduceFlow(proving, {
-      type: "failed",
-      error: { kind: "proofFailed" },
-    });
-
-    expect(failed).toStrictEqual({
-      step: "failed",
-      event,
-      plan,
-      error: { kind: "proofFailed" },
-    });
-    expect(reduceFlow(failed, { type: "propose", event })).toStrictEqual({
-      step: "proposing",
-      event,
-    });
-  });
-
-  test("reset returns to idle from any step", () => {
+    expect(reduceFlow(busy, { type: "select", eventId: MEETING.id })).toBe(
+      busy,
+    );
     expect(
-      reduceFlow({ step: "approved", event, plan }, { type: "reset" }),
-    ).toStrictEqual({ step: "idle" });
+      reduceFlow(busy, { type: "start", step: "approve", eventId: MEETING.id }),
+    ).toBe(busy);
+    expect(reduceFlow(busy, { type: "ignore", eventId: MEETING.id })).toBe(
+      busy,
+    );
+    expect(reduceFlow(busy, { type: "deselect" })).toBe(busy);
   });
 
-  test("isBusy is true only while a background step runs", () => {
-    expect(isBusy({ step: "proposing", event })).toBe(true);
-    expect(isBusy({ step: "proving", event, plan })).toBe(true);
-    expect(isBusy({ step: "proposed", event, plan })).toBe(false);
-    expect(isBusy({ step: "idle" })).toBe(false);
+  test("進行中でなければ succeed / fail で状態が変わらない", () => {
+    expect(
+      reduceFlow(INITIAL_FLOW_STATE, { type: "succeed", trip: PROPOSED }),
+    ).toBe(INITIAL_FLOW_STATE);
+    expect(
+      reduceFlow(INITIAL_FLOW_STATE, {
+        type: "fail",
+        failure: NETWORK_FAILURE,
+      }),
+    ).toBe(INITIAL_FLOW_STATE);
+  });
+
+  test("fail は進行中の 1 手を引き継ぎ、dismiss で消える", () => {
+    const failed = reduceFlow(busyState("pay", OSAKA.id), {
+      type: "fail",
+      failure: NETWORK_FAILURE,
+    });
+
+    expect(failed.activity).toStrictEqual({
+      kind: "failed",
+      step: "pay",
+      eventId: OSAKA.id,
+      failure: NETWORK_FAILURE,
+    });
+
+    expect(reduceFlow(failed, { type: "dismiss" }).activity).toStrictEqual({
+      kind: "idle",
+    });
+  });
+
+  test("select は直前の失敗も消す", () => {
+    const failed = reduceFlow(busyState("pay", OSAKA.id), {
+      type: "fail",
+      failure: NETWORK_FAILURE,
+    });
+
+    const selected = reduceFlow(failed, {
+      type: "select",
+      eventId: MEETING.id,
+    });
+
+    expect(selected.activity).toStrictEqual({ kind: "idle" });
+    expect(selected.selectedEventId).toBe(MEETING.id);
+  });
+
+  test("ignore は選択中の予定を外し、同じ id を重ねない", () => {
+    const ignored = reduceFlow(selectedState(OSAKA.id), {
+      type: "ignore",
+      eventId: OSAKA.id,
+    });
+
+    expect(ignored.ignored).toStrictEqual([OSAKA.id]);
+    expect(ignored.selectedEventId).toBeUndefined();
+
+    const twice = reduceFlow(ignored, { type: "ignore", eventId: OSAKA.id });
+
+    expect(twice.ignored).toStrictEqual([OSAKA.id]);
+  });
+
+  test("restoreIgnored で無視した予定が空になる", () => {
+    const ignored = reduceFlow(INITIAL_FLOW_STATE, {
+      type: "ignore",
+      eventId: MEETING.id,
+    });
+
+    expect(
+      reduceFlow(ignored, { type: "restoreIgnored" }).ignored,
+    ).toStrictEqual([]);
+  });
+
+  test("deselect は選択を外す", () => {
+    const deselected = reduceFlow(selectedState(OSAKA.id), {
+      type: "deselect",
+    });
+
+    expect(deselected.selectedEventId).toBeUndefined();
+  });
+});
+
+describe("effectiveTrips", () => {
+  test("応答の方が進んでいれば応答を採る", () => {
+    expect(effectiveTrips([PROPOSED], { [TRIP_ID]: APPROVED })).toStrictEqual([
+      APPROVED,
+    ]);
+  });
+
+  test("props の方が進んでいれば props を採る", () => {
+    expect(effectiveTrips([PAID], { [TRIP_ID]: APPROVED })).toStrictEqual([
+      PAID,
+    ]);
+  });
+
+  test("同じ status なら応答の方を採る (計画が違う)", () => {
+    const reproposed: TripResponse = {
+      status: "proposed",
+      ...baseOf(TRIP_ID, OSAKA),
+      plan: { ...PLAN, rationale: "作り直した計画" },
+    };
+
+    expect(effectiveTrips([PROPOSED], { [TRIP_ID]: reproposed })).toStrictEqual(
+      [reproposed],
+    );
+  });
+
+  test("props に無い id の応答は末尾に足す", () => {
+    const added = proposedTrip(OTHER_TRIP_ID, MEETING);
+
+    expect(
+      effectiveTrips([PROPOSED], { [OTHER_TRIP_ID]: added }),
+    ).toStrictEqual([PROPOSED, added]);
+  });
+});
+
+describe("tripForEvent", () => {
+  test("予定の id で trip を引く", () => {
+    expect(tripForEvent(OSAKA.id, [PROPOSED])).toBe(PROPOSED);
+    expect(tripForEvent(MEETING.id, [PROPOSED])).toBeUndefined();
+  });
+});
+
+describe("visibleEvents", () => {
+  test("無視した予定と秘書が書き戻した予定を除く", () => {
+    const visible = visibleEvents(
+      [MEETING, OSAKA, WRITTEN_EVENT],
+      [WRITTEN],
+      [MEETING.id],
+    );
+
+    expect(visible.map((event) => event.id)).toStrictEqual([OSAKA.id]);
+  });
+});
+
+describe("eventRowsOf", () => {
+  test("trip の有無で行の状態が決まる", () => {
+    expect(eventRowsOf([MEETING, OSAKA], [APPROVED])).toStrictEqual([
+      { event: MEETING, state: { kind: "unarranged" } },
+      { event: OSAKA, state: { kind: "arranged", status: "approved" } },
+    ]);
+  });
+});
+
+describe("stepperStateOf", () => {
+  test("何も選んでいなければ idle", () => {
+    expect(stepperStateOf(INITIAL_FLOW_STATE, [OSAKA], [])).toStrictEqual({
+      kind: "idle",
+    });
+  });
+
+  test("選んだ予定に trip が無ければ unarranged", () => {
+    expect(stepperStateOf(selectedState(OSAKA.id), [OSAKA], [])).toStrictEqual({
+      kind: "unarranged",
+      event: OSAKA,
+    });
+  });
+
+  test("選んだ予定に trip があれば arranged", () => {
+    expect(
+      stepperStateOf(selectedState(OSAKA.id), [OSAKA], [PROPOSED]),
+    ).toStrictEqual({ kind: "arranged", event: OSAKA, trip: PROPOSED });
+  });
+
+  test("進行中で trip があれば busy に trip が付く", () => {
+    expect(
+      stepperStateOf(busyState("approve", OSAKA.id), [OSAKA], [PROPOSED]),
+    ).toStrictEqual({
+      kind: "busy",
+      step: "approve",
+      event: OSAKA,
+      trip: PROPOSED,
+    });
+  });
+
+  test("最初の提案では busy に trip が付かない", () => {
+    expect(
+      stepperStateOf(busyState("propose", OSAKA.id), [OSAKA], []),
+    ).toStrictEqual({ kind: "busy", step: "propose", event: OSAKA });
+  });
+
+  test("失敗した 1 手は failed になる", () => {
+    const failed = reduceFlow(busyState("propose", OSAKA.id), {
+      type: "fail",
+      failure: NETWORK_FAILURE,
+    });
+
+    expect(stepperStateOf(failed, [OSAKA], [])).toStrictEqual({
+      kind: "failed",
+      step: "propose",
+      event: OSAKA,
+      failure: NETWORK_FAILURE,
+    });
+  });
+});
+
+describe("stepIndexOf", () => {
+  test("休止状態は status の添字、進行中は 1 手の添字になる", () => {
+    expect(stepIndexOf({ kind: "idle" })).toBe(-1);
+    expect(stepIndexOf({ kind: "unarranged", event: OSAKA })).toBe(-1);
+    expect(
+      stepIndexOf({ kind: "arranged", event: OSAKA, trip: PROPOSED }),
+    ).toBe(0);
+    expect(stepIndexOf({ kind: "busy", step: "pay", event: OSAKA })).toBe(2);
+    expect(stepIndexOf({ kind: "arranged", event: OSAKA, trip: WRITTEN })).toBe(
+      3,
+    );
+  });
+});
+
+describe("nextStepOf", () => {
+  test("状態ごとに次の 1 手が決まり、written で終わる", () => {
+    expect(nextStepOf("proposed")).toBe("approve");
+    expect(nextStepOf("approved")).toBe("pay");
+    expect(nextStepOf("paid")).toBe("writeBack");
+    expect(nextStepOf("written")).toBeUndefined();
+  });
+});
+
+describe("STATUS_ORDER", () => {
+  test("domain の TripStatus を進む順に並べている", () => {
+    expect(STATUS_ORDER).toStrictEqual([
+      "proposed",
+      "approved",
+      "paid",
+      "written",
+    ]);
+    expectTypeOf<(typeof STATUS_ORDER)[number]>().toEqualTypeOf<TripStatus>();
   });
 });

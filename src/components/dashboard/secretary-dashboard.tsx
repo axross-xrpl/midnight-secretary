@@ -1,180 +1,142 @@
 "use client";
 
-import type { Dispatch, ReactElement } from "react";
-import { useEffect, useMemo, useReducer, useState } from "react";
+import { useLocale } from "next-intl";
+import type { ReactElement } from "react";
+import { useReducer, useState } from "react";
+import { useRouter } from "@/i18n/navigation";
+import type { ScanEvent } from "@/lib/calendar-scan-response";
+import type { Result } from "@/lib/result";
+import type { MandateResponse, TripResponse } from "@/lib/secretary-response";
 import { EventList } from "./event-list";
 import {
-  appendAuthorization,
-  applyPayment,
-  checkPayment,
+  effectiveTrips,
+  eventRowsOf,
+  INITIAL_FLOW_STATE,
   isBusy,
   reduceFlow,
-  sampleAuthorization,
+  stepperStateOf,
+  visibleEvents,
 } from "./flow";
 import { LedgerPanel } from "./ledger-panel";
 import { MandateCard } from "./mandate-card";
+import { MandateForm } from "./mandate-form";
 import {
-  sampleEvents,
-  sampleLedger,
-  sampleMandate,
-  samplePlanFor,
-} from "./sample";
+  requestApproveTrip,
+  requestPayForTrip,
+  requestProposeTrip,
+  requestWriteBackTrip,
+} from "./request-secretary";
 import { TripStepper } from "./trip-stepper";
-import type {
-  FlowAction,
-  FlowState,
-  MandateView,
-  PublicLedgerView,
-} from "./types";
+import type { PublicLedgerView, RequestFailure, Step } from "./types";
 
 type Props = {
   now: string;
+  mandate?: MandateResponse;
+  events: readonly ScanEvent[];
+  trips: readonly TripResponse[];
+  publicLedger: PublicLedgerView;
 };
+
+// 1 手を進める fetch (成功すれば次の状態の trip が返る)
+type StepRequest = () => Promise<Result<TripResponse, RequestFailure>>;
 
 /**
- * Simulated latencies for the steps that will later talk to the planner, the
- * proof server, and Google Calendar.
+ * Wave 1 のダッシュボード
+ *
+ * 休止状態は props から導き、進行中の 1 手と直近の応答だけを手元に持つ
+ * 変更が成功するたびに `router.refresh()` で props を追いつかせる
  */
-export const SIMULATED_DELAYS_MS = {
-  proposal: 900,
-  proof: 2500,
-  calendarWrite: 1000,
-} as const;
+export const SecretaryDashboard = (props: Props): ReactElement => {
+  const router = useRouter();
+  const locale = useLocale();
+  const [state, dispatch] = useReducer(reduceFlow, INITIAL_FLOW_STATE);
+  const [createdMandate, setCreatedMandate] = useState<
+    MandateResponse | undefined
+  >(undefined);
+  // 作った直後は応答の値、refresh 後は props が勝つ (作成は 1 回きりなので古い方が勝ち続けない)
+  const mandate = props.mandate ?? createdMandate;
+  const trips = effectiveTrips(props.trips, state.fresh);
+  const events = visibleEvents(props.events, trips, state.ignored);
+  const rows = eventRowsOf(events, trips);
+  const stepper = stepperStateOf(state, events, trips);
+  const busy = isBusy(state);
 
-type SimulationDeps = {
-  now: string;
-  mandate: MandateView;
-  dispatch: Dispatch<FlowAction>;
-  setMandate: Dispatch<MandateView>;
-  setLedger: Dispatch<(ledger: PublicLedgerView) => PublicLedgerView>;
-};
+  // dispatch と router を閉じ込めるのでコンポーネントの中で定義する
+  const runStep = async (
+    step: Step,
+    eventId: string,
+    request: StepRequest,
+  ): Promise<void> => {
+    dispatch({ type: "start", step, eventId });
+    const result = await request();
 
-type Cleanup = () => void;
+    if (!result.ok) {
+      dispatch({ type: "fail", failure: result.error });
+      return;
+    }
 
-const scheduleProposal = (
-  state: Extract<FlowState, { step: "proposing" }>,
-  deps: SimulationDeps,
-): Cleanup => {
-  const plan = samplePlanFor(state.event);
-  const timer = setTimeout(() => {
-    deps.dispatch(
-      plan === undefined ? { type: "reset" } : { type: "planReady", plan },
+    dispatch({ type: "succeed", trip: result.value });
+    router.refresh();
+  };
+
+  const propose = async (eventId: string): Promise<void> => {
+    return runStep("propose", eventId, () =>
+      requestProposeTrip(fetch, { eventId, locale }),
     );
-  }, SIMULATED_DELAYS_MS.proposal);
+  };
 
-  return () => clearTimeout(timer);
-};
+  const approve = async (trip: TripResponse): Promise<void> => {
+    return runStep("approve", trip.event.id, () =>
+      requestApproveTrip(fetch, trip.id),
+    );
+  };
 
-const settlePayment = (
-  state: Extract<FlowState, { step: "proving" }>,
-  deps: SimulationDeps,
-): void => {
-  const error = checkPayment(deps.mandate, state.plan.total, deps.now);
+  const pay = async (trip: TripResponse): Promise<void> => {
+    return runStep("pay", trip.event.id, () =>
+      requestPayForTrip(fetch, trip.id),
+    );
+  };
 
-  if (error !== undefined) {
-    deps.dispatch({ type: "failed", error });
-    return;
-  }
+  const writeBack = async (trip: TripResponse): Promise<void> => {
+    return runStep("writeBack", trip.event.id, () =>
+      requestWriteBackTrip(fetch, trip.id, { locale }),
+    );
+  };
 
-  const authorization = sampleAuthorization(
-    state.plan,
-    deps.mandate.id,
-    deps.now,
-  );
-  deps.setMandate(applyPayment(deps.mandate, authorization.amount));
-  deps.setLedger((ledger) =>
-    appendAuthorization(ledger, authorization.publicHash),
-  );
-  deps.dispatch({ type: "authorized", authorization });
-};
-
-const scheduleProof = (
-  state: Extract<FlowState, { step: "proving" }>,
-  deps: SimulationDeps,
-): Cleanup => {
-  const timer = setTimeout(
-    () => settlePayment(state, deps),
-    SIMULATED_DELAYS_MS.proof,
-  );
-
-  return () => clearTimeout(timer);
-};
-
-const scheduleCalendarWrite = (
-  state: Extract<FlowState, { step: "writing" }>,
-  deps: SimulationDeps,
-): Cleanup => {
-  const timer = setTimeout(() => {
-    deps.dispatch({
-      type: "written",
-      calendarEventId: `gcal-${state.plan.id}`,
-    });
-  }, SIMULATED_DELAYS_MS.calendarWrite);
-
-  return () => clearTimeout(timer);
-};
-
-/**
- * Runs the simulated background step for the current state, if any, and
- * returns its cleanup.
- */
-const runSimulation = (
-  state: FlowState,
-  deps: SimulationDeps,
-): Cleanup | undefined => {
-  if (state.step === "proposing") {
-    return scheduleProposal(state, deps);
-  }
-
-  if (state.step === "proving") {
-    return scheduleProof(state, deps);
-  }
-
-  if (state.step === "writing") {
-    return scheduleCalendarWrite(state, deps);
-  }
-
-  return undefined;
-};
-
-/**
- * The Wave 1 dashboard: mandate, upcoming events, the one-path trip flow, and
- * the dual-ledger view. All data is sample data until the domain ports land.
- */
-export const SecretaryDashboard = ({ now }: Props): ReactElement => {
-  const [state, dispatch] = useReducer(reduceFlow, { step: "idle" });
-  const [mandate, setMandate] = useState(() => sampleMandate(now));
-  const [ledger, setLedger] = useState(() => sampleLedger(sampleMandate(now)));
-  const events = useMemo(() => sampleEvents(now), [now]);
-
-  useEffect(() => {
-    return runSimulation(state, {
-      now,
-      mandate,
-      dispatch,
-      setMandate,
-      setLedger,
-    });
-  }, [state, now, mandate]);
+  const onMandateCreated = (created: MandateResponse): void => {
+    setCreatedMandate(created);
+    router.refresh();
+  };
 
   return (
     <div className="flex flex-col gap-5">
       <div className="grid items-start gap-3.5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))]">
-        <MandateCard mandate={mandate} />
+        {mandate === undefined ? (
+          <MandateForm now={props.now} onCreated={onMandateCreated} />
+        ) : (
+          <MandateCard mandate={mandate} />
+        )}
         <EventList
-          events={events}
-          busy={isBusy(state)}
-          onPropose={(event) => dispatch({ type: "propose", event })}
+          rows={rows}
+          ignoredCount={state.ignored.length}
+          busy={busy}
+          canPropose={mandate !== undefined}
+          onPropose={propose}
+          onSelect={(eventId) => dispatch({ type: "select", eventId })}
+          onIgnore={(eventId) => dispatch({ type: "ignore", eventId })}
+          onRestore={() => dispatch({ type: "restoreIgnored" })}
         />
       </div>
       <TripStepper
-        state={state}
-        onApprove={() => dispatch({ type: "approve" })}
-        onPay={() => dispatch({ type: "pay" })}
-        onWriteBack={() => dispatch({ type: "writeBack" })}
-        onReset={() => dispatch({ type: "reset" })}
+        state={stepper}
+        onApprove={approve}
+        onRepropose={propose}
+        onPay={pay}
+        onWriteBack={writeBack}
+        onDismiss={() => dispatch({ type: "dismiss" })}
+        onDeselect={() => dispatch({ type: "deselect" })}
       />
-      <LedgerPanel ledger={ledger} mandate={mandate} />
+      <LedgerPanel publicLedger={props.publicLedger} mandate={mandate} />
     </div>
   );
 };

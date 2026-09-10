@@ -1,247 +1,355 @@
-import { match } from "ts-pattern";
-import { isPast } from "./time";
+import { match, P } from "ts-pattern";
+import type { TripStatus } from "@/domain/trip";
+import { filterMap } from "@/lib/array";
+import type { ScanEvent } from "@/lib/calendar-scan-response";
+import type { TripResponse } from "@/lib/secretary-response";
 import type {
-  AuthorizationView,
-  CalendarEventView,
+  Activity,
+  EventRow,
+  EventRowState,
   FlowAction,
   FlowState,
-  MandateView,
-  MoneyView,
-  PaymentError,
-  PublicLedgerView,
-  TripPlanView,
+  RequestFailure,
+  Step,
+  StepperState,
 } from "./types";
 
 /**
- * Cap minus spent, in the mandate's currency.
+ * 出張が進む順
  */
-export const remainingAllowance = (mandate: MandateView): MoneyView => {
+export const STATUS_ORDER = [
+  "proposed",
+  "approved",
+  "paid",
+  "written",
+] as const satisfies readonly TripStatus[];
+
+// ステッパーの段と 1 手の対応 (propose 0、approve 1、pay 2、writeBack 3)
+const STEP_ORDER = [
+  "propose",
+  "approve",
+  "pay",
+  "writeBack",
+] as const satisfies readonly Step[];
+
+// 休止状態の trip に対して次に押せる 1 手 (written で終わり)
+const NEXT_STEP = {
+  proposed: "approve",
+  approved: "pay",
+  paid: "writeBack",
+  written: undefined,
+} as const satisfies Record<TripStatus, Step | undefined>;
+
+const IDLE = { kind: "idle" } as const satisfies Activity;
+
+/**
+ * 何も選んでいない最初の状態
+ */
+export const INITIAL_FLOW_STATE = {
+  activity: IDLE,
+  fresh: {},
+  ignored: [],
+} as const satisfies FlowState;
+
+/**
+ * 1 手が進行中なら true
+ */
+export const isBusy = (state: FlowState): boolean => {
+  return state.activity.kind === "busy";
+};
+
+// 選択を外した状態 (省略可能なフィールドを消すために組み直す)
+const withoutSelection = (state: FlowState): FlowState => {
   return {
-    amount: mandate.cap.amount - mandate.spent.amount,
-    currency: mandate.cap.currency,
+    activity: state.activity,
+    fresh: state.fresh,
+    ignored: state.ignored,
   };
 };
 
-/**
- * Checks whether `total` can be paid under `mandate` at `now`.
- * Returns the reason when it cannot, undefined when it can.
- */
-export const checkPayment = (
-  mandate: MandateView,
-  total: MoneyView,
-  now: string,
-): PaymentError | undefined => {
-  if (isPast(mandate.expiresAt, now)) {
-    return { kind: "expired", expiresAt: mandate.expiresAt };
-  }
-
-  const remaining = remainingAllowance(mandate);
-
-  if (total.amount > remaining.amount) {
-    return { kind: "overBudget", remaining, requested: total };
-  }
-
-  return undefined;
-};
-
-/**
- * Records a payment against the mandate's private state.
- */
-export const applyPayment = (
-  mandate: MandateView,
-  amount: MoneyView,
-): MandateView => {
-  return {
-    ...mandate,
-    spent: { ...mandate.spent, amount: mandate.spent.amount + amount.amount },
-  };
-};
-
-/**
- * Appends an authorization hash to the public ledger view.
- */
-export const appendAuthorization = (
-  ledger: PublicLedgerView,
-  publicHash: string,
-): PublicLedgerView => {
-  return {
-    ...ledger,
-    authorizationHashes: [...ledger.authorizationHashes, publicHash],
-    authorizedCount: ledger.authorizedCount + 1,
-  };
-};
-
-/**
- * Derives the payment reference for a plan. Deterministic, so a retry cannot
- * pay the same plan twice.
- */
-export const paymentRefFor = (planId: string): string => {
-  return `pay:${planId}`;
-};
-
-const fnv1a = (input: string): number => {
-  return Array.from(input).reduce((hash, char) => {
-    return Math.imul(hash ^ char.charCodeAt(0), 0x01000193) >>> 0;
-  }, 0x811c9dc5);
-};
-
-/**
- * Builds a 64-hex-digit hash from a string. Sample stand-in for the contract's
- * authorization hash; deterministic for the same input.
- */
-export const sampleHash = (input: string): string => {
-  const words = Array.from({ length: 8 }, (_, index) => {
-    return fnv1a(`${input}:${index}`).toString(16).padStart(8, "0");
-  });
-
-  return `0x${words.join("")}`;
-};
-
-/**
- * Shortens a hash for display, keeping the prefix and suffix.
- */
-export const shortHash = (hash: string, head = 10, tail = 6): string => {
-  if (hash.length <= head + tail + 3) {
-    return hash;
-  }
-
-  return `${hash.slice(0, head)}...${hash.slice(-tail)}`;
-};
-
-/**
- * Sample authorization for a plan, as the contract would return it.
- */
-export const sampleAuthorization = (
-  plan: TripPlanView,
-  mandateId: string,
-  now: string,
-): AuthorizationView => {
-  const paymentRef = paymentRefFor(plan.id);
-
-  return {
-    paymentRef,
-    publicHash: sampleHash(`${mandateId}:${paymentRef}`),
-    authorizedAt: now,
-    amount: plan.total,
-  };
-};
-
-const onPropose = (state: FlowState, event: CalendarEventView): FlowState => {
-  if (
-    state.step !== "idle" &&
-    state.step !== "written" &&
-    state.step !== "failed"
-  ) {
+const onSelect = (state: FlowState, eventId: string): FlowState => {
+  if (isBusy(state)) {
     return state;
   }
 
-  return { step: "proposing", event };
+  return { ...state, activity: IDLE, selectedEventId: eventId };
 };
 
-const onPlanReady = (state: FlowState, plan: TripPlanView): FlowState => {
-  if (state.step !== "proposing") {
+const onDeselect = (state: FlowState): FlowState => {
+  if (isBusy(state)) {
     return state;
   }
 
-  return { step: "proposed", event: state.event, plan };
+  return withoutSelection({ ...state, activity: IDLE });
 };
 
-const onApprove = (state: FlowState): FlowState => {
-  if (state.step !== "proposed") {
+const onIgnore = (state: FlowState, eventId: string): FlowState => {
+  if (isBusy(state)) {
     return state;
   }
 
-  return { step: "approved", event: state.event, plan: state.plan };
-};
+  const ignored = state.ignored.includes(eventId)
+    ? state.ignored
+    : [...state.ignored, eventId];
 
-const onPay = (state: FlowState): FlowState => {
-  if (state.step !== "approved") {
-    return state;
+  if (state.selectedEventId === eventId) {
+    return withoutSelection({ ...state, activity: IDLE, ignored });
   }
 
-  return { step: "proving", event: state.event, plan: state.plan };
+  return { ...state, ignored };
 };
 
-const onAuthorized = (
-  state: FlowState,
-  authorization: AuthorizationView,
-): FlowState => {
-  if (state.step !== "proving") {
+const onRestoreIgnored = (state: FlowState): FlowState => {
+  return { ...state, ignored: [] };
+};
+
+const onStart = (state: FlowState, step: Step, eventId: string): FlowState => {
+  if (isBusy(state)) {
     return state;
   }
 
   return {
-    step: "authorized",
-    event: state.event,
-    plan: state.plan,
-    authorization,
+    ...state,
+    activity: { kind: "busy", step, eventId },
+    selectedEventId: eventId,
   };
 };
 
-const onFailed = (state: FlowState, error: PaymentError): FlowState => {
-  if (state.step !== "proving") {
-    return state;
-  }
-
-  return { step: "failed", event: state.event, plan: state.plan, error };
-};
-
-const onWriteBack = (state: FlowState): FlowState => {
-  if (state.step !== "authorized") {
+const onSucceed = (state: FlowState, trip: TripResponse): FlowState => {
+  if (!isBusy(state)) {
     return state;
   }
 
   return {
-    step: "writing",
-    event: state.event,
-    plan: state.plan,
-    authorization: state.authorization,
+    ...state,
+    activity: IDLE,
+    fresh: { ...state.fresh, [trip.id]: trip },
+    selectedEventId: trip.event.id,
   };
 };
 
-const onWritten = (state: FlowState, calendarEventId: string): FlowState => {
-  if (state.step !== "writing") {
+const onFail = (state: FlowState, failure: RequestFailure): FlowState => {
+  if (state.activity.kind !== "busy") {
     return state;
   }
 
   return {
-    step: "written",
-    event: state.event,
-    plan: state.plan,
-    authorization: state.authorization,
-    calendarEventId,
+    ...state,
+    activity: {
+      kind: "failed",
+      step: state.activity.step,
+      eventId: state.activity.eventId,
+      failure,
+    },
   };
+};
+
+const onDismiss = (state: FlowState): FlowState => {
+  if (state.activity.kind !== "failed") {
+    return state;
+  }
+
+  return { ...state, activity: IDLE };
 };
 
 /**
- * Pure transition function for the one-path flow. Actions that do not fit the
- * current step leave the state unchanged.
+ * 状態遷移の純粋関数
+ *
+ * いまの状態に合わない操作は状態を変えない
  */
 export const reduceFlow = (state: FlowState, action: FlowAction): FlowState => {
   return match(action)
-    .with({ type: "propose" }, ({ event }) => onPropose(state, event))
-    .with({ type: "planReady" }, ({ plan }) => onPlanReady(state, plan))
-    .with({ type: "approve" }, () => onApprove(state))
-    .with({ type: "pay" }, () => onPay(state))
-    .with({ type: "authorized" }, ({ authorization }) =>
-      onAuthorized(state, authorization),
+    .with({ type: "select" }, ({ eventId }) => onSelect(state, eventId))
+    .with({ type: "deselect" }, () => onDeselect(state))
+    .with({ type: "ignore" }, ({ eventId }) => onIgnore(state, eventId))
+    .with({ type: "restoreIgnored" }, () => onRestoreIgnored(state))
+    .with({ type: "start" }, ({ step, eventId }) =>
+      onStart(state, step, eventId),
     )
-    .with({ type: "failed" }, ({ error }) => onFailed(state, error))
-    .with({ type: "writeBack" }, () => onWriteBack(state))
-    .with({ type: "written" }, ({ calendarEventId }) =>
-      onWritten(state, calendarEventId),
+    .with({ type: "succeed" }, ({ trip }) => onSucceed(state, trip))
+    .with({ type: "fail" }, ({ failure }) => onFail(state, failure))
+    .with({ type: "dismiss" }, () => onDismiss(state))
+    .exhaustive();
+};
+
+const statusRank = (trip: TripResponse): number => {
+  return STATUS_ORDER.indexOf(trip.status);
+};
+
+// 同じ status なら応答の方が新しい計画を持つので、応答を採る
+const laterOf = (
+  fromProps: TripResponse,
+  fromFresh: TripResponse,
+): TripResponse => {
+  if (statusRank(fromProps) > statusRank(fromFresh)) {
+    return fromProps;
+  }
+
+  return fromFresh;
+};
+
+const overlaid = (
+  trip: TripResponse,
+  fresh: Readonly<Record<string, TripResponse>>,
+): TripResponse => {
+  const candidate: TripResponse | undefined = fresh[trip.id];
+
+  if (candidate === undefined) {
+    return trip;
+  }
+
+  return laterOf(trip, candidate);
+};
+
+const isMissingFrom = (
+  trips: readonly TripResponse[],
+  trip: TripResponse,
+): boolean => {
+  return !trips.some((known) => known.id === trip.id);
+};
+
+/**
+ * props の trips に直近の応答を重ねる
+ *
+ * 同じ id なら status の進んだ方、同じ status なら応答の方を採る
+ * props に無い id の応答は末尾に足す (refresh が追いつく前の 1 回目の提案)
+ */
+export const effectiveTrips = (
+  trips: readonly TripResponse[],
+  fresh: Readonly<Record<string, TripResponse>>,
+): readonly TripResponse[] => {
+  const overlaidTrips = trips.map((trip) => overlaid(trip, fresh));
+  const added = Object.values(fresh).filter((trip) =>
+    isMissingFrom(trips, trip),
+  );
+
+  return [...overlaidTrips, ...added];
+};
+
+/**
+ * 予定に結び付いた trip を引く
+ *
+ * 同じ予定の trip は多くても 1 件 (`TripId` の JSDoc)
+ */
+export const tripForEvent = (
+  eventId: string,
+  trips: readonly TripResponse[],
+): TripResponse | undefined => {
+  return trips.find((trip) => trip.event.id === eventId);
+};
+
+const writtenEventIdOf = (trip: TripResponse): string | undefined => {
+  if (trip.status !== "written") {
+    return undefined;
+  }
+
+  return trip.writtenEventId;
+};
+
+/**
+ * 一覧に出す予定
+ *
+ * 無視した予定と、秘書が書き戻した予定 (written の `writtenEventId`) を除く
+ */
+export const visibleEvents = (
+  events: readonly ScanEvent[],
+  trips: readonly TripResponse[],
+  ignored: readonly string[],
+): readonly ScanEvent[] => {
+  const hidden = [...ignored, ...filterMap(trips, writtenEventIdOf)];
+
+  return events.filter((event) => !hidden.includes(event.id));
+};
+
+const rowStateOf = (
+  event: ScanEvent,
+  trips: readonly TripResponse[],
+): EventRowState => {
+  const trip = tripForEvent(event.id, trips);
+
+  if (trip === undefined) {
+    return { kind: "unarranged" };
+  }
+
+  return { kind: "arranged", status: trip.status };
+};
+
+/**
+ * 予定ごとの休止状態を付けた一覧の行
+ */
+export const eventRowsOf = (
+  events: readonly ScanEvent[],
+  trips: readonly TripResponse[],
+): readonly EventRow[] => {
+  return events.map((event) => ({ event, state: rowStateOf(event, trips) }));
+};
+
+/**
+ * ステッパーが描くものを、状態と props から導く
+ */
+export const stepperStateOf = (
+  state: FlowState,
+  events: readonly ScanEvent[],
+  trips: readonly TripResponse[],
+): StepperState => {
+  const event = events.find(
+    (candidate) => candidate.id === state.selectedEventId,
+  );
+
+  if (event === undefined) {
+    return { kind: "idle" };
+  }
+
+  const trip = tripForEvent(event.id, trips);
+  const activity = state.activity;
+
+  if (activity.kind === "busy" && activity.eventId === event.id) {
+    return {
+      kind: "busy",
+      step: activity.step,
+      event,
+      ...(trip === undefined ? {} : { trip }),
+    };
+  }
+
+  if (activity.kind === "failed" && activity.eventId === event.id) {
+    return {
+      kind: "failed",
+      step: activity.step,
+      event,
+      failure: activity.failure,
+      ...(trip === undefined ? {} : { trip }),
+    };
+  }
+
+  if (trip === undefined) {
+    return { kind: "unarranged", event };
+  }
+
+  return { kind: "arranged", event, trip };
+};
+
+/**
+ * ステッパーで強調する段の添字
+ *
+ * `idle` / `unarranged` は -1
+ * `arranged` は status の添字、`busy` / `failed` は step の添字 (propose 0、approve 1、pay 2、writeBack 3)
+ */
+export const stepIndexOf = (state: StepperState): number => {
+  return match(state)
+    .with({ kind: P.union("idle", "unarranged") }, () => -1)
+    .with({ kind: "arranged" }, ({ trip }) => statusRank(trip))
+    .with({ kind: P.union("busy", "failed") }, ({ step }) =>
+      STEP_ORDER.indexOf(step),
     )
-    .with({ type: "reset" }, (): FlowState => ({ step: "idle" }))
     .exhaustive();
 };
 
 /**
- * True while a simulated background step is running.
+ * 休止状態の trip に対して次に押せる 1 手
+ *
+ * `written` は undefined
  */
-export const isBusy = (state: FlowState): boolean => {
-  return (
-    state.step === "proposing" ||
-    state.step === "proving" ||
-    state.step === "writing"
-  );
+export const nextStepOf = (status: TripStatus): Step | undefined => {
+  return NEXT_STEP[status];
 };

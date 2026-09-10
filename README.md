@@ -29,6 +29,13 @@ carries a line naming the ports that are stand-ins. The source variables are rea
 starts, so `SECRETARY_MODE=demo npm start` works as well; a misconfiguration stops the server there
 instead of degrading at runtime.
 
+Then open **Dashboard** and walk the one path: create a spending allowance (the form suggests a
+100,000 DEMO cap and a 30-day expiry), press **Propose a plan** on 大阪出張, and approve, pay, and
+add it to the calendar from the plan panel. 福岡出張 is a one-night trip that adds lodging; チーム定例
+and 歯医者 show the secretary declining an event that is not a trip. The ledger panel at the bottom
+counts each payment on the public side while the cap and the spent amount stay on the private side.
+Everything lives in memory, so restarting the server starts over.
+
 The dev sign-in trusts whoever clicks the button, so it only starts when `NEXTAUTH_URL` points at
 localhost, and it forces the calendar to the fake (that session has no Google token).
 
