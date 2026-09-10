@@ -7,6 +7,7 @@ import type {
   TransportMode,
   TransportOffer,
 } from "@/domain/catalog";
+import { nightsBetween } from "@/domain/dates";
 import type { IsoDate, OfferId, WalletAddress } from "@/domain/identifiers";
 import {
   mustParse,
@@ -17,7 +18,7 @@ import {
 import type { Money } from "@/domain/money";
 import type { Result } from "@/lib/result";
 import { err, ok } from "@/lib/result";
-import { jstDateTimeOf, nightsBetween } from "../jst";
+import { jstDateTimeOf } from "../jst";
 
 /**
  * seed の交通 1 行
