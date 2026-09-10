@@ -1,6 +1,7 @@
 import type { Result } from "@/lib/result";
-import { err } from "@/lib/result";
+import { andThen, err, ok } from "@/lib/result";
 import type { Amount } from "./identifiers";
+import { mustParse, parseAmount } from "./identifiers.parse";
 
 /**
  * Wave 1 で扱う通貨
@@ -32,15 +33,28 @@ export type MoneyError =
  */
 export type Ordering = -1 | 0 | 1;
 
+const currencyMismatch = (a: Money, b: Money): MoneyError => {
+  return {
+    kind: "currencyMismatch",
+    expected: a.currency,
+    actual: b.currency,
+  };
+};
+
+// 両辺は非負の safe integer なので、和や差が parse に失敗するのはバグ
+const amountOf = (raw: number): Amount => {
+  return mustParse(parseAmount(raw));
+};
+
 /**
  * 同じ通貨の金額 2 つを足す
  */
 export const addMoney = (a: Money, b: Money): Result<Money, MoneyError> => {
-  return err({
-    kind: "currencyMismatch",
-    expected: a.currency,
-    actual: b.currency,
-  });
+  if (a.currency !== b.currency) {
+    return err(currencyMismatch(a, b));
+  }
+
+  return ok({ amount: amountOf(a.amount + b.amount), currency: a.currency });
 };
 
 /**
@@ -52,11 +66,15 @@ export const subtractMoney = (
   a: Money,
   b: Money,
 ): Result<Money, MoneyError> => {
-  return err({
-    kind: "currencyMismatch",
-    expected: a.currency,
-    actual: b.currency,
-  });
+  if (a.currency !== b.currency) {
+    return err(currencyMismatch(a, b));
+  }
+
+  if (a.amount < b.amount) {
+    return err({ kind: "negativeResult", left: a, right: b });
+  }
+
+  return ok({ amount: amountOf(a.amount - b.amount), currency: a.currency });
 };
 
 /**
@@ -65,11 +83,12 @@ export const subtractMoney = (
 export const sumMoney = (
   items: readonly [Money, ...Money[]],
 ): Result<Money, MoneyError> => {
-  return err({
-    kind: "currencyMismatch",
-    expected: items[0].currency,
-    actual: items[0].currency,
-  });
+  return items
+    .slice(1)
+    .reduce<Result<Money, MoneyError>>(
+      (total, item) => andThen(total, (sum) => addMoney(sum, item)),
+      ok(items[0]),
+    );
 };
 
 /**
@@ -79,9 +98,17 @@ export const compareMoney = (
   a: Money,
   b: Money,
 ): Result<Ordering, MoneyError> => {
-  return err({
-    kind: "currencyMismatch",
-    expected: a.currency,
-    actual: b.currency,
-  });
+  if (a.currency !== b.currency) {
+    return err(currencyMismatch(a, b));
+  }
+
+  if (a.amount < b.amount) {
+    return ok(-1);
+  }
+
+  if (a.amount > b.amount) {
+    return ok(1);
+  }
+
+  return ok(0);
 };

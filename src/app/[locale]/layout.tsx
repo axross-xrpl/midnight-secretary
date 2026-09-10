@@ -3,8 +3,12 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { locale } from "next/root-params";
 import { getServerSession } from "next-auth";
+import { DEV_PROVIDER_ID } from "@/adapters/auth/dev";
+import { getSecretaryRuntime } from "@/adapters/runtime";
+import { activeFakes } from "@/application/sources";
 import { authOptions } from "@/auth";
 import { routing } from "@/i18n/routing";
+import { FakeNotice } from "@/components/fake-notice";
 import NavBar from "@/components/nav-bar";
 import AuthSessionProvider from "@/components/session-provider";
 import "../globals.css";
@@ -32,6 +36,8 @@ export default async function RootLayout({
   children,
 }: LayoutProps<"/[locale]">) {
   const session = await getServerSession(authOptions);
+  const { sources } = getSecretaryRuntime();
+  const signInProvider = sources.auth === "dev" ? DEV_PROVIDER_ID : "google";
 
   return (
     <html
@@ -41,7 +47,8 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col">
         <NextIntlClientProvider>
           <AuthSessionProvider session={session}>
-            <NavBar />
+            <NavBar signInProvider={signInProvider} />
+            <FakeNotice fakes={activeFakes(sources)} />
             <main className="flex min-h-0 flex-1 flex-col">{children}</main>
           </AuthSessionProvider>
         </NextIntlClientProvider>

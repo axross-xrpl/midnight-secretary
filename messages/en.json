@@ -11,7 +11,18 @@
   },
   "Auth": {
     "signInWithGoogle": "Sign in with Google",
+    "signInAsDemoUser": "Sign in as demo user",
     "signOut": "Sign out"
+  },
+  "FakeNotice": {
+    "message": "Demo mode: {ports} are stand-ins.",
+    "ports": {
+      "calendar": "Calendar",
+      "catalog": "Fare catalog",
+      "planner": "Planner",
+      "mandate": "Spending allowance",
+      "store": "Storage"
+    }
   },
   "LocaleSwitcher": {
     "label": "Language",
@@ -127,6 +138,7 @@
     "noLocation": "No location",
     "errors": {
       "unauthenticated": "Sign in with Google again to scan the calendar.",
+      "tokenExpired": "The Google session expired. Sign in again to scan the calendar.",
       "refreshFailed": "The Google sign-in expired. Sign in again.",
       "forbidden": "This Google account did not grant calendar access. Sign in again and allow it.",
       "http": "Scan failed. Google Calendar returned an error; check the server log.",

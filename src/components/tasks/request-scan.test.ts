@@ -10,10 +10,13 @@ const oneEventScan = {
   events: [
     {
       id: "evt",
-      summary: "大阪出張",
+      title: "大阪出張",
       location: "新大阪",
-      start: { kind: "timed", dateTime: "2026-09-10T10:00:00+09:00" },
-      end: { kind: "timed", dateTime: "2026-09-10T15:00:00+09:00" },
+      when: {
+        kind: "timed",
+        start: "2026-09-10T10:00:00+09:00",
+        end: "2026-09-10T15:00:00+09:00",
+      },
     },
   ],
 };

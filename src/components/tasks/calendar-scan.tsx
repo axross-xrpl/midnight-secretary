@@ -26,17 +26,17 @@ const buttonClass =
 
 const mutedClass = "text-sm text-zinc-600 dark:text-zinc-400";
 
-const toDate = (time: ScanEventTime): Date => {
-  if (time.kind === "allDay") {
-    return new Date(time.date);
+const toDate = (when: ScanEventTime): Date => {
+  if (when.kind === "allDay") {
+    return new Date(when.startDate);
   }
 
-  return new Date(time.dateTime);
+  return new Date(when.start);
 };
 
 // 終日の予定は日付だけの文字列なので、時差で前日にずれないよう UTC のまま表示する
-const dateTimeOptions = (time: ScanEventTime): DateTimeFormatOptions => {
-  if (time.kind === "allDay") {
+const dateTimeOptions = (when: ScanEventTime): DateTimeFormatOptions => {
+  if (when.kind === "allDay") {
     return { dateStyle: "medium", timeZone: "UTC" };
   }
 
@@ -50,15 +50,12 @@ type EventRowProps = {
 const EventRow = ({ event }: EventRowProps): ReactElement => {
   const t = useTranslations("CalendarScan");
   const format = useFormatter();
-  const when = format.dateTime(
-    toDate(event.start),
-    dateTimeOptions(event.start),
-  );
+  const when = format.dateTime(toDate(event.when), dateTimeOptions(event.when));
 
   return (
     <li className="flex flex-col gap-0.5 py-3">
       <span className="font-medium">
-        {event.summary === "" ? t("noTitle") : event.summary}
+        {event.title === "" ? t("noTitle") : event.title}
       </span>
       <span className={mutedClass}>
         {when} · {event.location ?? t("noLocation")}
