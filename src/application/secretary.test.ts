@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { sequentialTripIds, UNKNOWN_TRIP_ID } from "@/testing/ids";
 import {
   createFakeCalendar,
   seedCalendarEvents,
@@ -22,7 +23,6 @@ import {
   parseCalendarEventId,
   parseIsoDateTime,
   parseMandateId,
-  parseTripId,
   parseUserId,
 } from "@/domain/identifiers.parse";
 import type { Mandate, MandateDraft, MandatePort } from "@/domain/mandate";
@@ -32,7 +32,7 @@ import type { TripPlan } from "@/domain/plan";
 import type { ApprovedTrip, PaidTrip, ProposedTrip, Trip } from "@/domain/trip";
 import type { Result } from "@/lib/result";
 import { err } from "@/lib/result";
-import type { NewTripId, SecretaryDeps } from "./deps";
+import type { SecretaryDeps } from "./deps";
 import { WAVE1_PREFERENCES } from "./preferences";
 import type { ProposeTripInput, RenderEventText } from "./secretary";
 import {
@@ -61,10 +61,6 @@ const mandateId = (raw: string): MandateId => {
   return mustParse(parseMandateId(raw));
 };
 
-const tripId = (raw: string): TripId => {
-  return mustParse(parseTripId(raw));
-};
-
 const userId = (raw: string): UserId => {
   return mustParse(parseUserId(raw));
 };
@@ -91,17 +87,6 @@ const OSAKA_TOTAL = 14720 + 14720;
 const FUKUOKA_TOTAL = 23000 + 23000 + 11000;
 
 const ENOUGH_CAP = 200000;
-
-// 連番の採番はテスト設定に閉じているので、閉じたカウンタで数える
-const testTripIds = (): NewTripId => {
-  const state = { issued: 0 };
-
-  return () => {
-    state.issued = state.issued + 1;
-
-    return tripId(`0000000${state.issued}-0000-4000-8000-000000000000`);
-  };
-};
 
 const testEventIds = (): (() => CalendarEventId) => {
   const state = { issued: 0 };
@@ -143,7 +128,7 @@ const testDeps = (): SecretaryDeps => {
     planner: createFakePlanner(),
     mandate: createFakeMandate({ mandates: [], ids: testMandateIds() }),
     store: createFakeStore(),
-    newTripId: testTripIds(),
+    newTripId: sequentialTripIds(),
   };
 };
 
@@ -446,7 +431,7 @@ describe("approveTrip", () => {
 
   test("知らない trip id は tripNotFound になる", async () => {
     const deps = testDeps();
-    const unknown = tripId("99999999-0000-4000-8000-000000000000");
+    const unknown = UNKNOWN_TRIP_ID;
 
     expect(await approveTrip(USER, unknown, NOW, deps)).toStrictEqual({
       ok: false,

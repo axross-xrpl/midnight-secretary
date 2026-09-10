@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, test } from "vitest";
+import { sequentialTripIds, UNKNOWN_TRIP_ID } from "@/testing/ids";
 import type { SecretaryContext } from "@/adapters/auth/session";
 import {
   createFakeCalendar,
@@ -10,19 +11,17 @@ import type { FakeMandateIds } from "@/adapters/mandate/fake";
 import { createFakeMandate } from "@/adapters/mandate/fake";
 import { createFakePlanner } from "@/adapters/planner/fake";
 import { createFakeStore } from "@/adapters/store/fake";
-import type { NewTripId, SecretaryDeps } from "@/application/deps";
+import type { SecretaryDeps } from "@/application/deps";
 import type {
   CalendarEventId,
   IsoDateTime,
   MandateId,
-  TripId,
 } from "@/domain/identifiers";
 import {
   mustParse,
   parseCalendarEventId,
   parseIsoDateTime,
   parseMandateId,
-  parseTripId,
   parseUserId,
 } from "@/domain/identifiers.parse";
 import {
@@ -52,31 +51,14 @@ const mandateId = (raw: string): MandateId => {
   return mustParse(parseMandateId(raw));
 };
 
-const tripId = (raw: string): TripId => {
-  return mustParse(parseTripId(raw));
-};
-
 const NOW = at("2026-09-09T00:00:00Z");
 
 const USER = mustParse(parseUserId("user-1"));
-
-const UNKNOWN_TRIP_ID = "99999999-0000-4000-8000-000000000000";
 
 const MANDATE_BODY = {
   cap: 200000,
   expiresAt: "2026-12-31T23:59:59+09:00",
   purpose: "出張手配",
-};
-
-// 連番の採番はテスト設定に閉じているので、閉じたカウンタで数える
-const testTripIds = (): NewTripId => {
-  const state = { issued: 0 };
-
-  return () => {
-    state.issued = state.issued + 1;
-
-    return tripId(`0000000${state.issued}-0000-4000-8000-000000000000`);
-  };
 };
 
 const testEventIds = (): (() => CalendarEventId) => {
@@ -118,7 +100,7 @@ const testDeps = (): SecretaryDeps => {
     planner: createFakePlanner(),
     mandate: createFakeMandate({ mandates: [], ids: testMandateIds() }),
     store: createFakeStore(),
-    newTripId: testTripIds(),
+    newTripId: sequentialTripIds(),
   };
 };
 
