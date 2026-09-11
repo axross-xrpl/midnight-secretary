@@ -82,9 +82,11 @@ export default function ContractTester() {
     <div className="max-w-3xl mx-auto p-6 space-y-6">
       <h1 className="text-2xl font-bold">/dev/contracts</h1>
       <p className="text-sm text-neutral-600">
-        End-user testing only -- no deploy, no owner actions. Contract addresses
-        come from NEXT_PUBLIC_TOKEN_ADDRESS / NEXT_PUBLIC_SHIELDED_TOKEN_ADDRESS
-        / NEXT_PUBLIC_AGE_VERIFICATION_ADDRESS.
+        End-user testing only -- no deploy, no owner actions. Token / shielded
+        token addresses are configured server-side only (contract/.env's
+        TOKEN_ADDRESS / SHIELDED_TOKEN_ADDRESS, read by contract/'s own server);
+        age verification runs client-side and needs its address here via
+        NEXT_PUBLIC_AGE_VERIFICATION_ADDRESS.
       </p>
 
       <Panel title="Wallet connection">

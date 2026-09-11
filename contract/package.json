@@ -10,9 +10,11 @@
     "typecheck": "tsc --noEmit",
     "deploy": "node --env-file=.env --import tsx src/token/deploy.ts",
     "interact": "node --env-file=.env --import tsx src/token/interact.ts",
+    "get-token-state": "node --env-file=.env --import tsx src/token/get-state.ts",
     "set-allowance": "node --env-file=.env --import tsx src/token/set-allowance.ts",
     "deploy-shielded-token": "node --env-file=.env --import tsx src/shielded-token/deploy.ts",
     "interact-shielded-token": "node --env-file=.env --import tsx src/shielded-token/interact.ts",
+    "get-shielded-token-state": "node --env-file=.env --import tsx src/shielded-token/get-state.ts",
     "set-allowance-shielded-token": "node --env-file=.env --import tsx src/shielded-token/set-allowance.ts",
     "deploy-age-verification": "node --env-file=.env --import tsx src/age-verification/deploy.ts",
     "register-age": "node --env-file=.env --import tsx src/age-verification/register.ts",
@@ -20,7 +22,8 @@
     "fund": "node --env-file=.env --import tsx src/shared/fund.ts",
     "fund-shielded": "node --env-file=.env --import tsx src/shared/fund-shielded.ts",
     "address": "node --env-file=.env --import tsx src/shared/get-address.ts",
-    "register-dust": "node --env-file=.env --import tsx src/shared/register-dust.ts"
+    "register-dust": "node --env-file=.env --import tsx src/shared/register-dust.ts",
+    "server": "node --env-file=.env --import tsx src/server.ts"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-js": "2.5.1",
@@ -50,5 +53,8 @@
     "rimraf": "^6.0.0",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2"
+  },
+  "overrides": {
+    "@midnight-ntwrk/onchain-runtime-v3": "3.0.0"
   }
 }

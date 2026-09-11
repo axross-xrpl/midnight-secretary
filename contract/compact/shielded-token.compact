@@ -35,6 +35,23 @@ export circuit getMintAllowance(): Uint<64> {
   return mintAllowance;
 }
 
+// Bundles all three read-only getters into a single circuit call -- see
+// token.compact's getTokenInfo for why (every callTx call, reads included,
+// is its own on-chain transaction).
+export struct ShieldedTokenInfo {
+  mintCount: Uint<64>;
+  initialized: Boolean;
+  mintAllowance: Uint<64>;
+}
+
+export circuit getShieldedTokenInfo(): ShieldedTokenInfo {
+  return ShieldedTokenInfo {
+    mintCount: mints.read(),
+    initialized: initialized,
+    mintAllowance: mintAllowance
+  };
+}
+
 // Owner-gated. Absolute set, not additive -- same reasoning as token.compact's
 // setSendAllowance.
 export circuit setMintAllowance(newAllowance: Uint<64>): [] {

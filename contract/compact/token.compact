@@ -80,6 +80,27 @@ export circuit getSendAllowance(): Uint<128> {
   return sendAllowance;
 }
 
+// Bundles all four read-only getters into a single circuit call. Every
+// callTx call -- reads included -- submits its own on-chain transaction
+// (proof + submission + confirmation), so a caller wanting the full display
+// state pays for that once here instead of four times over getName/
+// getSymbol/getTokenColor/getSendAllowance.
+export struct TokenInfo {
+  name: Opaque<"string">;
+  symbol: Opaque<"string">;
+  tokenColor: Bytes<32>;
+  sendAllowance: Uint<128>;
+}
+
+export circuit getTokenInfo(): TokenInfo {
+  return TokenInfo {
+    name: _name,
+    symbol: _symbol,
+    tokenColor: tokenColor,
+    sendAllowance: sendAllowance
+  };
+}
+
 // Owner-gated. Sets the remaining send budget to an absolute value rather than
 // adding to it, so a top-up cannot accidentally stack an already-large
 // leftover budget on top of the new one.

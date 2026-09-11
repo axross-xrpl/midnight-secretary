@@ -5,11 +5,10 @@
   "engines": {
     "node": ">=24"
   },
-  "workspaces": [
-    "contract"
-  ],
   "scripts": {
-    "dev": "next dev",
+    "dev": "concurrently -n next,contract -c blue,green \"npm:dev:next\" \"npm:dev:contract-server\"",
+    "dev:next": "next dev",
+    "dev:contract-server": "node scripts/start-contract-server.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "biome check .",
@@ -61,12 +60,13 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/ws": "^8.18.1",
+    "concurrently": "^10.0.5",
     "lefthook": "^2.1.12",
     "tailwindcss": "^4",
     "typescript": "^7",
     "vitest": "^4.1.11"
   },
-  "optionalDependencies": {
-    "lefthook-windows-x64": "^2.1.12"
+  "overrides": {
+    "@midnight-ntwrk/onchain-runtime-v3": "3.0.0"
   }
 }
