@@ -45,6 +45,15 @@ localhost, and it forces the calendar to the fake (that session has no Google to
 To keep the real calendar while the ports other lanes own stay fake, set only what you need, for
 example `SECRETARY_CATALOG=fake`.
 
+### With Gemini as the planner
+
+Set `GEMINI_API_KEY` (Google AI Studio) in `.env.local`, keep `SECRETARY_MODE=demo`, and add
+`SECRETARY_PLANNER=real`. The other ports stay fake, so the secretary's proposals are written by
+Gemini while the calendar, the fare catalog, and the spending allowance are stand-ins. Gemini only
+answers whether an event is a trip, which catalog destination it targets, and which offer ids to
+pick; dates come from the event and prices from the catalog. `GEMINI_MODEL` overrides the default
+model (`gemini-3.5-flash-lite`).
+
 ### Source variables
 
 | Variable | Values | Default |
