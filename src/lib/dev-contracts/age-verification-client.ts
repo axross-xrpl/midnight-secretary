@@ -528,13 +528,17 @@ async function withAgeVerificationContract<T>(
   } = await sdk();
 
   // Give the wallet a chance to gather any permissions it needs up front,
-  // rather than interrupting mid-flow between proving and submission.
-  await connectedApi.hintUsage([
-    "getShieldedAddresses",
-    "getProvingProvider",
-    "balanceUnsealedTransaction",
-    "submitTransaction",
-  ]);
+  // rather than interrupting mid-flow between proving and submission. Typed
+  // as always present on ConnectedAPI, but not every real wallet extension
+  // implements it -- best-effort only, never block the actual flow on it.
+  if (typeof connectedApi.hintUsage === "function") {
+    await connectedApi.hintUsage([
+      "getShieldedAddresses",
+      "getProvingProvider",
+      "balanceUnsealedTransaction",
+      "submitTransaction",
+    ]);
+  }
 
   // Use the wallet's own service endpoints: the user may have picked them
   // for privacy or performance reasons, and the connector docs ask DApps to
@@ -544,8 +548,15 @@ async function withAgeVerificationContract<T>(
 
   const shielded = await connectedApi.getShieldedAddresses();
 
+  // FetchZkConfigProvider defaults fetchFunc to cross-fetch's `fetch` export
+  // and calls it as `this.fetchFunc(...)` -- a method call, so `this` inside
+  // that function is the provider instance, not `window`. The browser's
+  // native fetch needs `this === window` internally and throws "Illegal
+  // invocation" otherwise. Passing the browser's own fetch explicitly, bound
+  // to window, sidesteps cross-fetch's broken default.
   const zkConfigProvider = new FetchZkConfigProvider<AgeVerificationCircuitId>(
     zkConfigBaseUrl(),
+    window.fetch.bind(window),
   );
 
   const walletAndMidnightProvider = createConnectorWalletProvider(

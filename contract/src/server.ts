@@ -10,7 +10,10 @@ import {
   setNetworkId,
   getNetworkId,
 } from "@midnight-ntwrk/midnight-js-network-id";
-import { findDeployedContract } from "@midnight-ntwrk/midnight-js-contracts";
+import {
+  findDeployedContract,
+  withContractScopedTransaction,
+} from "@midnight-ntwrk/midnight-js-contracts";
 import { httpClientProofProvider } from "@midnight-ntwrk/midnight-js-http-client-proof-provider";
 import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-public-data-provider";
 import { levelPrivateStateProvider } from "@midnight-ntwrk/midnight-js-level-private-state-provider";
@@ -135,18 +138,27 @@ function parseBech32mUnbounded(str: string): MidnightBech32m {
   return new MidnightBech32m(type, network, Buffer.from(bytes));
 }
 
-function resolveRecipientCoinPublicKey(
-  arg: string,
-  networkId: string,
-): Uint8Array {
+type ResolvedRecipient = {
+  coinPublicKey: Uint8Array;
+  // Only known when `arg` was a full shielded address -- a bare hex coin
+  // public key carries no encryption key, so mint_and_send will only work
+  // for such a recipient if the wallet's own zswap state already has a
+  // mapping for them (see additionalCoinEncPublicKeyMappings below).
+  encryptionPublicKeyHex?: string;
+};
+
+function resolveRecipient(arg: string, networkId: string): ResolvedRecipient {
   if (arg.startsWith(`${MidnightBech32m.prefix}_shield-addr_`)) {
     const address = parseBech32mUnbounded(arg).decode(
       ShieldedAddress,
       networkId,
     );
-    return new Uint8Array(address.coinPublicKey.data);
+    return {
+      coinPublicKey: new Uint8Array(address.coinPublicKey.data),
+      encryptionPublicKeyHex: address.encryptionPublicKeyString(),
+    };
   }
-  return hexToBytes(arg);
+  return { coinPublicKey: hexToBytes(arg) };
 }
 
 // Every route below acts as the same deployer account, so serialize all of
@@ -340,15 +352,15 @@ async function main() {
 
     if (req.method === "GET" && url.pathname === "/token/state") {
       const result = await serialize(async () => {
-        const name = (await tokenContract.callTx.getName()).private.result;
-        const symbol = (await tokenContract.callTx.getSymbol()).private.result;
-        const tokenColor = Buffer.from(
-          (await tokenContract.callTx.getTokenColor()).private.result,
-        ).toString("hex");
-        const sendAllowanceRemaining = (
-          await tokenContract.callTx.getSendAllowance()
-        ).private.result.toString();
-        return { name, symbol, tokenColor, sendAllowanceRemaining };
+        // One transaction instead of four -- see token.compact's
+        // getTokenInfo for why that matters here.
+        const info = (await tokenContract.callTx.getTokenInfo()).private.result;
+        return {
+          name: info.name,
+          symbol: info.symbol,
+          tokenColor: Buffer.from(info.tokenColor).toString("hex"),
+          sendAllowanceRemaining: info.sendAllowance.toString(),
+        };
       });
       return sendJson(res, 200, result);
     }
@@ -386,43 +398,57 @@ async function main() {
 
     if (req.method === "GET" && url.pathname === "/shielded-token/state") {
       const result = await serialize(async () => {
-        const mintCount = (
-          await shieldedContract.callTx.getMintCount()
-        ).private.result.toString();
-        const initialized = (await shieldedContract.callTx.getInitialized())
+        // One transaction instead of three -- see shielded-token.compact's
+        // getShieldedTokenInfo for why that matters here.
+        const info = (await shieldedContract.callTx.getShieldedTokenInfo())
           .private.result;
-        const mintAllowanceRemaining = (
-          await shieldedContract.callTx.getMintAllowance()
-        ).private.result.toString();
-        return { mintCount, initialized, mintAllowanceRemaining };
+        return {
+          mintCount: info.mintCount.toString(),
+          initialized: info.initialized,
+          mintAllowanceRemaining: info.mintAllowance.toString(),
+        };
       });
       return sendJson(res, 200, result);
     }
 
     if (req.method === "POST" && url.pathname === "/shielded-token/request") {
       const body = await readJsonBody(req);
-      const recipientCoinPublicKeyHex = String(
-        body.recipientCoinPublicKeyHex ?? "",
-      );
-      if (!recipientCoinPublicKeyHex) {
-        return sendJson(res, 400, {
-          error: "Missing recipientCoinPublicKeyHex",
-        });
+      const recipientArg = String(body.recipient ?? "");
+      if (!recipientArg) {
+        return sendJson(res, 400, { error: "Missing recipient" });
       }
       const result = await serialize(async () => {
-        const recipient = {
-          bytes: resolveRecipientCoinPublicKey(
-            recipientCoinPublicKeyHex,
-            networkId,
-          ),
-        };
-        const txResult = await shieldedContract.callTx.mint_and_send(
-          recipient,
-          FAUCET_AMOUNT,
-          0n,
+        const resolved = resolveRecipient(recipientArg, networkId);
+        const recipient = { bytes: resolved.coinPublicKey };
+        // mint_and_send creates a coin output for `recipient`, who isn't
+        // the server's own wallet -- the SDK refuses to build that output
+        // ("Unable to resolve encryption public key for recipient ...")
+        // unless it's told which EncPublicKey to encrypt it to. That mapping
+        // is scoped per-transaction via withContractScopedTransaction, not
+        // passed directly to callTx.
+        const additionalCoinEncPublicKeyMappings =
+          resolved.encryptionPublicKeyHex
+            ? new Map([
+                [
+                  Buffer.from(resolved.coinPublicKey).toString("hex"),
+                  resolved.encryptionPublicKeyHex,
+                ],
+              ])
+            : undefined;
+        const finalized = await withContractScopedTransaction(
+          shieldedProviders,
+          async (txCtx) => {
+            await shieldedContract.callTx.mint_and_send(
+              txCtx,
+              recipient,
+              FAUCET_AMOUNT,
+              0n,
+            );
+          },
+          { additionalCoinEncPublicKeyMappings },
         );
         return {
-          blockHeight: txResult.public.blockHeight,
+          blockHeight: finalized.public.blockHeight,
           amount: FAUCET_AMOUNT.toString(),
         };
       });

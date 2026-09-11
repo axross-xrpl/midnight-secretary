@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   ConnectedAPI,
   InitialAPI,
@@ -54,9 +54,7 @@ export default function ContractTester() {
   const [unshieldedAddress, setUnshieldedAddress] = useState<string | null>(
     null,
   );
-  const [shieldedCoinPublicKey, setShieldedCoinPublicKey] = useState<
-    string | null
-  >(null);
+  const [shieldedAddress, setShieldedAddress] = useState<string | null>(null);
 
   useEffect(() => {
     setWallets(Object.values(window.midnight ?? {}));
@@ -72,7 +70,7 @@ export default function ContractTester() {
         api.getShieldedAddresses(),
       ]);
       setUnshieldedAddress(unshielded.unshieldedAddress);
-      setShieldedCoinPublicKey(shielded.shieldedCoinPublicKey);
+      setShieldedAddress(shielded.shieldedAddress);
     } catch (err) {
       setConnectError(err instanceof Error ? err.message : String(err));
     }
@@ -113,17 +111,14 @@ export default function ContractTester() {
           <div className="text-sm space-y-1">
             <p>Connected.</p>
             <ResultBox label="Unshielded address" value={unshieldedAddress} />
-            <ResultBox
-              label="Shielded coin public key"
-              value={shieldedCoinPublicKey}
-            />
+            <ResultBox label="Shielded address" value={shieldedAddress} />
           </div>
         )}
         {connectError && <p className="text-sm text-red-600">{connectError}</p>}
       </Panel>
 
       <TokenPanel unshieldedAddress={unshieldedAddress} />
-      <ShieldedTokenPanel shieldedCoinPublicKey={shieldedCoinPublicKey} />
+      <ShieldedTokenPanel shieldedAddress={shieldedAddress} />
       <AgeVerificationPanel connectedApi={connectedApi} />
     </div>
   );
@@ -138,6 +133,10 @@ function TokenPanel({
   const [request, setRequest] = useState<AsyncState<unknown>>({
     status: "idle",
   });
+  // Each call is a real on-chain transaction (proof + submission +
+  // confirmation), so this guards against React StrictMode's dev-only
+  // double-invoke of mount effects firing it twice.
+  const didLoad = useRef(false);
 
   const loadState = useCallback(async () => {
     setState({ status: "loading" });
@@ -155,6 +154,8 @@ function TokenPanel({
   }, []);
 
   useEffect(() => {
+    if (didLoad.current) return;
+    didLoad.current = true;
     loadState();
   }, [loadState]);
 
@@ -209,14 +210,17 @@ function TokenPanel({
 }
 
 function ShieldedTokenPanel({
-  shieldedCoinPublicKey,
+  shieldedAddress,
 }: {
-  shieldedCoinPublicKey: string | null;
+  shieldedAddress: string | null;
 }) {
   const [state, setState] = useState<AsyncState<unknown>>({ status: "idle" });
   const [request, setRequest] = useState<AsyncState<unknown>>({
     status: "idle",
   });
+  // See TokenPanel's didLoad for why -- StrictMode's dev-only double-invoke
+  // of mount effects would otherwise fire this real on-chain call twice.
+  const didLoad = useRef(false);
 
   const loadState = useCallback(async () => {
     setState({ status: "loading" });
@@ -234,17 +238,19 @@ function ShieldedTokenPanel({
   }, []);
 
   useEffect(() => {
+    if (didLoad.current) return;
+    didLoad.current = true;
     loadState();
   }, [loadState]);
 
   const requestTokens = useCallback(async () => {
-    if (!shieldedCoinPublicKey) return;
+    if (!shieldedAddress) return;
     setRequest({ status: "loading" });
     try {
       const res = await fetch("/api/dev/contracts/shielded-token/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coinPublicKeyHex: shieldedCoinPublicKey }),
+        body: JSON.stringify({ recipient: shieldedAddress }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Request failed");
@@ -256,7 +262,7 @@ function ShieldedTokenPanel({
         error: err instanceof Error ? err.message : String(err),
       });
     }
-  }, [shieldedCoinPublicKey, loadState]);
+  }, [shieldedAddress, loadState]);
 
   return (
     <Panel title="Shielded token">
@@ -269,12 +275,12 @@ function ShieldedTokenPanel({
       <button
         type="button"
         onClick={requestTokens}
-        disabled={!shieldedCoinPublicKey || request.status === "loading"}
+        disabled={!shieldedAddress || request.status === "loading"}
         className="px-3 py-1.5 rounded bg-black text-white text-sm disabled:opacity-40"
       >
         {request.status === "loading" ? "Requesting..." : "Request tokens"}
       </button>
-      {!shieldedCoinPublicKey && (
+      {!shieldedAddress && (
         <p className="text-xs text-neutral-500">Connect a wallet first.</p>
       )}
       {request.status === "done" && (

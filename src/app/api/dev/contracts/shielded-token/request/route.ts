@@ -3,18 +3,16 @@ import { requestShieldedTokens } from "@/lib/dev-contracts/shielded-token";
 
 export async function POST(req: Request) {
   try {
-    // Raw ZswapCoinPublicKey hex, not a bech32m shielded address -- the page
-    // decodes the connected wallet's shielded address down to this first.
-    const { coinPublicKeyHex } = (await req.json()) as {
-      coinPublicKeyHex?: string;
+    // The connected wallet's shielded address (Bech32m, from
+    // getShieldedAddresses().shieldedAddress) -- the contract server decodes
+    // it down to the raw coin public key the mint_and_send circuit expects.
+    const { recipient } = (await req.json()) as {
+      recipient?: string;
     };
-    if (!coinPublicKeyHex) {
-      return NextResponse.json(
-        { error: "Missing coinPublicKeyHex" },
-        { status: 400 },
-      );
+    if (!recipient) {
+      return NextResponse.json({ error: "Missing recipient" }, { status: 400 });
     }
-    const result = await requestShieldedTokens(coinPublicKeyHex);
+    const result = await requestShieldedTokens(recipient);
     return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json(

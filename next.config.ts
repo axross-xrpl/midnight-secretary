@@ -35,6 +35,35 @@ const nextConfig: NextConfig = {
       // into two onchain-runtime-v3 versions on a fresh install).
       "@midnight-ntwrk/compact-js":
         "./contract/node_modules/@midnight-ntwrk/compact-js",
+      // @midnight-ntwrk/midnight-js-protocol re-exports classes (CostModel,
+      // StateValue, ...) under several subpaths, each a package.json
+      // "exports" entry distinct from the bare specifier above -- aliasing
+      // the bare name does NOT cover these ("expected instance of CostModel"
+      // surfaced from exactly this gap: midnight-js-types imports CostModel
+      // via the "/ledger" subpath, which fell through to root's own
+      // separate transitive copy of midnight-js-protocol instead of
+      // contract/'s). Every subpath its package.json declares is listed
+      // here so this doesn't recur one class at a time.
+      "@midnight-ntwrk/compact-js/effect":
+        "./contract/node_modules/@midnight-ntwrk/compact-js/effect",
+      "@midnight-ntwrk/midnight-js-protocol/compact-js":
+        "./contract/node_modules/@midnight-ntwrk/midnight-js-protocol/compact-js",
+      "@midnight-ntwrk/midnight-js-protocol/compact-js/effect":
+        "./contract/node_modules/@midnight-ntwrk/midnight-js-protocol/compact-js/effect",
+      "@midnight-ntwrk/midnight-js-protocol/compact-js/effect/Contract":
+        "./contract/node_modules/@midnight-ntwrk/midnight-js-protocol/compact-js/effect/Contract",
+      "@midnight-ntwrk/midnight-js-protocol/compact-runtime":
+        "./contract/node_modules/@midnight-ntwrk/midnight-js-protocol/compact-runtime",
+      "@midnight-ntwrk/midnight-js-protocol/ledger":
+        "./contract/node_modules/@midnight-ntwrk/midnight-js-protocol/ledger",
+      "@midnight-ntwrk/midnight-js-protocol/onchain-runtime":
+        "./contract/node_modules/@midnight-ntwrk/midnight-js-protocol/onchain-runtime",
+      "@midnight-ntwrk/midnight-js-protocol/platform-js":
+        "./contract/node_modules/@midnight-ntwrk/midnight-js-protocol/platform-js",
+      "@midnight-ntwrk/midnight-js-protocol/platform-js/effect/Configuration":
+        "./contract/node_modules/@midnight-ntwrk/midnight-js-protocol/platform-js/effect/Configuration",
+      "@midnight-ntwrk/midnight-js-protocol/platform-js/effect/ContractAddress":
+        "./contract/node_modules/@midnight-ntwrk/midnight-js-protocol/platform-js/effect/ContractAddress",
       "@midnight-ntwrk/compact-runtime":
         "./contract/node_modules/@midnight-ntwrk/compact-runtime",
       "@midnight-ntwrk/ledger-v8":
