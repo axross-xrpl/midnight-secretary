@@ -16,8 +16,8 @@ import type { PaidTrip } from "@/domain/trip";
 import type { WriteBackTranslate } from "./write-back-text";
 import { writeBackText } from "./write-back-text";
 
-const demo = (amount: number): Money => {
-  return { amount: mustParse(parseAmount(amount)), currency: "DEMO" };
+const mst = (amount: number): Money => {
+  return { amount: mustParse(parseAmount(amount)), currency: "MST" };
 };
 
 const OUTBOUND: TransportOffer = {
@@ -29,7 +29,7 @@ const OUTBOUND: TransportOffer = {
   destination: "福岡",
   departAt: mustParse(parseIsoDateTime("2026-09-21T08:00:00+09:00")),
   arriveAt: mustParse(parseIsoDateTime("2026-09-21T13:00:00+09:00")),
-  price: demo(23000),
+  price: mst(23000),
 };
 
 const INBOUND: TransportOffer = {
@@ -49,7 +49,7 @@ const LODGING: LodgingOffer = {
   city: "福岡",
   checkIn: mustParse(parseIsoDate("2026-09-21")),
   checkOut: mustParse(parseIsoDate("2026-09-22")),
-  price: demo(11000),
+  price: mst(11000),
 };
 
 const planFor = (lodging: LodgingOffer | undefined): TripPlan => {
@@ -63,7 +63,7 @@ const planFor = (lodging: LodgingOffer | undefined): TripPlan => {
     outbound: OUTBOUND,
     inbound: INBOUND,
     ...(lodging === undefined ? {} : { lodging }),
-    total: lodging === undefined ? demo(46000) : demo(57000),
+    total: lodging === undefined ? mst(46000) : mst(57000),
     rationale: "test",
   };
 };
@@ -106,14 +106,14 @@ describe("writeBackText", () => {
   test("宿ありの出張は宿の名前を description に入れる", () => {
     expect(writeBackText(tripFor(LODGING), t)).toStrictEqual({
       title: "title(destination=福岡)",
-      description: `description(purpose=福岡出張,outbound=${TRANSPORT_TEXT},inbound=${TRANSPORT_TEXT},lodging=デモホテル福岡,total=total(amount=57000,currency=DEMO))`,
+      description: `description(purpose=福岡出張,outbound=${TRANSPORT_TEXT},inbound=${TRANSPORT_TEXT},lodging=デモホテル福岡,total=total(amount=57000,currency=MST))`,
     });
   });
 
   test("宿なしの出張は noLodging の文言を入れる", () => {
     expect(writeBackText(tripFor(undefined), t)).toStrictEqual({
       title: "title(destination=福岡)",
-      description: `description(purpose=福岡出張,outbound=${TRANSPORT_TEXT},inbound=${TRANSPORT_TEXT},lodging=noLodging,total=total(amount=46000,currency=DEMO))`,
+      description: `description(purpose=福岡出張,outbound=${TRANSPORT_TEXT},inbound=${TRANSPORT_TEXT},lodging=noLodging,total=total(amount=46000,currency=MST))`,
     });
   });
 });

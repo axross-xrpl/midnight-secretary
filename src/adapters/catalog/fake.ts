@@ -108,10 +108,10 @@ const payeeOf = (raw: string): WalletAddress => {
  * 金額の通貨
  *
  * DB は円単位の JPYC 整数を持つが、`Money` の通貨はデモ用の 2 つしか無い
- * real と揃えて DEMO 建てとして扱う
+ * real と揃えて MST 建てとして扱う
  */
-const demo = (amount: number): Money => {
-  return { amount: mustParse(parseAmount(amount)), currency: "DEMO" };
+const mst = (amount: number): Money => {
+  return { amount: mustParse(parseAmount(amount)), currency: "MST" };
 };
 
 const doorToDoorOf = (template: TransportTemplate): DoorToDoor => {
@@ -122,7 +122,7 @@ const doorToDoorOf = (template: TransportTemplate): DoorToDoor => {
       template.durationMin +
       template.arrivalBufferMin +
       template.destinationAccessMin,
-    totalPrice: demo(template.priceJpyc + template.accessFareJpyc),
+    totalPrice: mst(template.priceJpyc + template.accessFareJpyc),
   };
 };
 
@@ -140,7 +140,7 @@ const transportOfferOn = (
     destination: template.toSpot,
     departAt: jstDateTimeOf(date, template.departTime),
     arriveAt: jstDateTimeOf(date, template.arriveTime),
-    price: demo(template.priceJpyc),
+    price: mst(template.priceJpyc),
     doorToDoor: doorToDoorOf(template),
   };
 };
@@ -158,7 +158,7 @@ const lodgingOfferFor = (
     city: template.city,
     checkIn: query.departOn,
     checkOut: query.returnOn,
-    price: demo(template.pricePerNightJpyc * nights),
+    price: mst(template.pricePerNightJpyc * nights),
     rating: template.rating,
     requiredVerifications: template.requiredVerifications,
   };
@@ -172,7 +172,7 @@ const placeOfferOf = (template: PlaceTemplate): PlaceOffer => {
     name: template.name,
     city: template.city,
     genre: template.genre,
-    price: demo(template.priceJpyc),
+    price: mst(template.priceJpyc),
     requiredVerifications: template.requiredVerifications,
     ...(template.ageLimit === undefined ? {} : { ageLimit: template.ageLimit }),
   };

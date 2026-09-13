@@ -36,7 +36,7 @@ export type WriteBackRequest = {
 };
 
 // Wave 1 の支払いはデモ用トークン 1 本なので、上限の通貨はクライアントに選ばせない
-const CAP_CURRENCY: Currency = "DEMO";
+const CAP_CURRENCY: Currency = "MST";
 
 // domain の parse の失敗を、境界の応答に載せられる形に写す
 const schemaErrorOf = (error: ParseError): SchemaError => {

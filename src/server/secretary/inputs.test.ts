@@ -19,7 +19,7 @@ describe("parseSetUpMandateInput", () => {
     ).toStrictEqual({
       ok: true,
       value: {
-        cap: { amount: 200000, currency: "DEMO" },
+        cap: { amount: 200000, currency: "MST" },
         expiresAt: "2026-12-31T23:59:59+09:00",
         purpose: "出張手配",
       },

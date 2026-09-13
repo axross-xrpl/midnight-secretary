@@ -31,7 +31,7 @@ describe("setUpMandateBodySchema", () => {
       cap: 200000,
       expiresAt: "2026-12-31T23:59:59+09:00",
       purpose: "出張手配",
-      currency: "DEMO",
+      currency: "MST",
     });
 
     expect(parsed.success).toBe(false);

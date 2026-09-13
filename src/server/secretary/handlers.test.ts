@@ -244,8 +244,8 @@ describe("handleSetUpMandate", () => {
       ok: true,
       value: {
         id: "mandate-1",
-        cap: { amount: 200000, currency: "DEMO" },
-        spent: { amount: 0, currency: "DEMO" },
+        cap: { amount: 200000, currency: "MST" },
+        spent: { amount: 0, currency: "MST" },
         expiresAt: "2026-12-31T23:59:59+09:00",
         purpose: "出張手配",
         commitment: "commitment-1",
@@ -309,7 +309,7 @@ describe("handleProposeTrip", () => {
     expect(trip.ok && trip.value.status).toBe("proposed");
     expect(trip.ok && trip.value.plan.total).toStrictEqual({
       amount: 28920,
-      currency: "DEMO",
+      currency: "MST",
     });
   });
 

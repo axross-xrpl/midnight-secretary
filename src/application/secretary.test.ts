@@ -49,8 +49,8 @@ const at = (raw: string): IsoDateTime => {
   return mustParse(parseIsoDateTime(raw));
 };
 
-const demo = (amount: number): Money => {
-  return { amount: mustParse(parseAmount(amount)), currency: "DEMO" };
+const mst = (amount: number): Money => {
+  return { amount: mustParse(parseAmount(amount)), currency: "MST" };
 };
 
 const eventId = (raw: string): CalendarEventId => {
@@ -158,7 +158,7 @@ const lodgingOf = (plan: TripPlan): LodgingOffer => {
 };
 
 const draftFor = (cap: number): MandateDraft => {
-  return { cap: demo(cap), expiresAt: EXPIRES_AT, purpose: "出張手配" };
+  return { cap: mst(cap), expiresAt: EXPIRES_AT, purpose: "出張手配" };
 };
 
 const proposeInput = (event: CalendarEventId): ProposeTripInput => {
@@ -271,7 +271,7 @@ describe("setUpMandate", () => {
       await setUpMandate(USER, draftFor(ENOUGH_CAP), NOW, deps),
     );
 
-    expect(mandate.spent).toStrictEqual(demo(0));
+    expect(mandate.spent).toStrictEqual(mst(0));
     expect(await deps.store.getMandateLink(USER)).toStrictEqual({
       ok: true,
       value: { mandateId: mandate.id, linkedAt: NOW },
@@ -307,7 +307,7 @@ describe("proposeTrip", () => {
     expect(trip.plan.outbound.id).toBe("rail-hikari-505");
     expect(trip.plan.inbound.id).toBe("rail-nozomi-232");
     expect(trip.plan.lodging).toBeUndefined();
-    expect(trip.plan.total).toStrictEqual(demo(OSAKA_TOTAL));
+    expect(trip.plan.total).toStrictEqual(mst(OSAKA_TOTAL));
   });
 
   test("1 泊の予定は宿が付き、合計に 1 泊分が入る", async () => {
@@ -317,8 +317,8 @@ describe("proposeTrip", () => {
     const trip = await mustPropose(deps, OVERNIGHT_EVENT);
 
     expect(lodgingOf(trip.plan).id).toBe("hotel-namba-c");
-    expect(lodgingOf(trip.plan).price).toStrictEqual(demo(12500));
-    expect(trip.plan.total).toStrictEqual(demo(OVERNIGHT_TOTAL));
+    expect(lodgingOf(trip.plan).price).toStrictEqual(mst(12500));
+    expect(trip.plan.total).toStrictEqual(mst(OVERNIGHT_TOTAL));
   });
 
   test("出張ではない予定は planner の notATrip になる", async () => {
@@ -374,8 +374,8 @@ describe("proposeTrip", () => {
         source: "plan",
         error: {
           kind: "overBudget",
-          budget: demo(20000),
-          total: demo(OSAKA_TOTAL),
+          budget: mst(20000),
+          total: mst(OSAKA_TOTAL),
         },
       },
     });
@@ -497,7 +497,7 @@ describe("payForTrip", () => {
 
     const ledger = mustOk(await loadLedgerViews(USER, deps));
 
-    expect(ledger.privateMandate?.spent).toStrictEqual(demo(OVERNIGHT_TOTAL));
+    expect(ledger.privateMandate?.spent).toStrictEqual(mst(OVERNIGHT_TOTAL));
   });
 
   test("日帰りの出張は往路と復路の 2 件で済む", async () => {
@@ -612,7 +612,7 @@ describe("writeBackTrip", () => {
       value: {
         id: written.writtenEventId,
         title: "大阪 出張",
-        description: `合計 ${OVERNIGHT_TOTAL} DEMO`,
+        description: `合計 ${OVERNIGHT_TOTAL} MST`,
         when: {
           kind: "timed",
           start: "2026-09-21T08:33:00+09:00",
@@ -664,7 +664,7 @@ describe("loadLedgerViews", () => {
     const ledger = mustOk(await loadLedgerViews(USER, deps));
 
     expect(ledger.publicLedger.authorizedCount).toBe(3);
-    expect(ledger.privateMandate?.spent).toStrictEqual(demo(OVERNIGHT_TOTAL));
+    expect(ledger.privateMandate?.spent).toStrictEqual(mst(OVERNIGHT_TOTAL));
   });
 
   test("mandate が無ければ privateMandate を省く", async () => {

@@ -11,7 +11,7 @@ import { fromZod } from "./schema";
  */
 export const moneySchema = z.object({
   amount: z.number(),
-  currency: z.enum(["DEMO", "NIGHT"]),
+  currency: z.enum(["MST", "NIGHT"]),
 });
 
 /**

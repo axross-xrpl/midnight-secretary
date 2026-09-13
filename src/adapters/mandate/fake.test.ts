@@ -17,8 +17,8 @@ import type { Money } from "@/domain/money";
 import type { FakeMandateIds } from "./fake";
 import { createFakeMandate } from "./fake";
 
-const demo = (amount: number): Money => {
-  return { amount: mustParse(parseAmount(amount)), currency: "DEMO" };
+const mst = (amount: number): Money => {
+  return { amount: mustParse(parseAmount(amount)), currency: "MST" };
 };
 
 const mandateId = (raw: string): MandateId => {
@@ -64,7 +64,7 @@ const emptyMandate = (): MandatePort => {
 };
 
 const draft = (cap: number, expiresAt: string): MandateDraft => {
-  return { cap: demo(cap), expiresAt: at(expiresAt), purpose: "出張手配" };
+  return { cap: mst(cap), expiresAt: at(expiresAt), purpose: "出張手配" };
 };
 
 const setUp = async (
@@ -93,8 +93,8 @@ describe("createMandate", () => {
       ok: true,
       value: {
         id: "mandate-1",
-        cap: demo(50000),
-        spent: demo(0),
+        cap: mst(50000),
+        spent: mst(0),
         expiresAt: "2026-12-31T23:59:59+09:00",
         purpose: "出張手配",
         commitment: "commitment-1",
@@ -122,7 +122,7 @@ describe("authorizePayment", () => {
     const authorized = await mandate.authorizePayment({
       mandateId: mandateId("mandate-1"),
       paymentRef: paymentRef("trip:1"),
-      amount: demo(14720),
+      amount: mst(14720),
       recipient: PAYEE,
       now: at("2026-09-09T09:00:00+09:00"),
     });
@@ -132,7 +132,7 @@ describe("authorizePayment", () => {
       value: {
         mandateId: "mandate-1",
         paymentRef: "trip:1",
-        amount: demo(14720),
+        amount: mst(14720),
         authorizedAt: "2026-09-09T09:00:00+09:00",
         publicHash: "hash:mandate-1:trip:1",
         settlement: {
@@ -145,7 +145,7 @@ describe("authorizePayment", () => {
 
     const read = await mandate.readMandate(mandateId("mandate-1"));
 
-    expect(read.ok && read.value?.spent).toStrictEqual(demo(14720));
+    expect(read.ok && read.value?.spent).toStrictEqual(mst(14720));
     expect(
       await mandate.isAuthorized(mandateId("mandate-1"), paymentRef("trip:1")),
     ).toStrictEqual({ ok: true, value: true });
@@ -157,7 +157,7 @@ describe("authorizePayment", () => {
     const authorized = await mandate.authorizePayment({
       mandateId: mandateId("mandate-1"),
       paymentRef: paymentRef("trip:1"),
-      amount: demo(12000),
+      amount: mst(12000),
       recipient: walletAddress("demo-payee-hotels"),
       now: at("2026-09-09T09:00:00+09:00"),
     });
@@ -174,7 +174,7 @@ describe("authorizePayment", () => {
     const request = {
       mandateId: mandateId("mandate-1"),
       paymentRef: paymentRef("trip:1"),
-      amount: demo(14720),
+      amount: mst(14720),
       recipient: PAYEE,
       now: at("2026-09-09T09:00:00+09:00"),
     };
@@ -193,7 +193,7 @@ describe("authorizePayment", () => {
     await mandate.authorizePayment({
       mandateId: mandateId("mandate-1"),
       paymentRef: paymentRef("trip:1"),
-      amount: demo(14720),
+      amount: mst(14720),
       recipient: PAYEE,
       now: at("2026-09-09T09:00:00+09:00"),
     });
@@ -202,7 +202,7 @@ describe("authorizePayment", () => {
       await mandate.authorizePayment({
         mandateId: mandateId("mandate-1"),
         paymentRef: paymentRef("trip:2"),
-        amount: demo(14720),
+        amount: mst(14720),
         recipient: PAYEE,
         now: at("2026-09-09T09:00:00+09:00"),
       }),
@@ -210,15 +210,15 @@ describe("authorizePayment", () => {
       ok: false,
       error: {
         kind: "overBudget",
-        cap: demo(20000),
-        spent: demo(14720),
-        requested: demo(14720),
+        cap: mst(20000),
+        spent: mst(14720),
+        requested: mst(14720),
       },
     });
 
     const read = await mandate.readMandate(mandateId("mandate-1"));
 
-    expect(read.ok && read.value?.spent).toStrictEqual(demo(14720));
+    expect(read.ok && read.value?.spent).toStrictEqual(mst(14720));
   });
 
   test("上限ちょうどは通す", async () => {
@@ -227,7 +227,7 @@ describe("authorizePayment", () => {
     const authorized = await mandate.authorizePayment({
       mandateId: mandateId("mandate-1"),
       paymentRef: paymentRef("trip:1"),
-      amount: demo(14720),
+      amount: mst(14720),
       recipient: PAYEE,
       now: at("2026-09-09T09:00:00+09:00"),
     });
@@ -242,7 +242,7 @@ describe("authorizePayment", () => {
       await mandate.authorizePayment({
         mandateId: mandateId("mandate-1"),
         paymentRef: paymentRef("trip:1"),
-        amount: demo(1),
+        amount: mst(1),
         recipient: PAYEE,
         now: at("2026-09-09T09:00:00+09:00"),
       }),
@@ -263,7 +263,7 @@ describe("authorizePayment", () => {
       await mandate.authorizePayment({
         mandateId: mandateId("mandate-9"),
         paymentRef: paymentRef("trip:1"),
-        amount: demo(1),
+        amount: mst(1),
         recipient: PAYEE,
         now: at("2026-09-09T09:00:00+09:00"),
       }),
@@ -281,7 +281,7 @@ describe("readPublicLedger", () => {
     await mandate.authorizePayment({
       mandateId: mandateId("mandate-1"),
       paymentRef: paymentRef("trip:1"),
-      amount: demo(14720),
+      amount: mst(14720),
       recipient: PAYEE,
       now: at("2026-09-09T09:00:00+09:00"),
     });

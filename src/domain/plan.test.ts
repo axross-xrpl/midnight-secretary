@@ -36,7 +36,7 @@ const at = (raw: string): IsoDateTime => {
   return mustParse(parseIsoDateTime(raw));
 };
 
-const money = (amount: number, currency: Currency = "DEMO"): Money => {
+const money = (amount: number, currency: Currency = "MST"): Money => {
   return { amount: mustParse(parseAmount(amount)), currency };
 };
 
@@ -260,7 +260,7 @@ describe("assemblePlan", () => {
       ),
     ).toStrictEqual({
       ok: false,
-      error: { kind: "currencyMismatch", expected: "DEMO", actual: "NIGHT" },
+      error: { kind: "currencyMismatch", expected: "MST", actual: "NIGHT" },
     });
   });
 });
