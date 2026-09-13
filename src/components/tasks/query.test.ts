@@ -88,11 +88,15 @@ describe("tasksHref", () => {
 });
 
 describe("chatHref", () => {
-  test("予定 id を path segment にする", () => {
-    expect(chatHref("seed-2")).toBe("/tasks/seed-2");
+  test("予定 id を path segment にし、検知タブからならクエリ無し", () => {
+    expect(chatHref("seed-2", "detect")).toBe("/tasks/seed-2");
   });
 
   test("path に使えない文字はエスケープする", () => {
-    expect(chatHref("a/b c")).toBe("/tasks/a%2Fb%20c");
+    expect(chatHref("a/b c", "detect")).toBe("/tasks/a%2Fb%20c");
+  });
+
+  test("確定旅程タブからなら tab=trips を添える", () => {
+    expect(chatHref("seed-2", "trips")).toBe("/tasks/seed-2?tab=trips");
   });
 });

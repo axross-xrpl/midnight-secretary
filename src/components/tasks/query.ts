@@ -42,24 +42,31 @@ export const parseTasksQuery = (
   return { tab, scan };
 };
 
+// 表示に対応するクエリ文字列 (スキャン前の検知は無し)
+const queryStringOf = (query: TasksQuery): string => {
+  return match(query)
+    .with({ tab: "trips" }, () => "?tab=trips")
+    .with({ tab: "detect", scan: true }, () => "?scan=1")
+    .with({ tab: "detect", scan: false }, () => "")
+    .exhaustive();
+};
+
 /**
  * 表示に対応する `/tasks` の href (ロケールは Link が付ける)
  *
  * 検知は `/tasks`、スキャン済みは `/tasks?scan=1`、確定旅程は `/tasks?tab=trips`
  */
 export const tasksHref = (query: TasksQuery): string => {
-  return match(query)
-    .with({ tab: "trips" }, () => "/tasks?tab=trips")
-    .with({ tab: "detect", scan: true }, () => "/tasks?scan=1")
-    .with({ tab: "detect", scan: false }, () => "/tasks")
-    .exhaustive();
+  return `/tasks${queryStringOf(query)}`;
 };
 
 /**
  * 予定 1 件の会話画面 `/tasks/[eventId]` の href (ロケールは Link が付ける)
  *
  * pathnames の定義が無いので、予定 id をそのまま path segment にする
+ * 開いたときのタブだけを `tab` で渡し、会話画面の「予定一覧へ」がそのタブに戻れるようにする
+ * スキャンは戻るときにやり直さないので `scan` は渡さない
  */
-export const chatHref = (eventId: string): string => {
-  return `/tasks/${encodeURIComponent(eventId)}`;
+export const chatHref = (eventId: string, tab: TasksTab): string => {
+  return `/tasks/${encodeURIComponent(eventId)}${queryStringOf({ tab, scan: false })}`;
 };

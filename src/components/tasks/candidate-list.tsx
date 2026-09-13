@@ -15,6 +15,7 @@ type ItemProps = {
   event: ScanEvent;
 };
 
+// この一覧は検知タブにあるので、会話画面からは検知タブに戻る
 const CandidateItem = async ({ event }: ItemProps): Promise<ReactElement> => {
   const t = await getTranslations("TasksPage");
 
@@ -28,7 +29,10 @@ const CandidateItem = async ({ event }: ItemProps): Promise<ReactElement> => {
           <EventWhen when={event.when} /> · {event.location ?? t("noLocation")}
         </div>
       </div>
-      <Link href={chatHref(event.id)} className={smallPrimaryButtonClass}>
+      <Link
+        href={chatHref(event.id, "detect")}
+        className={smallPrimaryButtonClass}
+      >
         {t("chat")}
       </Link>
     </li>

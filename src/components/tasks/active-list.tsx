@@ -31,6 +31,7 @@ type ItemProps = {
   trip: TripResponse;
 };
 
+// この一覧は検知タブにあるので、会話画面からは検知タブに戻る
 const ActiveTripItem = async ({ trip }: ItemProps): Promise<ReactElement> => {
   const t = await getTranslations("TasksPage");
 
@@ -47,7 +48,10 @@ const ActiveTripItem = async ({ trip }: ItemProps): Promise<ReactElement> => {
       <span className={statusPillClassOf(trip.status)}>
         {t(`status.${trip.status}`)}
       </span>
-      <Link href={chatHref(trip.event.id)} className={smallPrimaryButtonClass}>
+      <Link
+        href={chatHref(trip.event.id, "detect")}
+        className={smallPrimaryButtonClass}
+      >
         {t("open")}
       </Link>
     </li>

@@ -19,6 +19,7 @@ type ItemProps = {
 };
 
 // 参考実装の trip header に寄せた行 (左に題名と経路、右に合計)
+// この一覧は確定旅程タブにあるので、会話画面からは確定旅程タブに戻る
 const ConfirmedTripItem = async ({
   trip,
 }: ItemProps): Promise<ReactElement> => {
@@ -51,7 +52,10 @@ const ConfirmedTripItem = async ({
         </div>
       </div>
       <span className={okPillClass}>{t("status.written")}</span>
-      <Link href={chatHref(trip.event.id)} className={smallGhostButtonClass}>
+      <Link
+        href={chatHref(trip.event.id, "trips")}
+        className={smallGhostButtonClass}
+      >
         {t("open")}
       </Link>
     </li>
