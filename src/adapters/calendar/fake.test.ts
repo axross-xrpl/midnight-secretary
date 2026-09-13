@@ -97,12 +97,12 @@ describe("seedCalendarEvents", () => {
     expect(events.map((event) => event.title)).toStrictEqual([
       "チーム定例",
       "大阪出張 (取引先訪問)",
-      "福岡出張",
+      "大阪出張 (展示会)",
       "歯医者",
     ]);
   });
 
-  test("大阪の予定は時刻あり、福岡の予定は終日になる", () => {
+  test("取引先訪問は時刻あり、展示会は終日になる", () => {
     const events = seedCalendarEvents(NOW);
 
     expect(
@@ -113,7 +113,7 @@ describe("seedCalendarEvents", () => {
       end: "2026-09-14T17:00:00+09:00",
     });
     expect(
-      events.find((event) => event.location === "福岡市博多区")?.when,
+      events.find((event) => event.location === "大阪市住之江区")?.when,
     ).toStrictEqual({
       kind: "allDay",
       startDate: "2026-09-21",

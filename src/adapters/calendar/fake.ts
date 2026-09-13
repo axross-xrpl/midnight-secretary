@@ -4,6 +4,7 @@ import type {
   DateRange,
   EventTime,
 } from "@/domain/calendar";
+import { addDays } from "@/domain/dates";
 import type {
   CalendarEventId,
   IsoDate,
@@ -11,7 +12,7 @@ import type {
 } from "@/domain/identifiers";
 import { mustParse, parseCalendarEventId } from "@/domain/identifiers.parse";
 import { ok } from "@/lib/result";
-import { addDays, jstDateOf, jstDateTimeOf } from "../jst";
+import { jstDateOf, jstDateTimeOf } from "../jst";
 
 /**
  * Fake のカレンダーが最初に持つ予定と、追加された予定に付ける id の生成関数
@@ -86,13 +87,13 @@ export const seedCalendarEvents = (now: IsoDateTime): CalendarEvent[] => {
 
     {
       id: toEventId("seed-3"),
-      title: "福岡出張",
+      title: "大阪出張 (展示会)",
       when: {
         kind: "allDay",
         startDate: addDays(today, 12),
         endDate: addDays(today, 14),
       },
-      location: "福岡市博多区",
+      location: "大阪市住之江区",
     },
 
     {

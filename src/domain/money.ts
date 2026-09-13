@@ -7,11 +7,11 @@ import { mustParse, parseAmount } from "./identifiers.parse";
  * Wave 1 で扱う通貨
  *
  * 支払いはデモ用トークン 1 本で行い、mandate の上限も料金表もこのトークン建て (1 トークン = 1 円相当、小数点以下 0 桁)
- * トークンは contract/src/token.compact で発行し、シンボルは deploy 時の引数で決めるので、ここでは仮に DEMO と呼ぶ
+ * トークンは contract/src/token.compact で発行し、シンボルは MST (2026-09-11 にチーム決定、deploy の既定と同じ)
  * NIGHT は Midnight のネイティブトークン (小数点以下 6 桁) で、Wave 1 では支払いに使わないが手数料などで現れうる
  * 異なる通貨の金額を混ぜて計算しないよう、Money は通貨を持ち続ける
  */
-export type Currency = "DEMO" | "NIGHT";
+export type Currency = "MST" | "NIGHT";
 
 /**
  * 通貨の最小単位で表した金額

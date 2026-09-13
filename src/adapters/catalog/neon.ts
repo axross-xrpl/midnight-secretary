@@ -15,6 +15,7 @@ import type {
   TransportOffer,
   VerificationKind,
 } from "@/domain/catalog";
+import { nightsBetween } from "@/domain/dates";
 import type { IsoDate, OfferId, WalletAddress } from "@/domain/identifiers";
 import {
   mustParse,
@@ -25,16 +26,16 @@ import {
 import type { Money } from "@/domain/money";
 import type { Result } from "@/lib/result";
 import { err, ok } from "@/lib/result";
-import { jstDateTimeOf, nightsBetween } from "../jst";
+import { jstDateTimeOf } from "../jst";
 
 /**
  * 金額の通貨
  *
  * DB は円単位の JPYC 整数を持つが、`Money` の通貨はデモ用の 2 つしか無い
- * 金額の大きさは同じなので、fake と揃えて DEMO 建てとして扱う
+ * 金額の大きさは同じなので、fake と揃えて MST 建てとして扱う
  */
-const demo = (amount: number): Money => {
-  return { amount: mustParse(parseAmount(amount)), currency: "DEMO" };
+const mst = (amount: number): Money => {
+  return { amount: mustParse(parseAmount(amount)), currency: "MST" };
 };
 
 const VERIFICATION_KINDS: readonly string[] = [
@@ -113,7 +114,7 @@ const doorToDoorOf = (row: TransportRow): DoorToDoor => {
       row.durationMin +
       (row.arrivalBufferMin ?? 0) +
       row.destinationAccessMin,
-    totalPrice: demo(row.priceJpyc + (row.accessFareJpyc ?? 0)),
+    totalPrice: mst(row.priceJpyc + (row.accessFareJpyc ?? 0)),
   };
 };
 
@@ -140,7 +141,7 @@ const transportOfferOn = (
     destination: row.toSpot,
     departAt: jstDateTimeOf(date, hourMinute(row.departTime)),
     arriveAt: jstDateTimeOf(date, hourMinute(row.arriveTime)),
-    price: demo(row.priceJpyc),
+    price: mst(row.priceJpyc),
     doorToDoor: doorToDoorOf(row),
   };
 };
@@ -158,7 +159,7 @@ const lodgingOfferFor = (
     city: row.city,
     checkIn: query.departOn,
     checkOut: query.returnOn,
-    price: demo(row.priceJpyc * nights),
+    price: mst(row.priceJpyc * nights),
     ...(row.rating === null ? {} : { rating: row.rating }),
     requiredVerifications: verificationsOf(row.requiredVerifications),
   };
@@ -175,7 +176,7 @@ const placeOfferOf = (row: PlaceRow, kind: PlaceOfferKind): PlaceOffer => {
     name: row.name,
     city: row.city,
     ...(genre === undefined ? {} : { genre }),
-    price: demo(row.priceJpyc),
+    price: mst(row.priceJpyc),
     requiredVerifications: verificationsOf(row.requiredVerifications),
     ...(ageLimit === undefined ? {} : { ageLimit }),
   };

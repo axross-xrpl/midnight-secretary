@@ -33,8 +33,8 @@ const at = (raw: string) => {
   return mustParse(parseIsoDateTime(raw));
 };
 
-const demo = (amount: number): Money => {
-  return { amount: mustParse(parseAmount(amount)), currency: "DEMO" };
+const mst = (amount: number): Money => {
+  return { amount: mustParse(parseAmount(amount)), currency: "MST" };
 };
 
 const railOffer = (
@@ -51,7 +51,7 @@ const railOffer = (
     destination,
     departAt: at("2026-09-14T09:00:00+09:00"),
     arriveAt: at("2026-09-14T11:30:00+09:00"),
-    price: demo(14720),
+    price: mst(14720),
   };
 };
 
@@ -77,7 +77,7 @@ const proposedTrip = (id: TripId, proposedAt: string): Trip => {
       },
       outbound: railOffer("rail-tokyo-osaka", "東京", "大阪"),
       inbound: railOffer("rail-osaka-tokyo", "大阪", "東京"),
-      total: demo(29440),
+      total: mst(29440),
       rationale: "test",
     },
     proposedAt: at(proposedAt),

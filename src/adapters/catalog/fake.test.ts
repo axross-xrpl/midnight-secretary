@@ -52,10 +52,10 @@ describe("createFakeCatalog", () => {
       destination: "ITM",
       departAt: "2026-09-14T07:00:00+09:00",
       arriveAt: "2026-09-14T08:15:00+09:00",
-      price: { amount: 13000, currency: "DEMO" },
+      price: { amount: 13000, currency: "MST" },
       doorToDoor: {
         totalMin: 235,
-        totalPrice: { amount: 14350, currency: "DEMO" },
+        totalPrice: { amount: 14350, currency: "MST" },
       },
     });
     expect(result.ok && result.value.inbound.at(0)?.departAt).toBe(
@@ -73,16 +73,16 @@ describe("createFakeCatalog", () => {
     // 鉄道は速いが高く、航空は遅いが安い。door-to-door でこの逆転が見える
     expect(byId("rail-nozomi-221")).toStrictEqual({
       totalMin: 187,
-      totalPrice: { amount: 15010, currency: "DEMO" },
+      totalPrice: { amount: 15010, currency: "MST" },
     });
     expect(byId("air-ana-017")).toStrictEqual({
       totalMin: 235,
-      totalPrice: { amount: 14350, currency: "DEMO" },
+      totalPrice: { amount: 14350, currency: "MST" },
     });
     // 運賃は最安でも、成田・関空のアクセスで所要が最長になる
     expect(byId("air-jjp-201")).toStrictEqual({
       totalMin: 320,
-      totalPrice: { amount: 12260, currency: "DEMO" },
+      totalPrice: { amount: 12260, currency: "MST" },
     });
   });
 
@@ -109,7 +109,7 @@ describe("createFakeCatalog", () => {
       city: "大阪",
       checkIn: "2026-09-14",
       checkOut: "2026-09-16",
-      price: { amount: 25000, currency: "DEMO" },
+      price: { amount: 25000, currency: "MST" },
       rating: 4,
       requiredVerifications: [],
     });
@@ -149,7 +149,7 @@ describe("createFakeCatalog", () => {
       name: "なんば オーセンティックバー 燈",
       city: "大阪",
       genre: "バー",
-      price: { amount: 6000, currency: "DEMO" },
+      price: { amount: 6000, currency: "MST" },
       requiredVerifications: ["age"],
       ageLimit: 20,
     });

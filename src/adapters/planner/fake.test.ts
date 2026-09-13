@@ -30,7 +30,7 @@ const choiceContext = (preferredTransport?: TransportMode): ChoiceContext => {
       homeStation: "東京",
       ...(preferredTransport === undefined ? {} : { preferredTransport }),
     },
-    budget: { amount: mustParse(parseAmount(100000)), currency: "DEMO" },
+    budget: { amount: mustParse(parseAmount(100000)), currency: "MST" },
   };
 };
 

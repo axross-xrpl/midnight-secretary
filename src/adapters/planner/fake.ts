@@ -1,5 +1,6 @@
 import type { CalendarEvent, EventTime } from "@/domain/calendar";
 import type { OfferSet, TransportMode, TransportOffer } from "@/domain/catalog";
+import { addDays, nightsBetween } from "@/domain/dates";
 import type { IsoDate, OfferId } from "@/domain/identifiers";
 import type { PlanChoice, TripIntent } from "@/domain/plan";
 import type {
@@ -10,7 +11,7 @@ import type {
 } from "@/domain/planner";
 import type { Result } from "@/lib/result";
 import { err, ok } from "@/lib/result";
-import { addDays, jstDateOf, nightsBetween } from "../jst";
+import { jstDateOf } from "../jst";
 
 const RATIONALE = "Fake planner: first matching offers";
 
