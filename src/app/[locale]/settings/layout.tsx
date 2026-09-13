@@ -1,5 +1,5 @@
 import { getTranslations } from "next-intl/server";
-import { Link } from "@/i18n/navigation";
+import { SettingsNav } from "@/components/settings/settings-nav";
 import { requireSession } from "@/lib/require-session";
 
 export default async function SettingsLayout({
@@ -18,21 +18,7 @@ export default async function SettingsLayout({
           <h1 className="mb-6 px-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
             {t("title")}
           </h1>
-          <nav aria-label={t("title")} className="space-y-1 text-sm">
-            <span className="block rounded-lg px-3 py-2.5 text-slate-400">
-              {t("profile")}
-            </span>
-            <Link
-              href="/settings/services"
-              aria-current="page"
-              className="block rounded-lg bg-blue-50 px-3 py-2.5 font-semibold text-[#185fa5]"
-            >
-              {t("services")}
-            </Link>
-            <span className="block rounded-lg px-3 py-2.5 text-slate-400">
-              {t("wallet")}
-            </span>
-          </nav>
+          <SettingsNav />
         </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">{children}</div>

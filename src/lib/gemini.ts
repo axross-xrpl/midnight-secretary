@@ -2,6 +2,7 @@ import "server-only";
 
 import { GoogleGenAI } from "@google/genai";
 
+import type { PlanningProfile } from "@/features/profile/feasibility";
 import type { GeminiProposal } from "@/lib/schemas";
 import { geminiProposalSchema } from "@/lib/schemas";
 import type { ChatMessage, ServiceCandidate, ServiceKind } from "@/lib/types";
@@ -61,8 +62,10 @@ function getClient(): GoogleGenAI {
 export async function requestProposal(
   request: string,
   candidatesByKind: Record<ServiceKind, ServiceCandidate[]>,
+  profile: PlanningProfile | null,
+  today: string,
 ): Promise<GeminiProposal | null> {
-  const prompt = buildProposalPrompt(request, candidatesByKind);
+  const prompt = buildProposalPrompt(request, candidatesByKind, profile, today);
 
   debugLog("proposalRequest", {
     request,
@@ -72,6 +75,7 @@ export async function requestProposal(
       leisure: candidatesByKind.leisure.length,
     },
     promptLength: prompt.length,
+    hasProfile: profile !== null,
   });
 
   const response = await getClient().models.generateContent({

@@ -500,8 +500,8 @@ AI秘書のツール（`basic-spec.md` §4）と DB の対応。秘書は Next.j
 | `resolve_directory(intent)` | `user_profiles`（拠点・好み・趣味・予算）＋ 目的都市は予定の件名テキストから解決 |
 | `lookup_fares(route, ...)` | `transport_services` を `from_city` / `to_city` / `active` で取得し、内訳列から door-to-door を合成 |
 | （サービス候補の取得） | `place_services` を `kind` ＋ `city` ＋ `genre` で取得 |
-| `filter_feasible` | `user_profiles.budget_jpyc` をハード制約に使う。あわせて `place_services.required_verifications` を読み、**検証を満たせない候補を除外する**（`age` は `birth_date` と `age_limit`、`nationality` は `nationality`、`residence` は `residence_pref` で判定・§7.2） |
-| `select_option` | `user_profiles.priority` で重み付け。宿泊は `rating` 最大を「おすすめ」にする |
+| `filter_feasible` | `place_services.required_verifications` を読み、**検証を満たせない候補を除外する**（`age` は `birth_date` と `age_limit`、`nationality` は `nationality`、`residence` は `residence_pref` で判定・§7.2）。判定と経路は実装済みだが、**現バージョンは除外を無効にし、満たせるかの判断も AI に委ねている**（`profile-page-spec.md` §15）。`budget_jpyc` も画面の上限価格と単位が違う（1旅程 / 1泊）ため、ハード制約ではなく AI への指示として渡している |
+| `select_option` | `user_profiles.priority` で重み付け。好みのジャンル（`dining_genres` / `leisure_genres`）に合う候補を前に出す。**提案経路に実装済み**（`profile-page-spec.md` §15）。宿泊は `rating` 最大を「おすすめ」にする |
 | `pay_invoice` / `confirm_booking` | `payments` の作成と状態遷移、`trip_items.status` / `booking_ref` の更新 |
 | `build_task_list(bookings)` | `trips` / `trip_items` を書き込み、`trips.status` を `confirmed` にする |
 
@@ -521,7 +521,7 @@ AI秘書のツール（`basic-spec.md` §4）と DB の対応。秘書は Next.j
 
 | 用途 | エンドポイント |
 |---|---|
-| プロフィール取得・更新 | `GET` / `PUT /api/profile` |
+| プロフィール更新 | `PUT /api/profile`（取得は画面がサーバ関数を直接呼ぶため `GET` は未実装・`profile-page-spec.md` §6.5） |
 | サービス横断一覧 | `GET /api/services?category=&city=&q=&active=`（`service_catalog` を読む） |
 | 交通の詳細・登録・更新・無効化 | `GET` / `POST /api/services/transport` ／ `PUT` / `DELETE /api/services/transport/{id}` |
 | 場所系の詳細・登録・更新・無効化 | `GET` / `POST /api/services/place` ／ `PUT` / `DELETE /api/services/place/{id}` |
@@ -542,9 +542,9 @@ AI秘書のツール（`basic-spec.md` §4）と DB の対応。秘書は Next.j
 | SCR-02 プラン画面 | 読: `transport_services`・`place_services`・`user_profiles` ／ 書: `trips`・`trip_items`・`payments` |
 | SCR-03a タスク（確定旅程） | 読: `trips`・`trip_items` ／ 書: `trip_items.google_event_id` |
 | SCR-03b タスク（検知） | 書: `trips`（`status='detected'`・`source_event_id`） |
-| SCR-04a プロフィール設定 | `user_profiles`（氏名・住所・生年月日・**国籍**・**居住都道府県**・好み・予算・優先度） |
+| SCR-04a プロフィール設定 | `user_profiles`（氏名・住所・生年月日・**居住都道府県**・拠点・好み・予算・優先度・**ウォレットアドレス**（暫定））。国籍は MVP では入力欄を持たない |
 | SCR-04b サービス管理 | 一覧: `service_catalog` ／ 詳細・更新: `transport_services`・`place_services`（**認証要求の入力を含む**・`register-page-spec.md`） |
-| SCR-04c ウォレット設定 | `user_profiles.wallet_address`（残高はチェーン照会でDBに持たない） |
+| SCR-04c ウォレット設定 | `user_profiles.wallet_address`（残高はチェーン照会でDBに持たない）。**画面が未着手のため、アドレスの入力は暫定で SCR-04a が持つ**（`profile-page-spec.md` §4.6） |
 | OVL-01 決済・予定詳細 | `payments`・`trip_items` |
 
 `basic-spec.md` §5 は「SCR-04b 設定画面.サービス登録」、旧 `register-page-spec.md` は「SCR-05 `/services`」と
@@ -575,7 +575,7 @@ AI秘書のツール（`basic-spec.md` §4）と DB の対応。秘書は Next.j
 | `register-page-spec.md` | **本書に合わせて改訂済み**（SCR-04b・2テーブル構成。旧仕様からのラベル変更は同書 §16 に列挙） |
 | `basic-spec.md` §3 | 未反映。アーキ図のバックエンドを「単一 FastAPI」から実装（Next.js）に合わせる。データ層の `directory` / `fares` も本書のテーブル名にする |
 | `basic-spec.md` §5 | 未反映。SCR-04b の説明を「サービス登録」から「サービス管理」に揃える（画面IDは SCR-04b のまま） |
-| `src/auth.ts` | 未反映。`user_profiles.user_id` に Google の `sub` を使うため、セッション（または JWT）から `sub` を取り出せるようにする変更が必要 |
+| `src/auth.ts` | **反映済み**。session コールバックで JWT の `sub` をセッションに載せ、`user_profiles.user_id` に使えるようにした（`profile-page-spec.md` §6.1） |
 
 ---
 

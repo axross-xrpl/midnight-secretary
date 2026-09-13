@@ -54,11 +54,24 @@ const googleProvider = (google: GoogleCredentials) => {
   });
 };
 
+/**
+ * セッションにユーザの識別子を載せる
+ *
+ * `user_profiles.user_id` に使う。JWT 戦略では `sub` が Google の subject、
+ * dev サインインでは Credentials が返した id (`dev-user`) になるので、経路で分岐しない
+ */
+const sessionWithUserId: NonNullable<NextAuthOptions["callbacks"]>["session"] =
+  ({ session, token }) => ({
+    ...session,
+    user: { ...session.user, id: token.sub },
+  });
+
 const googleOptions = (google: GoogleCredentials): NextAuthOptions => {
   return {
     session: { strategy: "jwt" },
     providers: [googleProvider(google)],
     callbacks: {
+      session: sessionWithUserId,
       // トークンは JWT cookie の中だけに置き、session には渡さない
       // 期限切れのトークンは session を読むたびにここで更新して cookie に書き戻す
       jwt: async ({ token, account }) => {
@@ -116,6 +129,7 @@ const devOptions = (devUser: DevUser): NextAuthOptions => {
         }),
       }),
     ],
+    callbacks: { session: sessionWithUserId },
   };
 };
 
