@@ -96,7 +96,13 @@ const offersFor = async (intent: TripIntent): Promise<OfferSet> => {
   return offers.value;
 };
 
-const emptyOffers: OfferSet = { outbound: [], inbound: [], lodging: [] };
+const emptyOffers: OfferSet = {
+  outbound: [],
+  inbound: [],
+  lodging: [],
+  dining: [],
+  leisure: [],
+};
 
 describe("interpretEvent", () => {
   test("件名から目的地を見つける", async () => {
@@ -185,18 +191,19 @@ describe("interpretEvent", () => {
 });
 
 describe("choosePlan", () => {
+  // 候補は code 順で届くので、希望が無いときの先頭は air になる
   test("希望の交通手段があればそれを選ぶ", async () => {
     const intent = intentFor("大阪", "2026-09-14", "2026-09-16");
     const offers = await offersFor(intent);
 
     expect(
-      await planner.choosePlan(intent, offers, choiceContext("air")),
+      await planner.choosePlan(intent, offers, choiceContext("rail")),
     ).toStrictEqual({
       ok: true,
       value: {
-        outboundId: "air-tokyo-osaka",
-        inboundId: "air-osaka-tokyo",
-        lodgingId: "hotel-osaka",
+        outboundId: "rail-hikari-505",
+        inboundId: "rail-nozomi-232",
+        lodgingId: "hotel-namba-c",
         rationale: "Fake planner: first matching offers",
       },
     });
@@ -207,8 +214,8 @@ describe("choosePlan", () => {
     const offers = await offersFor(intent);
     const result = await planner.choosePlan(intent, offers, choiceContext());
 
-    expect(result.ok && result.value.outboundId).toBe("rail-tokyo-osaka");
-    expect(result.ok && result.value.inboundId).toBe("rail-osaka-tokyo");
+    expect(result.ok && result.value.outboundId).toBe("air-ana-017");
+    expect(result.ok && result.value.inboundId).toBe("air-ana-038");
   });
 
   test("日帰りなら宿を選ばない", async () => {
@@ -217,8 +224,8 @@ describe("choosePlan", () => {
     const result = await planner.choosePlan(intent, offers, choiceContext());
 
     expect(result.ok && result.value).toStrictEqual({
-      outboundId: "rail-tokyo-osaka",
-      inboundId: "rail-osaka-tokyo",
+      outboundId: "air-ana-017",
+      inboundId: "air-ana-038",
       rationale: "Fake planner: first matching offers",
     });
   });

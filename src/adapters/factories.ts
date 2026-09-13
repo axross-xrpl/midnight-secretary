@@ -7,6 +7,7 @@ import { err } from "@/lib/result";
 import { createFakeCalendar, seedCalendarEvents } from "./calendar/fake";
 import { createGoogleCalendar } from "./calendar/google";
 import { createFakeCatalog, seedCatalog } from "./catalog/fake";
+import { createNeonCatalog } from "./catalog/neon";
 import type { FakeMandateIds } from "./mandate/fake";
 import { createFakeMandate } from "./mandate/fake";
 import { createFakePlanner } from "./planner/fake";
@@ -55,6 +56,8 @@ export const createSecretaryFactories = (
     newEventId: resources.newEventId,
   });
   const fakeCatalog = createFakeCatalog(seedCatalog());
+  // DB のハンドルは getDb() が保持するので、ここでは接続せず port だけ作る
+  const neonCatalog = createNeonCatalog();
   const fakePlanner = createFakePlanner();
   const fakeMandate = createFakeMandate({
     mandates: [],
@@ -64,7 +67,7 @@ export const createSecretaryFactories = (
 
   return {
     calendar: { real: googleCalendarFor, fake: () => fakeCalendar },
-    catalog: { real: () => fakeCatalog, fake: () => fakeCatalog },
+    catalog: { real: () => neonCatalog, fake: () => fakeCatalog },
     planner: { real: () => fakePlanner, fake: () => fakePlanner },
     mandate: { real: () => fakeMandate, fake: () => fakeMandate },
     store: { real: () => fakeStore, fake: () => fakeStore },

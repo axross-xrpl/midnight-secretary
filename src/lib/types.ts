@@ -1,66 +1,38 @@
-export type HotelType =
-  | "hotel"
-  | "business_hotel"
-  | "ryokan"
-  | "hostel"
-  | "capsule_hotel";
+/**
+ * 提案の対象になるサービスの種別
+ *
+ * DB の `place_services.kind` と同じ値
+ */
+export type ServiceKind = "hotel" | "restaurant" | "leisure";
 
-export type MealCondition = "none" | "breakfast" | "half_board" | "full_board";
-
-export interface Hotel {
+/**
+ * AI に渡す候補 1 件
+ *
+ * `place_services` の行をそのまま写したもので、種別で使わない項目は落とす
+ * `id` は DB の `code`（安定キー）
+ */
+export interface ServiceCandidate {
   id: string;
+  kind: ServiceKind;
   name: string;
-  name_kana?: string;
-  hotel_type: HotelType;
-  description: string;
-  official_url?: string;
-  image_url?: string;
-  source_url: string;
-  verified_at: string;
-  postal_code: string;
-  prefecture: "大阪府";
-  city: "大阪市";
-  ward: string;
-  address_line: string;
-  latitude?: number;
-  longitude?: number;
-  nearest_station: string;
-  station_lines?: string[];
-  walk_minutes: number;
-  access_note?: string;
-  price_jpy: number;
-  price_unit: "per_room_per_night";
-  occupancy: number;
-  tax_included: boolean;
-  service_fee_included: boolean;
-  meal_condition: MealCondition;
-  price_note?: string;
-  price_checked_at: string;
-  rating: number;
-  rating_scale: number;
-  review_count: number;
-  review_source: string;
-  review_source_url: string;
-  rating_checked_at: string;
-  reputation_summary?: string;
-  services: string[];
-  amenities: string[];
-  features: string[];
-  supported_languages?: string[];
-  check_in_from: string;
-  check_in_until?: string;
-  check_out_until: string;
-}
-
-export interface Catalog {
-  schema_version: "1.0";
-  updated_at: string;
-  currency: "JPY";
-  hotels: Hotel[];
-}
-
-export interface HotelCandidate extends Hotel {
+  itemName?: string;
+  city: string;
   address: string;
+  nearestStation: string;
+  stationAccessMin: number;
+  priceJpy: number;
+  genre?: string;
+  rating?: number;
+  openFrom?: string;
+  openTo?: string;
+  checkinFrom?: string;
+  checkoutBy?: string;
+  breakfastIncluded?: boolean;
+  hasAlcohol?: boolean;
+  seats?: string;
+  /** 利用に本人確認が要る場合の種類。空なら不要 */
+  requiredVerifications: string[];
+  ageLimit?: number;
 }
 
 export interface ProposalPick {
@@ -68,11 +40,21 @@ export interface ProposalPick {
   reason: string;
 }
 
-export interface ProposalResponse {
+/**
+ * 種別ごとの提案
+ *
+ * `candidates` は AI に渡した候補そのもので、`picks` はその中から選ばれたもの
+ */
+export interface ProposalGroup {
+  kind: ServiceKind;
   picks: ProposalPick[];
+  candidates: ServiceCandidate[];
+}
+
+export interface ProposalResponse {
   message: string;
   fallback: boolean;
-  candidates: HotelCandidate[];
+  groups: ProposalGroup[];
 }
 
 export interface ChatMessage {

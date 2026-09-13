@@ -26,12 +26,22 @@ export async function POST(request: Request): Promise<Response> {
     return errorResponse(400, "入力内容を確認してください");
   }
 
-  const candidates = selectCandidatesById(
-    parsed.data.filters,
-    parsed.data.candidateIds,
-  );
+  let candidates: Awaited<ReturnType<typeof selectCandidatesById>>;
+
+  try {
+    candidates = await selectCandidatesById(
+      parsed.data.filters,
+      parsed.data.candidateIds,
+    );
+  } catch (error) {
+    console.error("[chat] database read failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return errorResponse(503, "サービス情報を読み込めませんでした");
+  }
+
   if (candidates.length === 0) {
-    return errorResponse(400, "回答対象のホテルを確認できませんでした");
+    return errorResponse(400, "回答対象のサービスを確認できませんでした");
   }
 
   try {

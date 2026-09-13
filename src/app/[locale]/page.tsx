@@ -3,19 +3,58 @@
 import { useState } from "react";
 import { LoaderCircle, Send, Sparkles } from "lucide-react";
 
+type ServiceKind = "hotel" | "restaurant" | "leisure";
+
+type Candidate = {
+  id: string;
+  kind: ServiceKind;
+  name: string;
+  itemName?: string;
+  priceJpy: number;
+  nearestStation: string;
+  stationAccessMin: number;
+  genre?: string;
+  rating?: number;
+  openFrom?: string;
+  openTo?: string;
+  requiredVerifications: string[];
+  ageLimit?: number;
+};
+
+type ProposalGroup = {
+  kind: ServiceKind;
+  picks: Array<{ id: string; reason: string }>;
+  candidates: Candidate[];
+};
+
 type ProposalResponse = {
-  picks?: Array<{ id: string; reason: string }>;
   message?: string;
   fallback?: boolean;
-  candidates?: Array<{
-    id: string;
-    name: string;
-    price_jpy: number;
-    nearest_station: string;
-    walk_minutes: number;
-    rating: number;
-  }>;
+  groups?: ProposalGroup[];
 };
+
+// 表示の順番と見出しはここで決める
+const KIND_LABELS: Record<ServiceKind, { title: string; hint: string }> = {
+  hotel: { title: "宿泊", hint: "1泊あたり" },
+  restaurant: { title: "飲食店", hint: "1人あたり" },
+  leisure: { title: "レジャー", hint: "1枚あたり" },
+};
+
+const VERIFICATION_LABELS: Record<string, string> = {
+  age: "年齢確認",
+  nationality: "国籍確認",
+  residence: "居住地確認",
+};
+
+function verificationText(candidate: Candidate): string {
+  return candidate.requiredVerifications
+    .map((kind) =>
+      kind === "age" && candidate.ageLimit !== undefined
+        ? `${candidate.ageLimit}歳以上`
+        : (VERIFICATION_LABELS[kind] ?? kind),
+    )
+    .join(" / ");
+}
 
 type BookingQuote = {
   hotelId: string;
@@ -62,7 +101,7 @@ export default function Home() {
         body: JSON.stringify({
           kind: "hotel",
           request,
-          filters: { city: "大阪市", maxPrice: Number(maxPrice) || undefined },
+          filters: { city: "大阪", maxPrice: Number(maxPrice) || undefined },
         }),
       });
       const text = await response.text();
@@ -273,51 +312,103 @@ export default function Home() {
               </div>
             )}
             {result && (
-              <div className="space-y-6">
+              <div className="space-y-7">
                 <p className="text-lg leading-8 text-[#34453d]">
                   {result.message}
                 </p>
-                <div className="grid gap-3">
-                  {result.picks?.map((pick) => {
-                    const hotel = result.candidates?.find(
-                      (candidate) => candidate.id === pick.id,
-                    );
-                    return (
-                      <article
-                        key={pick.id}
-                        className={`rounded-xl border bg-white p-4 ${selectedHotelId === pick.id ? "border-[#b85c38] ring-2 ring-[#b85c38]/15" : "border-[#dedbd2]"}`}
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <div className="font-semibold">
-                              {hotel?.name ?? pick.id}
-                            </div>
-                            <p className="mt-2 text-sm leading-6 text-[#65736b]">
-                              {pick.reason}
-                            </p>
-                            {hotel && (
-                              <div className="mt-3 text-xs text-[#557264]">
-                                ¥{hotel.price_jpy.toLocaleString()} /{" "}
-                                {hotel.nearest_station} 徒歩{hotel.walk_minutes}
-                                分 / 評価 {hotel.rating}
-                              </div>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedHotelId(pick.id)}
-                            className="shrink-0 rounded-lg border border-[#b85c38] px-3 py-2 text-xs font-semibold text-[#8b4028] hover:bg-[#fff0e9]"
-                          >
-                            選択
-                          </button>
+                {result.groups?.map((group) => {
+                  const label = KIND_LABELS[group.kind];
+
+                  return (
+                    <section key={group.kind} className="space-y-3">
+                      <div className="flex items-baseline justify-between gap-3 border-b border-[#ddd8cc] pb-2">
+                        <h3 className="text-sm font-semibold tracking-[0.08em] text-[#1d3029]">
+                          {label.title}
+                        </h3>
+                        <span className="text-xs text-[#7b857f]">
+                          提案 {group.picks.length} / 候補{" "}
+                          {group.candidates.length}件
+                        </span>
+                      </div>
+                      {group.picks.length === 0 ? (
+                        <p className="text-sm leading-6 text-[#758078]">
+                          条件に合う{label.title}の提案はありませんでした。
+                        </p>
+                      ) : (
+                        <div className="grid gap-3">
+                          {group.picks.map((pick) => {
+                            const candidate = group.candidates.find(
+                              (item) => item.id === pick.id,
+                            );
+                            const verifications =
+                              candidate === undefined
+                                ? ""
+                                : verificationText(candidate);
+
+                            return (
+                              <article
+                                key={pick.id}
+                                className={`rounded-xl border bg-white p-4 ${group.kind === "hotel" && selectedHotelId === pick.id ? "border-[#b85c38] ring-2 ring-[#b85c38]/15" : "border-[#dedbd2]"}`}
+                              >
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="min-w-0">
+                                    <div className="font-semibold">
+                                      {candidate?.name ?? pick.id}
+                                    </div>
+                                    {candidate?.itemName && (
+                                      <div className="mt-0.5 text-xs text-[#7b857f]">
+                                        {candidate.itemName}
+                                      </div>
+                                    )}
+                                    <p className="mt-2 text-sm leading-6 text-[#65736b]">
+                                      {pick.reason}
+                                    </p>
+                                    {candidate && (
+                                      <div className="mt-3 text-xs text-[#557264]">
+                                        ¥{candidate.priceJpy.toLocaleString()}
+                                        <span className="text-[#7b857f]">
+                                          {" "}
+                                          / {label.hint}
+                                        </span>{" "}
+                                        / {candidate.nearestStation} 徒歩
+                                        {candidate.stationAccessMin}分
+                                        {candidate.genre
+                                          ? ` / ${candidate.genre}`
+                                          : ""}
+                                        {candidate.rating !== undefined
+                                          ? ` / 評価 ${candidate.rating}`
+                                          : ""}
+                                        {candidate.openFrom && candidate.openTo
+                                          ? ` / ${candidate.openFrom}–${candidate.openTo}`
+                                          : ""}
+                                      </div>
+                                    )}
+                                    {verifications !== "" && (
+                                      <div className="mt-2 inline-block rounded-full bg-[#f6e9d8] px-2.5 py-1 text-xs font-medium text-[#8b5a28]">
+                                        要 {verifications}
+                                      </div>
+                                    )}
+                                  </div>
+                                  {group.kind === "hotel" && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setSelectedHotelId(pick.id)
+                                      }
+                                      className="shrink-0 rounded-lg border border-[#b85c38] px-3 py-2 text-xs font-semibold text-[#8b4028] hover:bg-[#fff0e9]"
+                                    >
+                                      選択
+                                    </button>
+                                  )}
+                                </div>
+                              </article>
+                            );
+                          })}
                         </div>
-                      </article>
-                    );
-                  })}
-                </div>
-                <p className="text-xs text-[#7b857f]">
-                  候補件数: {result.candidates?.length ?? 0}
-                </p>
+                      )}
+                    </section>
+                  );
+                })}
               </div>
             )}
           </div>

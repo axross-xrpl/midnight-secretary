@@ -1,4 +1,4 @@
-import { findHotels } from "@/lib/catalog";
+import { findHotelById } from "@/lib/catalog";
 import { errorResponse, readJsonBody, RequestTooLargeError } from "@/lib/api";
 import { hotelBookingRequestSchema } from "@/lib/schemas";
 import type { HotelBookingQuote } from "@/lib/types";
@@ -30,10 +30,18 @@ export async function POST(request: Request): Promise<Response> {
     return errorResponse(400, "ホテル・宿泊日を確認してください");
   }
 
-  // ホテルと料金は必ずサーバー側のカタログから解決する。
-  const hotel = findHotels({ city: "大阪市" }).find(
-    (candidate) => candidate.id === parsed.data.hotelId,
-  );
+  // ホテルと料金は必ずサーバー側の DB から解決する。
+  let hotel: Awaited<ReturnType<typeof findHotelById>>;
+
+  try {
+    hotel = await findHotelById(parsed.data.hotelId);
+  } catch (error) {
+    console.error("[bookings/quote] database read failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return errorResponse(503, "サービス情報を読み込めませんでした");
+  }
+
   if (!hotel) {
     return errorResponse(404, "予約可能なホテルが見つかりませんでした");
   }
@@ -45,10 +53,10 @@ export async function POST(request: Request): Promise<Response> {
     hotelName: hotel.name,
     checkIn: parsed.data.checkIn,
     checkOut: parsed.data.checkOut,
-    totalPriceJpy: hotel.price_jpy * nights,
+    totalPriceJpy: hotel.priceJpy * nights,
     currency: "JPY",
     status: "quoted",
   };
 
-  return Response.json({ quote, nightlyPriceJpy: hotel.price_jpy, nights });
+  return Response.json({ quote, nightlyPriceJpy: hotel.priceJpy, nights });
 }

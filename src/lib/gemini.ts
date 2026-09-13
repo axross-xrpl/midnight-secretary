@@ -2,33 +2,39 @@ import "server-only";
 
 import { GoogleGenAI } from "@google/genai";
 
+import type { GeminiProposal } from "@/lib/schemas";
 import { geminiProposalSchema } from "@/lib/schemas";
-import type { ChatMessage, HotelCandidate, ProposalPick } from "@/lib/types";
+import type { ChatMessage, ServiceCandidate, ServiceKind } from "@/lib/types";
 import { buildChatPrompt, buildProposalPrompt } from "@/lib/prompts";
 
 const MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
 const DEBUG = process.env.GEMINI_DEBUG === "1";
 
+const picksJsonSchema = {
+  type: "array",
+  maxItems: 3,
+  items: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      id: { type: "string" },
+      reason: { type: "string" },
+    },
+    required: ["id", "reason"],
+  },
+};
+
+// 宿泊・飲食・レジャーを 1 回の生成でまとめて選ばせる
 const proposalJsonSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
-    picks: {
-      type: "array",
-      maxItems: 3,
-      items: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          id: { type: "string" },
-          reason: { type: "string" },
-        },
-        required: ["id", "reason"],
-      },
-    },
+    hotel: picksJsonSchema,
+    restaurant: picksJsonSchema,
+    leisure: picksJsonSchema,
     message: { type: "string" },
   },
-  required: ["picks", "message"],
+  required: ["hotel", "restaurant", "leisure", "message"],
 };
 
 export class GeminiConfigurationError extends Error {}
@@ -54,13 +60,17 @@ function getClient(): GoogleGenAI {
 
 export async function requestProposal(
   request: string,
-  candidates: HotelCandidate[],
-): Promise<{ picks: ProposalPick[]; message: string } | null> {
-  const prompt = buildProposalPrompt(request, candidates);
+  candidatesByKind: Record<ServiceKind, ServiceCandidate[]>,
+): Promise<GeminiProposal | null> {
+  const prompt = buildProposalPrompt(request, candidatesByKind);
 
   debugLog("proposalRequest", {
     request,
-    candidateCount: candidates.length,
+    candidateCount: {
+      hotel: candidatesByKind.hotel.length,
+      restaurant: candidatesByKind.restaurant.length,
+      leisure: candidatesByKind.leisure.length,
+    },
     promptLength: prompt.length,
   });
 
@@ -91,7 +101,11 @@ export async function requestProposal(
 
     debugLog("proposalParse", {
       success: true,
-      pickCount: validated.picks.length,
+      pickCount: {
+        hotel: validated.hotel.length,
+        restaurant: validated.restaurant.length,
+        leisure: validated.leisure.length,
+      },
     });
 
     return validated;
@@ -106,7 +120,7 @@ export async function requestProposal(
 }
 
 export async function requestChat(
-  candidates: HotelCandidate[],
+  candidates: ServiceCandidate[],
   messages: ChatMessage[],
 ): Promise<string | null> {
   const prompt = buildChatPrompt(candidates, messages);

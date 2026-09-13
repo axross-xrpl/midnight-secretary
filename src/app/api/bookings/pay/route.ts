@@ -1,5 +1,5 @@
 import { errorResponse, readJsonBody, RequestTooLargeError } from "@/lib/api";
-import { findHotels } from "@/lib/catalog";
+import { findHotelById } from "@/lib/catalog";
 import { hotelBookingRequestSchema } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
@@ -22,10 +22,18 @@ export async function POST(request: Request): Promise<Response> {
     return errorResponse(400, "ホテル・宿泊日を確認してください");
   }
 
-  // 決済前に、ホテルと金額をサーバー側で再確認する。
-  const hotel = findHotels({ city: "大阪市" }).find(
-    (candidate) => candidate.id === parsed.data.hotelId,
-  );
+  // 決済前に、ホテルと金額をサーバー側の DB で再確認する。
+  let hotel: Awaited<ReturnType<typeof findHotelById>>;
+
+  try {
+    hotel = await findHotelById(parsed.data.hotelId);
+  } catch (error) {
+    console.error("[bookings/pay] database read failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return errorResponse(503, "サービス情報を読み込めませんでした");
+  }
+
   if (!hotel) {
     return errorResponse(404, "決済対象のホテルが見つかりませんでした");
   }
@@ -43,7 +51,7 @@ export async function POST(request: Request): Promise<Response> {
       code: "MIDNIGHT_NOT_CONNECTED",
       message: "Midnight決済アダプターが未接続です",
       request: parsed.data,
-      quotedAmountJpy: hotel.price_jpy * nights,
+      quotedAmountJpy: hotel.priceJpy * nights,
     },
     { status: 502 },
   );
