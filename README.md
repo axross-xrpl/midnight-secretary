@@ -80,8 +80,14 @@ example `SECRETARY_CATALOG=fake`.
 | `SECRETARY_PLANNER` | `real`, `fake` | from the mode |
 | `SECRETARY_MANDATE` | `real`, `fake` | from the mode |
 | `SECRETARY_STORE` | `real`, `fake` | from the mode |
+| `SECRETARY_IDENTITY` | `real`, `fake` | from the mode |
+| `SECRETARY_PROFILE` | `real`, `fake` | from the mode |
 
 Precedence: a per-port variable beats `SECRETARY_MODE`, which beats the `normal` default (everything real).
+
+`SECRETARY_PROFILE=real` reads the date of birth from the profile in NeonDB (the profile page's table) and
+needs `DATABASE_URL`; `SECRETARY_IDENTITY=real` still runs the in-process fake until the contract server
+exposes the age verification endpoints.
 
 ## Getting Started
 

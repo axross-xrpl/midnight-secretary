@@ -1,8 +1,10 @@
 import type { CalendarPort } from "@/domain/calendar";
 import type { FareCatalogPort } from "@/domain/catalog";
 import type { IsoDateTime } from "@/domain/identifiers";
+import type { IdentityPort } from "@/domain/identity";
 import type { MandatePort } from "@/domain/mandate";
 import type { PlannerPort } from "@/domain/planner";
+import type { ProfilePort } from "@/domain/profile";
 import type { SecretaryStore } from "@/domain/store";
 import type { NewTripId, SecretaryDeps } from "./deps";
 import type { PortSource, PortSources } from "./sources";
@@ -45,6 +47,8 @@ export type SecretaryFactories = {
   planner: PortFactories<PlannerPort>;
   mandate: PortFactories<MandatePort>;
   store: PortFactories<SecretaryStore>;
+  identity: PortFactories<IdentityPort>;
+  profile: PortFactories<ProfilePort>;
   newTripId: NewTripId;
 };
 
@@ -75,6 +79,8 @@ export const buildSecretaryDeps = (
     planner: selectPort(sources.planner, factories.planner, context),
     mandate: selectPort(sources.mandate, factories.mandate, context),
     store: selectPort(sources.store, factories.store, context),
+    identity: selectPort(sources.identity, factories.identity, context),
+    profile: selectPort(sources.profile, factories.profile, context),
     newTripId: factories.newTripId,
   };
 };

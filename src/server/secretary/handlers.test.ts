@@ -7,11 +7,16 @@ import {
   seedCalendarEvents,
 } from "@/adapters/calendar/fake";
 import { createFakeCatalog, seedCatalog } from "@/adapters/catalog/fake";
+import type { FakeIdentityIds } from "@/adapters/identity/fake";
+import { createFakeIdentity } from "@/adapters/identity/fake";
+import { jstDateOf } from "@/adapters/jst";
 import type { FakeMandateIds } from "@/adapters/mandate/fake";
 import { createFakeMandate } from "@/adapters/mandate/fake";
 import { createFakePlanner } from "@/adapters/planner/fake";
+import { createFakeProfile } from "@/adapters/profile/fake";
 import { createFakeStore } from "@/adapters/store/fake";
 import type { SecretaryDeps } from "@/application/deps";
+import { addDays, yearsBefore } from "@/domain/dates";
 import type {
   CalendarEventId,
   IsoDateTime,
@@ -55,6 +60,10 @@ const NOW = at("2026-09-09T00:00:00Z");
 
 const USER = mustParse(parseUserId("user-1"));
 
+// demo と同じ式で、予約者は NOW の 7 日後 (2026-09-16) に 20 歳になる
+// seed-5 (+6 日) の出発日はまだ 20 歳前、seed-6 (+9 日) の出発日は 20 歳以上
+const BIRTH_DATE = yearsBefore(addDays(jstDateOf(NOW), 7), 20);
+
 const MANDATE_BODY = {
   cap: 200000,
   expiresAt: "2026-12-31T23:59:59+09:00",
@@ -90,6 +99,20 @@ const testMandateIds = (): FakeMandateIds => {
   };
 };
 
+// 採番はテスト設定に閉じているので、identity はユーザ id から、証明の参照は閉じたカウンタで作る
+const testIdentityIds = (): FakeIdentityIds => {
+  const state = { proved: 0 };
+
+  return {
+    identityOf: (id) => `identity:${id}`,
+    newProofRef: () => {
+      state.proved = state.proved + 1;
+
+      return `proof-${state.proved}`;
+    },
+  };
+};
+
 const testDeps = (): SecretaryDeps => {
   return {
     calendar: createFakeCalendar({
@@ -100,6 +123,8 @@ const testDeps = (): SecretaryDeps => {
     planner: createFakePlanner(),
     mandate: createFakeMandate({ mandates: [], ids: testMandateIds() }),
     store: createFakeStore(),
+    identity: createFakeIdentity({ ids: testIdentityIds() }),
+    profile: createFakeProfile({ birthDate: BIRTH_DATE }),
     newTripId: sequentialTripIds(),
   };
 };

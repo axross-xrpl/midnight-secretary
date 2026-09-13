@@ -21,7 +21,9 @@
       "catalog": "料金表",
       "planner": "計画の提案",
       "mandate": "支払い枠",
-      "store": "保存データ"
+      "store": "保存データ",
+      "identity": "年齢確認",
+      "profile": "プロフィール"
     }
   },
   "LocaleSwitcher": {

@@ -7,8 +7,10 @@ import {
   parseIsoDateTime,
   parseTripId,
 } from "@/domain/identifiers.parse";
+import type { IdentityPort } from "@/domain/identity";
 import type { MandatePort } from "@/domain/mandate";
 import type { PlannerPort } from "@/domain/planner";
+import type { ProfilePort } from "@/domain/profile";
 import type { SecretaryStore } from "@/domain/store";
 import { err, ok } from "@/lib/result";
 import { DEMO_SOURCES, REAL_SOURCES } from "./sources";
@@ -75,12 +77,28 @@ const stubStore = (): SecretaryStore => {
   };
 };
 
+const stubIdentity = (): IdentityPort => {
+  return {
+    registerBirthDate: async () => err({ kind: "unavailable", cause: "stub" }),
+    readRegistration: async () => ok(undefined),
+    proveAdult: async () => err({ kind: "notRegistered" }),
+  };
+};
+
+const stubProfile = (): ProfilePort => {
+  return {
+    readBirthDate: async () => ok(undefined),
+  };
+};
+
 const buildStubs = () => {
   const real = {
     calendar: stubCalendar(),
     planner: stubPlanner(),
     mandate: stubMandate(),
     store: stubStore(),
+    identity: stubIdentity(),
+    profile: stubProfile(),
   };
   const fake = {
     calendar: stubCalendar(),
@@ -88,6 +106,8 @@ const buildStubs = () => {
     planner: stubPlanner(),
     mandate: stubMandate(),
     store: stubStore(),
+    identity: stubIdentity(),
+    profile: stubProfile(),
   };
   const factories: SecretaryFactories = {
     calendar: { real: () => real.calendar, fake: () => fake.calendar },
@@ -99,6 +119,8 @@ const buildStubs = () => {
     planner: { real: () => real.planner, fake: () => fake.planner },
     mandate: { real: () => real.mandate, fake: () => fake.mandate },
     store: { real: () => real.store, fake: () => fake.store },
+    identity: { real: () => real.identity, fake: () => fake.identity },
+    profile: { real: () => real.profile, fake: () => fake.profile },
     newTripId: () => TRIP_ID,
   };
 
@@ -115,6 +137,8 @@ describe("buildSecretaryDeps", () => {
     expect(deps.planner).toBe(real.planner);
     expect(deps.mandate).toBe(real.mandate);
     expect(deps.store).toBe(real.store);
+    expect(deps.identity).toBe(real.identity);
+    expect(deps.profile).toBe(real.profile);
     expect(await deps.catalog.listDestinations()).toStrictEqual({
       ok: true,
       value: [CONTEXT.now],
@@ -131,6 +155,21 @@ describe("buildSecretaryDeps", () => {
     expect(deps.planner).toBe(fake.planner);
     expect(deps.mandate).toBe(fake.mandate);
     expect(deps.store).toBe(fake.store);
+    expect(deps.identity).toBe(fake.identity);
+    expect(deps.profile).toBe(fake.profile);
+  });
+
+  test("identity と profile のレーンも個別に選び分ける", () => {
+    const { factories, real, fake } = buildStubs();
+
+    const deps = buildSecretaryDeps(
+      { ...REAL_SOURCES, identity: "fake" },
+      factories,
+      CONTEXT,
+    );
+
+    expect(deps.identity).toBe(fake.identity);
+    expect(deps.profile).toBe(real.profile);
   });
 
   test("port ごとに real と fake を選び分ける", () => {

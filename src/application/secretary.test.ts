@@ -5,12 +5,17 @@ import {
   seedCalendarEvents,
 } from "@/adapters/calendar/fake";
 import { createFakeCatalog, seedCatalog } from "@/adapters/catalog/fake";
+import type { FakeIdentityIds } from "@/adapters/identity/fake";
+import { createFakeIdentity } from "@/adapters/identity/fake";
+import { jstDateOf } from "@/adapters/jst";
 import type { FakeMandateIds } from "@/adapters/mandate/fake";
 import { createFakeMandate } from "@/adapters/mandate/fake";
 import { createFakePlanner } from "@/adapters/planner/fake";
+import { createFakeProfile } from "@/adapters/profile/fake";
 import { createFakeStore } from "@/adapters/store/fake";
 import type { CalendarPort } from "@/domain/calendar";
 import type { LodgingOffer, PlaceOffer } from "@/domain/catalog";
+import { addDays, yearsBefore } from "@/domain/dates";
 import type {
   CalendarEventId,
   IsoDateTime,
@@ -103,6 +108,9 @@ const DINNER_EVENT = eventId("seed-6");
 // 工場視察と懇親会 (+16 日から 1 泊) は宿、居酒屋、レジャーがすべて付く
 const INSPECTION_EVENT = eventId("seed-7");
 
+// demo と同じ式 (NOW の 7 日後の 20 年前)
+const BIRTH_DATE = yearsBefore(addDays(jstDateOf(NOW), 7), 20);
+
 // seedCatalog の価格から計算した合計 (鉄道優先なので ひかり505号 と のぞみ232号 の往復、1 泊は なんばホテルC、居酒屋は 天満 立ち飲み居酒屋 大和、レジャーは本人確認の要らない先頭の 海遊館)
 const OSAKA_TOTAL = 14400 + 14520;
 
@@ -143,6 +151,20 @@ const testMandateIds = (): FakeMandateIds => {
   };
 };
 
+// 採番はテスト設定に閉じているので、identity はユーザ id から、証明の参照は閉じたカウンタで作る
+const testIdentityIds = (): FakeIdentityIds => {
+  const state = { proved: 0 };
+
+  return {
+    identityOf: (id) => `identity:${id}`,
+    newProofRef: () => {
+      state.proved = state.proved + 1;
+
+      return `proof-${state.proved}`;
+    },
+  };
+};
+
 // Fake は状態を持つので、テストごとに組み直す
 const testDeps = (): SecretaryDeps => {
   return {
@@ -154,6 +176,8 @@ const testDeps = (): SecretaryDeps => {
     planner: createFakePlanner(),
     mandate: createFakeMandate({ mandates: [], ids: testMandateIds() }),
     store: createFakeStore(),
+    identity: createFakeIdentity({ ids: testIdentityIds() }),
+    profile: createFakeProfile({ birthDate: BIRTH_DATE }),
     newTripId: sequentialTripIds(),
   };
 };

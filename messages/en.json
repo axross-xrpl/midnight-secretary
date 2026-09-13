@@ -21,7 +21,9 @@
       "catalog": "Fare catalog",
       "planner": "Planner",
       "mandate": "Spending allowance",
-      "store": "Storage"
+      "store": "Storage",
+      "identity": "Age verification",
+      "profile": "Profile"
     }
   },
   "LocaleSwitcher": {
