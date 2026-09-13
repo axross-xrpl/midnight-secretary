@@ -2,12 +2,14 @@ import { match } from "ts-pattern";
 import type { PaymentVisibilityInput } from "@/domain/trip";
 import type { ScanEvent } from "@/lib/calendar-scan-response";
 import type {
+  AgeProofResponse,
   AuthorizationResponse,
   MoneyResponse,
   PaymentVisibilityResponse,
   TripPlanResponse,
   TripResponse,
 } from "@/lib/secretary-response";
+import { adultRequirementOfResponse, DEFAULT_AGE_LIMIT } from "./format";
 import type {
   Activity,
   MandateCapabilities,
@@ -41,7 +43,18 @@ export type PlanVisibility =
   | { mode: "badges"; value: PaymentVisibilityResponse };
 
 /**
+ * 進行中の吹き出しが出す手
+ *
+ * `approveWithProof` は承認のうち、計画が年齢制限つきの候補を含むので成人の証明も伴うもの
+ * 文言のキー `lines.working.*` と同じ軸で、承認に証明が付くかどうかを別のフラグでは持たない
+ */
+export type WorkingStep = Step | "approveWithProof";
+
+/**
  * 秘書の吹き出し 1 つ
+ *
+ * `ageVerified` は承認の中で通った成人の証明で、`ageLimit` は計画の候補の年齢の下限
+ * `working` の `step` は進行中の手で、承認が年齢の証明を伴うときは `approveWithProof`
  */
 export type SecretaryLine =
   | { kind: "greeting"; title: string; cap: MoneyResponse }
@@ -52,12 +65,13 @@ export type SecretaryLine =
       plan: TripPlanResponse;
       visibility?: PlanVisibility;
     }
+  | { kind: "ageVerified"; proof: AgeProofResponse; ageLimit: number }
   | { kind: "askPay" }
   | { kind: "partiallyPaid"; authorizations: readonly AuthorizationResponse[] }
   | { kind: "paid"; authorizations: readonly AuthorizationResponse[] }
   | { kind: "askWriteBack" }
   | { kind: "written"; writtenEventId: string }
-  | { kind: "working"; step: Step; title: string }
+  | { kind: "working"; step: WorkingStep; title: string }
   | { kind: "failed"; failure: RequestFailure };
 
 /**
@@ -103,6 +117,7 @@ type PaidFacts = {
   approvedAt: string;
   visibility: PaymentVisibilityResponse;
   authorizations: readonly AuthorizationResponse[];
+  ageProof?: AgeProofResponse;
   paidAt: string;
 };
 
@@ -185,10 +200,32 @@ const afterApproval = (
   return secretary({ kind: "partiallyPaid", authorizations }, approvedAt);
 };
 
+const ageLimitOf = (plan: TripPlanResponse): number => {
+  return adultRequirementOfResponse(plan)?.ageLimit ?? DEFAULT_AGE_LIMIT;
+};
+
+// 承認の中で成人の証明が通っていれば、承認の写しの直後にその吹き出しを入れる (時刻は証明の時刻)
+const ageVerifiedOf = (
+  plan: TripPlanResponse,
+  ageProof: AgeProofResponse | undefined,
+): readonly Bubble[] => {
+  if (ageProof === undefined) {
+    return [];
+  }
+
+  return [
+    secretary(
+      { kind: "ageVerified", proof: ageProof, ageLimit: ageLimitOf(plan) },
+      ageProof.provedAt,
+    ),
+  ];
+};
+
 const paidHistory = (event: ScanEvent, trip: PaidFacts): readonly Bubble[] => {
   return [
     proposalOf(event, trip.plan, trip.proposedAt, badgesOf(trip.visibility)),
     user({ kind: "approve", privateCount: privateCountOf(trip.visibility) }),
+    ...ageVerifiedOf(trip.plan, trip.ageProof),
     secretary({ kind: "askPay" }, trip.approvedAt),
     user({ kind: "pay", resume: false }),
     secretary(
@@ -224,6 +261,7 @@ const historyOf = (state: ChatState, trip: TripResponse): readonly Bubble[] => {
         kind: "approve",
         privateCount: privateCountOf(approved.visibility),
       }),
+      ...ageVerifiedOf(approved.plan, approved.ageProof),
       afterApproval(approved.authorizations, approved.approvedAt),
     ])
     .with({ status: "paid" }, (paid) => paidHistory(event, paid))
@@ -267,6 +305,22 @@ const idleOf = (state: ChatState): readonly Bubble[] => {
 
 const canResume = (trip: TripResponse | undefined): boolean => {
   return trip?.status === "approved" && trip.authorizations.length > 0;
+};
+
+// 承認の 1 手は、計画が成人を要する候補を含むなら年齢の証明も伴う
+const workingStepOf = (
+  step: Step,
+  trip: TripResponse | undefined,
+): WorkingStep => {
+  if (step !== "approve" || trip === undefined) {
+    return step;
+  }
+
+  if (adultRequirementOfResponse(trip.plan) === undefined) {
+    return step;
+  }
+
+  return "approveWithProof";
 };
 
 // 進行中の 1 手をユーザの吹き出しとして写す
@@ -317,7 +371,11 @@ export const conversationOf = (state: ChatState): Conversation => {
       bubbles: [
         ...idle,
         user(echoOf(step, state)),
-        secretary({ kind: "working", step, title: state.event.title }),
+        secretary({
+          kind: "working",
+          step: workingStepOf(step, state.trip),
+          title: state.event.title,
+        }),
       ],
       replies: [],
     }))

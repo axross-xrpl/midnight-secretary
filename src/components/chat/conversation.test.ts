@@ -3,6 +3,7 @@ import { tripIdAt } from "@/testing/ids";
 import type { PaymentVisibilityInput } from "@/domain/trip";
 import type { ScanEvent } from "@/lib/calendar-scan-response";
 import type {
+  AgeProofResponse,
   AuthorizationResponse,
   MoneyResponse,
   PaymentVisibilityResponse,
@@ -76,7 +77,7 @@ const IZAKAYA = {
   ageLimit: 20,
 } as const;
 
-// 居酒屋つきの計画
+// 居酒屋つきの計画 (承認に成人の証明が要る)
 const GATHERING_PLAN: TripPlanResponse = {
   ...PLAN,
   intent: { ...PLAN.intent, purpose: "取引先と懇親会" },
@@ -103,6 +104,13 @@ const INSPECTION_PLAN: TripPlanResponse = {
   total: mst(35940),
 };
 
+const AGE_PROOF: AgeProofResponse = {
+  identity: "identity:user-1",
+  cutoffDate: "2006-09-15",
+  proofRef: "proof-1",
+  provedAt: "2026-09-10T00:01:00Z",
+};
+
 const AUTHORIZATION: AuthorizationResponse = {
   mandateId: "mandate-1",
   paymentRef: `trip:${TRIP_ID}:rail-tokyo-osaka`,
@@ -126,6 +134,12 @@ const SECOND_AUTHORIZATION: AuthorizationResponse = {
 const ALL_PUBLIC: PaymentVisibilityResponse = {
   outbound: "public",
   inbound: "public",
+};
+
+// 居酒屋つきの計画は飲食にも公開範囲を持つ
+const GATHERING_ALL_PUBLIC: PaymentVisibilityResponse = {
+  ...ALL_PUBLIC,
+  dining: "public",
 };
 
 const BASE = {
@@ -183,6 +197,27 @@ const PROPOSED_INSPECTION: TripResponse = {
   status: "proposed",
   ...BASE,
   plan: INSPECTION_PLAN,
+};
+
+const APPROVED_WITH_PROOF: TripResponse = {
+  status: "approved",
+  ...BASE,
+  plan: GATHERING_PLAN,
+  approvedAt: "2026-09-10T00:01:00Z",
+  visibility: GATHERING_ALL_PUBLIC,
+  authorizations: [],
+  ageProof: AGE_PROOF,
+};
+
+const PAID_WITH_PROOF: TripResponse = {
+  status: "paid",
+  ...BASE,
+  plan: GATHERING_PLAN,
+  approvedAt: "2026-09-10T00:01:00Z",
+  visibility: GATHERING_ALL_PUBLIC,
+  authorizations: [AUTHORIZATION, SECOND_AUTHORIZATION],
+  ageProof: AGE_PROOF,
+  paidAt: "2026-09-10T00:02:00Z",
 };
 
 const IDLE: Activity = { kind: "idle" };
@@ -244,6 +279,24 @@ const PROPOSAL_BUBBLE = proposalBubble({ mode: "badges", value: ALL_PUBLIC });
 const APPROVE_BUBBLE: Bubble = {
   speaker: "user",
   line: { kind: "approve", privateCount: 0 },
+};
+
+// 居酒屋つきの計画の承認済み以降 (飲食も公開のバッジ)
+const GATHERING_PROPOSAL_BUBBLE: Bubble = {
+  speaker: "secretary",
+  line: {
+    kind: "proposal",
+    title: OSAKA.title,
+    plan: GATHERING_PLAN,
+    visibility: { mode: "badges", value: GATHERING_ALL_PUBLIC },
+  },
+  at: "2026-09-10T00:00:00Z",
+};
+
+const AGE_VERIFIED_BUBBLE: Bubble = {
+  speaker: "secretary",
+  line: { kind: "ageVerified", proof: AGE_PROOF, ageLimit: 20 },
+  at: "2026-09-10T00:01:00Z",
 };
 
 const ASK_PAY_BUBBLE: Bubble = {
@@ -357,6 +410,61 @@ describe("conversationOf (休止状態)", () => {
       replies: [],
     });
   });
+
+  test("approved に ageProof があれば approve の写しと askPay の間に ageVerified が入る", () => {
+    expect(conversationOf(stateOf(APPROVED_WITH_PROOF))).toStrictEqual({
+      bubbles: [
+        ...INTRO_BUBBLES,
+        GATHERING_PROPOSAL_BUBBLE,
+        APPROVE_BUBBLE,
+        AGE_VERIFIED_BUBBLE,
+        ASK_PAY_BUBBLE,
+      ],
+      replies: [{ kind: "pay", trip: APPROVED_WITH_PROOF, resume: false }],
+    });
+  });
+
+  test("paid でも ageVerified は approve の写しの直後に残る", () => {
+    const bubbles = conversationOf(stateOf(PAID_WITH_PROOF)).bubbles;
+
+    expect(bubbles.slice(3, 6)).toStrictEqual([
+      GATHERING_PROPOSAL_BUBBLE,
+      APPROVE_BUBBLE,
+      AGE_VERIFIED_BUBBLE,
+    ]);
+    expect(bubbles.map((bubble) => bubble.line.kind)).toStrictEqual([
+      "greeting",
+      "ask",
+      "propose",
+      "proposal",
+      "approve",
+      "ageVerified",
+      "askPay",
+      "pay",
+      "paid",
+      "askWriteBack",
+    ]);
+  });
+
+  test("ageProof が無ければ居酒屋つきでも ageVerified は出ない", () => {
+    const approved: TripResponse = {
+      ...APPROVED_WITH_PROOF,
+      ageProof: undefined,
+    };
+
+    expect(
+      conversationOf(stateOf(approved)).bubbles.map(
+        (bubble) => bubble.line.kind,
+      ),
+    ).toStrictEqual([
+      "greeting",
+      "ask",
+      "propose",
+      "proposal",
+      "approve",
+      "askPay",
+    ]);
+  });
 });
 
 describe("conversationOf (進行中)", () => {
@@ -367,7 +475,11 @@ describe("conversationOf (進行中)", () => {
 
         {
           speaker: "secretary",
-          line: { kind: "working", step: "propose", title: OSAKA.title },
+          line: {
+            kind: "working",
+            step: "propose",
+            title: OSAKA.title,
+          },
         },
       ],
       replies: [],
@@ -384,9 +496,56 @@ describe("conversationOf (進行中)", () => {
 
       {
         speaker: "secretary",
-        line: { kind: "working", step: "approve", title: OSAKA.title },
+        line: {
+          kind: "working",
+          step: "approve",
+          title: OSAKA.title,
+        },
       },
     ]);
+  });
+
+  test("成人を要する計画の承認は年齢の証明つきの working になる", () => {
+    expect(
+      conversationOf(stateOf(PROPOSED_GATHERING, busy("approve"))).bubbles,
+    ).toStrictEqual([
+      ...INTRO_BUBBLES,
+      // 提案済みのまま進行中なので、トグルは止まった editor のまま
+      {
+        ...GATHERING_PROPOSAL_BUBBLE,
+        line: {
+          kind: "proposal",
+          title: OSAKA.title,
+          plan: GATHERING_PLAN,
+          visibility: { mode: "editor", value: {}, disabled: true },
+        },
+      },
+      APPROVE_BUBBLE,
+
+      {
+        speaker: "secretary",
+        line: {
+          kind: "working",
+          step: "approveWithProof",
+          title: OSAKA.title,
+        },
+      },
+    ]);
+  });
+
+  test("成人を要する計画でも支払いの working は証明つきにならない", () => {
+    const bubbles = conversationOf(
+      stateOf(APPROVED_WITH_PROOF, busy("pay")),
+    ).bubbles;
+
+    expect(bubbles.at(-1)).toStrictEqual({
+      speaker: "secretary",
+      line: {
+        kind: "working",
+        step: "pay",
+        title: OSAKA.title,
+      },
+    });
   });
 
   test("支払いは resume 無しの pay の写しになる", () => {
@@ -402,7 +561,11 @@ describe("conversationOf (進行中)", () => {
 
       {
         speaker: "secretary",
-        line: { kind: "working", step: "pay", title: OSAKA.title },
+        line: {
+          kind: "working",
+          step: "pay",
+          title: OSAKA.title,
+        },
       },
     ]);
   });
@@ -428,7 +591,11 @@ describe("conversationOf (進行中)", () => {
 
       {
         speaker: "secretary",
-        line: { kind: "working", step: "writeBack", title: OSAKA.title },
+        line: {
+          kind: "working",
+          step: "writeBack",
+          title: OSAKA.title,
+        },
       },
     ]);
   });

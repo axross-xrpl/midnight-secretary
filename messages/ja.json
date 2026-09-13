@@ -283,6 +283,7 @@
       "greeting": "こんにちは。「{title}」の手配をお手伝いします。支払い枠は {cap} まで使えます。",
       "ask": "この予定を出張として手配しますか?",
       "proposal": "計画を作りました。合計は {total} です。",
+      "ageVerified": "{date} 時点で {age} 歳以上であることを証明しました。",
       "askPay": "支払い枠から支払いますか?",
       "partiallyPaid": "{count} 件は支払い済みです。残りを支払いますか?",
       "paid": "{count} 件の支払いを承認し、支払い枠から送金しました。",
@@ -291,6 +292,7 @@
       "working": {
         "propose": "「{title}」の計画を下書き中...",
         "approve": "承認を記録中...",
+        "approveWithProof": "年齢を証明して承認を記録中...",
         "pay": "ゼロ知識証明を生成して支払い中...",
         "writeBack": "カレンダーに書き込み中..."
       },
@@ -338,6 +340,10 @@
       "authorizedAt": "承認日時",
       "visibility": "公開範囲",
       "transaction": "トランザクション"
+    },
+    "ageProof": {
+      "identity": "公開 ID",
+      "ref": "証明の参照"
     }
   },
   "MandateCard": {

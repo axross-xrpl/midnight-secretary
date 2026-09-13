@@ -283,6 +283,7 @@
       "greeting": "Hello. I can help arrange \"{title}\". The spending allowance covers up to {cap}.",
       "ask": "Shall I arrange this event as a business trip?",
       "proposal": "Here is my plan. The total is {total}.",
+      "ageVerified": "Proved that you are {age} or older as of {date}.",
       "askPay": "Shall I pay for it from the allowance?",
       "partiallyPaid": "{count, plural, one {# item is} other {# items are}} already paid. Shall I pay for the rest?",
       "paid": "{count, plural, one {# payment} other {# payments}} authorized and settled from the allowance.",
@@ -291,6 +292,7 @@
       "working": {
         "propose": "Drafting a plan for {title}...",
         "approve": "Recording your approval...",
+        "approveWithProof": "Proving your age and recording your approval...",
         "pay": "Generating the zero-knowledge proof and paying...",
         "writeBack": "Writing the trip to the calendar..."
       },
@@ -338,6 +340,10 @@
       "authorizedAt": "Authorized at",
       "visibility": "Visibility",
       "transaction": "Transaction"
+    },
+    "ageProof": {
+      "identity": "Public ID",
+      "ref": "Proof reference"
     }
   },
   "MandateCard": {
