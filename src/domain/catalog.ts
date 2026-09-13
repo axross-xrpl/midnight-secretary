@@ -14,9 +14,29 @@ import type { Money } from "./money";
 export type TransportMode = "rail" | "air";
 
 /**
+ * 利用者に求められる本人属性の確認
+ *
+ * 候補を除外する条件なので、プランナーに渡す候補が持つ
+ */
+export type VerificationKind = "age" | "nationality" | "residence";
+
+/**
+ * 拠点から目的地までの所要と総額
+ *
+ * 乗車時間だけでは交通手段を比べられない。駅・空港までの移動と乗車前後の待ちを含めて
+ * はじめて「速いが高い / 遅いが安い」の逆転が見える
+ * `totalPrice` は運賃に前後アクセスの運賃を足したもので、支払い先が違うため `price` とは別に持つ
+ */
+export type DoorToDoor = {
+  totalMin: number;
+  totalPrice: Money;
+};
+
+/**
  * カタログが提示する予約可能な交通区間 1 件
  *
  * `payee` は事業者の受取先で、支払いはこの候補ごとにここへ送る
+ * `doorToDoor` は内訳を持つカタログだけが埋める
  */
 export type TransportOffer = {
   id: OfferId;
@@ -28,6 +48,7 @@ export type TransportOffer = {
   departAt: IsoDateTime;
   arriveAt: IsoDateTime;
   price: Money;
+  doorToDoor?: DoorToDoor;
 };
 
 /**
@@ -35,6 +56,7 @@ export type TransportOffer = {
  *
  * 価格は滞在全体分
  * `payee` は事業者の受取先で、支払いはこの候補ごとにここへ送る
+ * `rating` と `requiredVerifications` は、それを持つカタログだけが埋める
  */
 export type LodgingOffer = {
   id: OfferId;
@@ -45,6 +67,32 @@ export type LodgingOffer = {
   checkIn: IsoDate;
   checkOut: IsoDate;
   price: Money;
+  rating?: number;
+  requiredVerifications?: readonly VerificationKind[];
+};
+
+/**
+ * 現地で消費するサービスの種類
+ */
+export type PlaceOfferKind = "restaurant" | "leisure";
+
+/**
+ * カタログが提示する現地のサービス 1 件 (飲食・レジャー)
+ *
+ * 交通と宿泊と違い滞在全体の日付を持たない。価格は 1 人 / 1 枚あたり
+ * `genre` は利用者の好み・趣味と突き合わせるために持つ
+ * `ageLimit` は `requiredVerifications` に `age` を含むときだけ入る
+ */
+export type PlaceOffer = {
+  id: OfferId;
+  kind: PlaceOfferKind;
+  payee: WalletAddress;
+  name: string;
+  city: string;
+  genre?: string;
+  price: Money;
+  requiredVerifications: readonly VerificationKind[];
+  ageLimit?: number;
 };
 
 /**
@@ -63,11 +111,14 @@ export type OfferQuery = {
  * プランナーが選んでよい候補の全体
  *
  * この集合の外にあるものは拒否される
+ * `dining` と `leisure` は目的地で消費するサービスで、カタログが持たなければ空になる
  */
 export type OfferSet = {
   outbound: readonly TransportOffer[];
   inbound: readonly TransportOffer[];
   lodging: readonly LodgingOffer[];
+  dining: readonly PlaceOffer[];
+  leisure: readonly PlaceOffer[];
 };
 
 /**

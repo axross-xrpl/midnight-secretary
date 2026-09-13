@@ -35,7 +35,14 @@ const stubCalendar = (): CalendarPort => {
 const stubCatalog = (destinations: readonly string[]): FareCatalogPort => {
   return {
     listDestinations: async () => ok(destinations),
-    findOffers: async () => ok({ outbound: [], inbound: [], lodging: [] }),
+    findOffers: async () =>
+      ok({
+        outbound: [],
+        inbound: [],
+        lodging: [],
+        dining: [],
+        leisure: [],
+      }),
   };
 };
 
