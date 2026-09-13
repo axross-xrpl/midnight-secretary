@@ -29,6 +29,15 @@ carries a line naming the ports that are stand-ins. The source variables are rea
 starts, so `SECRETARY_MODE=demo npm start` works as well; a misconfiguration stops the server there
 instead of degrading at runtime.
 
+Then open [http://localhost:3000/ja/tasks/seed-2](http://localhost:3000/ja/tasks/seed-2) directly (the
+task list will link to it in a later change) and walk the one path as a conversation with the secretary:
+press **計画を提案して** (the first proposal sets up a 200,000 MST spending allowance for you), then
+approve, pay, and add the trip to the calendar from the reply buttons. `seed-3` is a one-night trip that
+adds lodging and draws on the same allowance; `seed-1` shows the secretary declining an event that is
+not a trip; `seed-9` is not on the calendar. The ledger panel in the sidebar (below the conversation on a
+narrow window) counts each payment on the public side while the cap and the spent amount stay on the
+private side. Everything lives in memory, so restarting the server starts over.
+
 The dev sign-in trusts whoever clicks the button, so it only starts when `NEXTAUTH_URL` points at
 localhost, and it forces the calendar to the fake (that session has no Google token).
 

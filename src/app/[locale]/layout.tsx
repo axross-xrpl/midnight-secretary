@@ -44,12 +44,18 @@ export default async function RootLayout({
       lang={await locale()}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      {/* 画面の高さに固定し、会話画面が nav の下の残りの高さの中でスクロールできるようにする */}
+      {/* 他のページは中身が溢れれば今までどおりページ全体がスクロールする */}
+      <body className="flex h-full flex-col">
         <NextIntlClientProvider>
           <AuthSessionProvider session={session}>
             <NavBar signInProvider={signInProvider} />
             <FakeNotice fakes={activeFakes(sources)} />
-            <main className="flex min-h-0 flex-1 flex-col">{children}</main>
+            {/* ページの根 (main の直下) は残りの高さより縮まない (中身が長ければ main から溢れてページ全体がスクロールする) */}
+            {/* 会話画面の枠は flex-1 (basis 0) で残りの高さまで育つだけなので影響しない */}
+            <main className="flex min-h-0 flex-1 flex-col *:shrink-0">
+              {children}
+            </main>
           </AuthSessionProvider>
         </NextIntlClientProvider>
       </body>

@@ -148,6 +148,31 @@ export const secretaryErrorJsonSchema = z.object({
 });
 
 /**
+ * 通貨の最小単位で表した金額
+ */
+export type MoneyResponse = z.infer<typeof moneySchema>;
+
+/**
+ * 支払い 1 件が mandate のもとで承認された証拠
+ */
+export type AuthorizationResponse = z.infer<typeof authorizationSchema>;
+
+/**
+ * 予約可能な交通区間 1 件
+ */
+export type TransportOfferResponse = z.infer<typeof transportOfferSchema>;
+
+/**
+ * 予約可能な宿泊 1 件
+ */
+export type LodgingOfferResponse = z.infer<typeof lodgingOfferSchema>;
+
+/**
+ * 検証済みのプラン
+ */
+export type TripPlanResponse = z.infer<typeof tripPlanSchema>;
+
+/**
  * ユーザから秘書への支払いの委任
  */
 export type MandateResponse = z.infer<typeof mandateSchema>;
@@ -241,4 +266,69 @@ export const parseSecretaryFailure = (payload: unknown): SecretaryFailure => {
     }))
     .with("secretary", () => secretaryFailureOf(body))
     .otherwise(() => ({ code: "unknown" }));
+};
+
+/**
+ * `plan.overBudget` の detail のうち画面が出す金額
+ */
+export type PlanOverBudgetDetail = {
+  budget: MoneyResponse;
+  total: MoneyResponse;
+};
+
+/**
+ * `mandate.overBudget` の detail のうち画面が出す金額
+ */
+export type MandateOverBudgetDetail = {
+  cap: MoneyResponse;
+  spent: MoneyResponse;
+  requested: MoneyResponse;
+};
+
+const planOverBudgetSchema = z.object({
+  source: z.literal("plan"),
+  error: z.object({
+    kind: z.literal("overBudget"),
+    budget: moneySchema,
+    total: moneySchema,
+  }),
+});
+
+const mandateOverBudgetSchema = z.object({
+  source: z.literal("mandate"),
+  error: z.object({
+    kind: z.literal("overBudget"),
+    cap: moneySchema,
+    spent: moneySchema,
+    requested: moneySchema,
+  }),
+});
+
+/**
+ * `plan.overBudget` の失敗から金額を取り出す
+ *
+ * `source` / `kind` が違うか、金額の形が合わなければスキーマの失敗
+ */
+export const parsePlanOverBudget = (
+  error: SecretaryErrorJson,
+): Result<PlanOverBudgetDetail, SchemaError> => {
+  return map(fromZod(planOverBudgetSchema.safeParse(error)), (parsed) => ({
+    budget: parsed.error.budget,
+    total: parsed.error.total,
+  }));
+};
+
+/**
+ * `mandate.overBudget` の失敗から金額を取り出す
+ *
+ * `source` / `kind` が違うか、金額の形が合わなければスキーマの失敗
+ */
+export const parseMandateOverBudget = (
+  error: SecretaryErrorJson,
+): Result<MandateOverBudgetDetail, SchemaError> => {
+  return map(fromZod(mandateOverBudgetSchema.safeParse(error)), (parsed) => ({
+    cap: parsed.error.cap,
+    spent: parsed.error.spent,
+    requested: parsed.error.requested,
+  }));
 };
