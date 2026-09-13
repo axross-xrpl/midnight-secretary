@@ -9,6 +9,7 @@ import type { FakeMandateIds } from "@/adapters/mandate/fake";
 import { createFakeMandate } from "@/adapters/mandate/fake";
 import { createFakePlanner } from "@/adapters/planner/fake";
 import { createFakeStore } from "@/adapters/store/fake";
+import type { CalendarPort } from "@/domain/calendar";
 import type { LodgingOffer } from "@/domain/catalog";
 import type {
   CalendarEventId,
@@ -29,6 +30,7 @@ import type { Mandate, MandateDraft, MandatePort } from "@/domain/mandate";
 import { paymentRefFor } from "@/domain/mandate.parse";
 import type { Money } from "@/domain/money";
 import type { TripPlan } from "@/domain/plan";
+import type { SecretaryStore } from "@/domain/store";
 import type { ApprovedTrip, PaidTrip, ProposedTrip, Trip } from "@/domain/trip";
 import type { Result } from "@/lib/result";
 import { err } from "@/lib/result";
@@ -39,6 +41,7 @@ import {
   approveTrip,
   loadDashboard,
   loadLedgerViews,
+  loadTrips,
   payForTrip,
   proposeTrip,
   setUpMandate,
@@ -231,6 +234,22 @@ const failsAtSecondPayment = (mandate: MandatePort): MandatePort => {
   };
 };
 
+// listEvents だけを失敗させ、他は Fake に委譲する
+const failsToListEvents = (calendar: CalendarPort): CalendarPort => {
+  return {
+    ...calendar,
+    listEvents: async () => err({ kind: "network", cause: "stub" }),
+  };
+};
+
+// listTrips だけを失敗させ、他は Fake に委譲する
+const failsToListTrips = (store: SecretaryStore): SecretaryStore => {
+  return {
+    ...store,
+    listTrips: async () => err({ kind: "unavailable", cause: "stub" }),
+  };
+};
+
 describe("loadDashboard", () => {
   test("mandate が無ければ省き、期間内の予定を返す", async () => {
     const deps = testDeps();
@@ -260,6 +279,47 @@ describe("loadDashboard", () => {
     const dashboard = mustOk(await loadDashboard(USER, RANGE, deps));
 
     expect(dashboard.trips).toStrictEqual([trip]);
+  });
+});
+
+describe("loadTrips", () => {
+  test("trip が無ければ空", async () => {
+    const deps = testDeps();
+
+    expect(mustOk(await loadTrips(USER, deps))).toStrictEqual([]);
+  });
+
+  test("提案した trip が入る", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const trip = await mustPropose(deps, OSAKA_EVENT);
+
+    expect(mustOk(await loadTrips(USER, deps))).toStrictEqual([trip]);
+  });
+
+  test("カレンダーは読まないので、カレンダーが失敗しても成功する", async () => {
+    const deps = testDeps();
+
+    expect(
+      mustOk(
+        await loadTrips(USER, {
+          ...deps,
+          calendar: failsToListEvents(deps.calendar),
+        }),
+      ),
+    ).toStrictEqual([]);
+  });
+
+  test("store の読み取りが失敗したらその失敗を返す", async () => {
+    const deps = testDeps();
+
+    expect(
+      await loadTrips(USER, { ...deps, store: failsToListTrips(deps.store) }),
+    ).toStrictEqual({
+      ok: false,
+      error: { source: "store", error: { kind: "unavailable", cause: "stub" } },
+    });
   });
 });
 

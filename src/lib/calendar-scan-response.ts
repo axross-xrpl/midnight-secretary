@@ -1,7 +1,4 @@
 import { z } from "zod";
-import type { Result } from "./result";
-import type { SchemaError } from "./schema";
-import { fromZod } from "./schema";
 
 /**
  * 予定がいつ行われるか
@@ -51,13 +48,6 @@ export const scanErrorKindSchema = z.enum([
 ]);
 
 /**
- * カレンダースキャンの失敗応答
- */
-export const scanErrorResponseSchema = z.object({
-  error: z.object({ kind: scanErrorKindSchema }),
-});
-
-/**
  * 予定がいつ行われるか
  */
 export type ScanEventTime = z.infer<typeof scanEventTimeSchema>;
@@ -76,27 +66,3 @@ export type ScanResponse = z.infer<typeof scanResponseSchema>;
  * カレンダースキャンが失敗した理由
  */
 export type ScanErrorKind = z.infer<typeof scanErrorKindSchema>;
-
-/**
- * Route Handler の応答 JSON をスキャン結果としてパースする
- */
-export const parseScanResponse = (
-  payload: unknown,
-): Result<ScanResponse, SchemaError> => {
-  return fromZod(scanResponseSchema.safeParse(payload));
-};
-
-/**
- * Route Handler の失敗応答 JSON から失敗の理由を取り出す
- *
- * 形が合わない応答は schema として扱う
- */
-export const parseScanErrorKind = (payload: unknown): ScanErrorKind => {
-  const parsed = scanErrorResponseSchema.safeParse(payload);
-
-  if (!parsed.success) {
-    return "schema";
-  }
-
-  return parsed.data.error.kind;
-};

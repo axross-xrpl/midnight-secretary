@@ -30,7 +30,32 @@
     "ja": "日本語"
   },
   "TasksPage": {
-    "title": "タスク"
+    "title": "タスク",
+    "tabs": {
+      "label": "一覧の切り替え",
+      "detect": "検知",
+      "trips": "確定旅程"
+    },
+    "scan": "カレンダーをスキャン",
+    "scanHelper": "今後 30 日の予定を読み、まだ手配していないものを出します。",
+    "candidates": "手配できる予定",
+    "notScanned": "スキャンすると、手配できる予定がここに出ます。",
+    "noCandidates": "手配できる予定はありません。",
+    "active": "手配中の出張",
+    "noActive": "手配中の出張はありません。",
+    "noConfirmed": "確定した旅程はまだありません。",
+    "chat": "秘書に相談",
+    "open": "会話を見る",
+    "noTitle": "(タイトルなし)",
+    "noLocation": "場所未設定",
+    "total": "合計",
+    "route": "{from} → {to} · {count} 件",
+    "status": {
+      "proposed": "提案済み",
+      "approved": "承認済み",
+      "paid": "支払い済み",
+      "written": "登録済み"
+    }
   },
   "SettingsNav": {
     "title": "設定",
@@ -216,24 +241,6 @@
       "verifications": "要求する本人確認",
       "yes": "あり",
       "no": "なし"
-    }
-  },
-  "CalendarScan": {
-    "scan": "カレンダーをスキャン",
-    "scanning": "スキャン中...",
-    "helper": "Google カレンダーの今後 30 日分の予定を読み取ります。",
-    "count": "今後 30 日の予定 {count} 件",
-    "empty": "今後 30 日の予定はありません。",
-    "noTitle": "(タイトルなし)",
-    "noLocation": "場所未設定",
-    "errors": {
-      "unauthenticated": "カレンダーを読むには Google でサインインし直してください。",
-      "tokenExpired": "Google のセッションが期限切れです。サインインし直してください。",
-      "refreshFailed": "Google のサインインが期限切れです。サインインし直してください。",
-      "forbidden": "この Google アカウントはカレンダーへのアクセスを許可していません。サインインし直して許可してください。",
-      "http": "スキャンに失敗しました。Google カレンダーがエラーを返しました。サーバのログをご確認ください。",
-      "network": "スキャンに失敗しました。サーバから Google カレンダーに接続できませんでした。",
-      "schema": "スキャンに失敗しました。応答の形が想定と違います。サーバのログをご確認ください。"
     }
   },
   "WriteBack": {
