@@ -157,6 +157,110 @@
     "noLodging": "None",
     "total": "{amount} {currency}"
   },
+  "Conversation": {
+    "back": "Back to tasks",
+    "title": "Arranging {title}",
+    "log": "Conversation with the secretary",
+    "secretary": "S",
+    "noEvent": "This event is not in the next 30 days of your calendar.",
+    "progress": "Progress",
+    "noMandate": "The allowance is set up with the first proposal.",
+    "defaultPurpose": "Business trip arrangements",
+    "steps": {
+      "propose": "Propose",
+      "approve": "Approve",
+      "pay": "Pay",
+      "writeBack": "Add to calendar"
+    },
+    "lines": {
+      "greeting": "Hello. I can help arrange \"{title}\". The spending allowance covers up to {cap}.",
+      "ask": "Shall I arrange this event as a business trip?",
+      "proposal": "Here is my plan. The total is {total}.",
+      "askPay": "Shall I pay for it from the allowance?",
+      "partiallyPaid": "{count, plural, one {# item is} other {# items are}} already paid. Shall I pay for the rest?",
+      "paid": "{count, plural, one {# payment} other {# payments}} authorized and settled from the allowance.",
+      "askWriteBack": "Shall I add the trip to your calendar?",
+      "written": "The trip is on your calendar.",
+      "working": {
+        "propose": "Drafting a plan for {title}...",
+        "approve": "Recording your approval...",
+        "pay": "Generating the zero-knowledge proof and paying...",
+        "writeBack": "Writing the trip to the calendar..."
+      },
+      "failed": "Sorry, that did not go through."
+    },
+    "writtenEvent": "Calendar event ID",
+    "replies": {
+      "propose": "Propose a plan",
+      "approve": "Approve the plan",
+      "pay": "Pay from the allowance",
+      "resume": "Resume the payment",
+      "writeBack": "Add to calendar",
+      "dismiss": "Close"
+    },
+    "echo": {
+      "propose": "Please propose a plan.",
+      "approve": "I approve the plan.",
+      "pay": "Please pay from the allowance.",
+      "resume": "Please resume the payment.",
+      "writeBack": "Please add it to my calendar."
+    },
+    "plan": {
+      "transport": "{from} to {to} ({mode})",
+      "modes": {
+        "rail": "rail",
+        "air": "air"
+      },
+      "lodging": "{hotel}, {nights, plural, one {# night} other {# nights}}",
+      "total": "Total",
+      "rationale": "Why this plan"
+    },
+    "authorization": {
+      "publicHash": "Public hash",
+      "paymentRef": "Payment reference",
+      "amount": "Amount",
+      "authorizedAt": "Authorized at",
+      "transaction": "Transaction"
+    }
+  },
+  "MandateCard": {
+    "title": "Your spending allowance",
+    "badge": "Private state",
+    "remaining": "Remaining",
+    "cap": "Cap",
+    "spent": "Spent",
+    "purpose": "Purpose",
+    "expires": "Expires",
+    "initial": "A",
+    "usedPercent": "{percent}% of the cap used"
+  },
+  "LedgerPanel": {
+    "title": "Two ledgers, one payment",
+    "subtitle": "What everyone can see next to what only you can see.",
+    "public": {
+      "eyebrow": "Public ledger",
+      "title": "What the network records",
+      "who": "Anyone can read this through the indexer.",
+      "commitments": "Allowance commitments",
+      "authorizations": "Authorizations",
+      "none": "None yet",
+      "count": "Authorized payments",
+      "note": "No amounts, caps, dates, or identities appear here. The hashes prove a payment fit an allowance, nothing more."
+    },
+    "private": {
+      "eyebrow": "Private state",
+      "title": "What stays with you",
+      "who": "Only you and your secretary can read this.",
+      "none": "No allowance yet.",
+      "cap": "Cap",
+      "spent": "Spent",
+      "remaining": "Remaining",
+      "expires": "Expires",
+      "purpose": "Purpose",
+      "commitment": "Commitment",
+      "note": "Held off-chain and proven on-chain. The commitment is the only link to the public side."
+    }
+  },
   "SecretaryError": {
     "calendar": {
       "unauthenticated": "Sign in with Google again to read the calendar.",

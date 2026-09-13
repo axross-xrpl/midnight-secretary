@@ -157,6 +157,110 @@
     "noLodging": "なし",
     "total": "{amount} {currency}"
   },
+  "Conversation": {
+    "back": "予定一覧へ",
+    "title": "{title} の手配",
+    "log": "秘書との会話",
+    "secretary": "秘",
+    "noEvent": "この予定はカレンダーの今後 30 日にありません。",
+    "progress": "手配の進捗",
+    "noMandate": "支払い枠は最初の提案で用意します。",
+    "defaultPurpose": "出張の手配",
+    "steps": {
+      "propose": "提案",
+      "approve": "承認",
+      "pay": "支払い",
+      "writeBack": "カレンダー登録"
+    },
+    "lines": {
+      "greeting": "こんにちは。「{title}」の手配をお手伝いします。支払い枠は {cap} まで使えます。",
+      "ask": "この予定を出張として手配しますか?",
+      "proposal": "計画を作りました。合計は {total} です。",
+      "askPay": "支払い枠から支払いますか?",
+      "partiallyPaid": "{count} 件は支払い済みです。残りを支払いますか?",
+      "paid": "{count} 件の支払いを承認し、支払い枠から送金しました。",
+      "askWriteBack": "出張をカレンダーに登録しますか?",
+      "written": "出張をカレンダーに登録しました。",
+      "working": {
+        "propose": "「{title}」の計画を下書き中...",
+        "approve": "承認を記録中...",
+        "pay": "ゼロ知識証明を生成して支払い中...",
+        "writeBack": "カレンダーに書き込み中..."
+      },
+      "failed": "すみません、うまくいきませんでした。"
+    },
+    "writtenEvent": "登録した予定の ID",
+    "replies": {
+      "propose": "計画を提案して",
+      "approve": "計画を承認する",
+      "pay": "支払い枠で支払う",
+      "resume": "支払いを続ける",
+      "writeBack": "カレンダーに登録",
+      "dismiss": "閉じる"
+    },
+    "echo": {
+      "propose": "計画を提案して",
+      "approve": "計画を承認します",
+      "pay": "支払い枠で支払って",
+      "resume": "支払いを続けて",
+      "writeBack": "カレンダーに登録して"
+    },
+    "plan": {
+      "transport": "{from} から {to} ({mode})",
+      "modes": {
+        "rail": "鉄道",
+        "air": "航空"
+      },
+      "lodging": "{hotel}、{nights}泊",
+      "total": "合計",
+      "rationale": "この計画の理由"
+    },
+    "authorization": {
+      "publicHash": "公開ハッシュ",
+      "paymentRef": "支払い参照",
+      "amount": "金額",
+      "authorizedAt": "承認日時",
+      "transaction": "トランザクション"
+    }
+  },
+  "MandateCard": {
+    "title": "あなたの支払い枠",
+    "badge": "非公開データ",
+    "remaining": "残り",
+    "cap": "上限",
+    "spent": "使用済み",
+    "purpose": "用途",
+    "expires": "有効期限",
+    "initial": "枠",
+    "usedPercent": "上限の {percent}% を使用"
+  },
+  "LedgerPanel": {
+    "title": "2 つの台帳、1 つの支払い",
+    "subtitle": "誰でも見える情報と、あなただけに見える情報を並べています。",
+    "public": {
+      "eyebrow": "公開台帳",
+      "title": "ネットワークに記録されるもの",
+      "who": "indexer を通じて誰でも読めます。",
+      "commitments": "支払い枠のコミットメント",
+      "authorizations": "承認",
+      "none": "まだありません",
+      "count": "承認済みの支払い",
+      "note": "金額、上限、日付、身元はここに現れません。ハッシュは支払いが支払い枠に収まったことだけを証明します。"
+    },
+    "private": {
+      "eyebrow": "非公開データ",
+      "title": "あなたの手元に残るもの",
+      "who": "あなたと秘書だけが読めます。",
+      "none": "支払い枠はまだありません。",
+      "cap": "上限",
+      "spent": "使用済み",
+      "remaining": "残り",
+      "expires": "有効期限",
+      "purpose": "用途",
+      "commitment": "コミットメント",
+      "note": "オフチェーンに保持し、オンチェーンで証明します。公開側との唯一の接点がコミットメントです。"
+    }
+  },
   "SecretaryError": {
     "calendar": {
       "unauthenticated": "カレンダーを読むには Google でサインインし直してください。",

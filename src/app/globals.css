@@ -124,3 +124,76 @@ body {
     var(--font-geist-sans), "Hiragino Sans", "Noto Sans JP", Helvetica, Arial,
     sans-serif;
 }
+
+@layer components {
+  /* 会話画面のマクロレイアウト: 1 カラムが既定で、サイドバー (最大 320px) と吹き出し (最大 576px) が並ぶ幅から 2 カラム */
+  /* 高さは親の縦 flex から受け取った残り (nav の下から画面の下端まで) に収め、ページ全体はスクロールさせない */
+  /* 1 カラムでは会話の列とサイドバーを縦に積み、.chat-layout 自身がスクロールする */
+  /* 枠の余白 (参考実装の 22px / 26px) はスクロールする側に持たせ、1 カラムでは余白ごと流れる */
+  /* 下の余白は 1 カラムではサイドバーの padding に持たせる (Chrome の sticky はスクロール領域の padding の内側を基準にするので、ここの padding だと返答バーが画面の下端に届かない) */
+  .chat-layout {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-block-size: 0;
+    overflow: auto;
+    gap: calc(20 / 16 * 1rem);
+    padding: calc(22 / 16 * 1rem) calc(26 / 16 * 1rem) 0;
+  }
+
+  /* 会話の列は少なくとも 1 画面分 (.chat-layout の content box の高さ)、長ければ中身の高さ */
+  /* 中身が短くても列が画面の下端に届くので、返答バーは列の下端 (= 画面の下端) に来る */
+  .chat-layout__conversation {
+    flex: none;
+    min-block-size: 100%;
+  }
+
+  .chat-layout__sidebar {
+    flex: none;
+    padding-block-end: calc(26 / 16 * 1rem);
+  }
+
+  /* 返答バーは 1 カラムでログが画面より長いときも画面の下端に留まる */
+  .chat-layout__replies {
+    position: sticky;
+    bottom: 0;
+  }
+
+  /* しきい値はサイドバーの最大幅 320px + 吹き出しの最大幅 576px + 余白 20px × 3 (左右の余白と列の間) */
+  @media (width >= calc((320 + 576 + 20 * 3) / 16 * 1rem)) {
+    /* 2 カラムでは .chat-layout はグリッドになってスクロールせず、サイドバーとログの区画がそれぞれ内側でスクロールする */
+    .chat-layout {
+      display: grid;
+      overflow: visible;
+      padding-block-end: calc(26 / 16 * 1rem);
+      grid-template-columns:
+        minmax(calc(256 / 16 * 1rem), calc(320 / 16 * 1rem))
+        minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr);
+    }
+
+    /* サイドバーとログの区画はスクロールバーと中身の間に余白を取り、スクロールバーの有無で中身の幅が変わらないよう溝を常に確保する */
+    .chat-layout__sidebar {
+      grid-column: 1;
+      grid-row: 1;
+      min-block-size: 0;
+      padding-block-end: 0;
+      overflow-y: auto;
+      scrollbar-gutter: stable;
+      padding-inline-end: calc(12 / 16 * 1rem);
+    }
+
+    .chat-layout__conversation {
+      grid-column: 2;
+      grid-row: 1;
+      min-block-size: 0;
+    }
+
+    /* ログの区画だけが流れ、ヘッダと返答バーは列の上下に留まる */
+    .chat-layout__log {
+      overflow-y: auto;
+      scrollbar-gutter: stable;
+      padding-inline-end: calc(12 / 16 * 1rem);
+    }
+  }
+}
