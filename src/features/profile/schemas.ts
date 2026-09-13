@@ -44,7 +44,8 @@ const budget = z.preprocess(
  * プロフィール保存の入力
  *
  * `userId` / `email` はサーバがセッションから決めるので受け取らない
- * `walletAddress` は SCR-04c の担当、`nationality` は MVP では画面を持たないため、どちらも含めない
+ * `walletAddress` は SCR-04c ができるまでの暫定で本画面が持つ
+ * `nationality` は MVP では画面を持たないため含めない
  * `updatedAt` は取得時の値。未登録のときだけ省略できる (§6.4 の競合検知)
  */
 export const profileSaveSchema = z
@@ -64,6 +65,10 @@ export const profileSaveSchema = z
     priority: z.preprocess(
       (value) => (value === "" ? null : value),
       z.enum(priorities).nullable().default(null),
+    ),
+    walletAddress: z.preprocess(
+      (value) => (value === "" ? null : value),
+      z.string().trim().min(8).max(200).nullable().default(null),
     ),
     updatedAt: z.string().datetime({ offset: true }).optional(),
   })
@@ -89,6 +94,7 @@ export const profileSchema = z.object({
   leisureGenres: z.array(z.string()),
   budgetJpyc: z.number().int().nullable(),
   priority: z.enum(priorities).nullable(),
+  walletAddress: z.string().nullable(),
   updatedAt: z.string().datetime({ offset: true }),
 });
 
@@ -108,6 +114,7 @@ export const profileFields = [
   "leisureGenres",
   "budgetJpyc",
   "priority",
+  "walletAddress",
 ] as const;
 
 export type ProfileField = (typeof profileFields)[number];

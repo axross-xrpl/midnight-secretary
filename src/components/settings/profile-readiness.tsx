@@ -14,6 +14,7 @@ type ProfileReadinessProps = {
   homeSpot: string;
   budgetJpyc: string;
   priority: Priority | "";
+  walletAddress: string;
 };
 
 /**
@@ -29,6 +30,7 @@ export function ProfileReadiness({
   homeSpot,
   budgetJpyc,
   priority,
+  walletAddress,
 }: ProfileReadinessProps) {
   const t = useTranslations("ProfileSettings");
   const readiness = verificationReadiness({
@@ -57,6 +59,10 @@ export function ProfileReadiness({
         budgetJpyc === ""
           ? none
           : priceFormatter.format(Number(budgetJpyc ?? 0)),
+    },
+    {
+      label: t("labels.walletAddress"),
+      value: walletAddress === "" ? none : t("readiness.ready"),
     },
   ];
 

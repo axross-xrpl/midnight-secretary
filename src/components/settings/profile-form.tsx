@@ -36,6 +36,7 @@ type FormValues = {
   leisureGenres: string[];
   budgetJpyc: string;
   priority: Priority | "";
+  walletAddress: string;
 };
 
 type ProfileFormProps = {
@@ -71,6 +72,7 @@ const toFormValues = (
       ? ""
       : String(profile.budgetJpyc),
   priority: profile?.priority ?? "",
+  walletAddress: profile?.walletAddress ?? "",
 });
 
 const toSaveInput = (values: FormValues, updatedAt: string | undefined) => ({
@@ -84,6 +86,7 @@ const toSaveInput = (values: FormValues, updatedAt: string | undefined) => ({
   leisureGenres: values.leisureGenres,
   budgetJpyc: values.budgetJpyc === "" ? null : Number(values.budgetJpyc),
   priority: values.priority,
+  walletAddress: values.walletAddress,
   ...(updatedAt === undefined ? {} : { updatedAt }),
 });
 
@@ -409,6 +412,30 @@ export function ProfileForm({
           </fieldset>
         </Section>
 
+        <Section title={t("sections.wallet")} description={t("hints.wallet")}>
+          <Field
+            label={t("labels.walletAddress")}
+            error={errorFor("walletAddress")}
+          >
+            {(id) => (
+              <>
+                <input
+                  id={id}
+                  value={values.walletAddress}
+                  onChange={(event) =>
+                    update({ walletAddress: event.target.value })
+                  }
+                  maxLength={200}
+                  spellCheck={false}
+                  autoComplete="off"
+                  className={`${inputClass} font-mono`}
+                />
+                <Hint>{t("hints.walletAddress")}</Hint>
+              </>
+            )}
+          </Field>
+        </Section>
+
         {/* 長いフォームなので、スクロールしても保存できるよう下端に貼り付ける */}
         <div className="sticky bottom-0 -mx-6 flex items-center justify-end gap-4 border-t border-[#e5e8ec] bg-white px-6 py-4 sm:-mx-8 sm:px-8">
           {status === "saved" && !isDirty && (
@@ -432,6 +459,7 @@ export function ProfileForm({
           homeSpot={values.homeSpot}
           budgetJpyc={values.budgetJpyc}
           priority={values.priority}
+          walletAddress={values.walletAddress}
         />
       </div>
     </div>

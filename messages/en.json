@@ -58,7 +58,8 @@
       "verification": "Details used for identity checks",
       "home": "Where you travel from",
       "preferences": "Preferences",
-      "budget": "Budget and priority"
+      "budget": "Budget and priority",
+      "wallet": "Wallet"
     },
     "labels": {
       "email": "Email",
@@ -71,7 +72,8 @@
       "diningGenres": "Dining preferences",
       "leisureGenres": "Leisure interests",
       "budgetJpyc": "Budget per trip",
-      "priority": "Priority"
+      "priority": "Priority",
+      "walletAddress": "Wallet address"
     },
     "hints": {
       "email": "Taken from the account you signed in with. It cannot be changed here.",
@@ -82,7 +84,9 @@
       "home": "The options come from the transport services that are currently registered.",
       "genres": "Up to {max}. Matched against the genre of each restaurant and leisure service.",
       "budgetJpyc": "Used as a hard limit when the secretary filters options.",
-      "priority": "Decides how options are weighted when the secretary picks one."
+      "priority": "Decides how options are weighted when the secretary picks one.",
+      "wallet": "The address the secretary pays from. Service providers have their own addresses, which are the ones that receive money.",
+      "walletAddress": "8 to 200 characters. The format depends on the network, so it is not checked here."
     },
     "priorities": {
       "time": "Time",
@@ -119,7 +123,8 @@
         "diningGenres": "Up to 10, with no duplicates.",
         "leisureGenres": "Up to 10, with no duplicates.",
         "budgetJpyc": "Enter a whole number of 0 or more.",
-        "priority": "Choose one of the listed options."
+        "priority": "Choose one of the listed options.",
+        "walletAddress": "Enter 8 to 200 characters, or leave it empty."
       }
     }
   },

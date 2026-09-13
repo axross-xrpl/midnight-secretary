@@ -55,6 +55,8 @@ export interface ProposalResponse {
   message: string;
   fallback: boolean;
   groups: ProposalGroup[];
+  /** プロフィールによって候補が減ったときの説明。減っていなければ無い */
+  notice?: string;
 }
 
 export interface ChatMessage {

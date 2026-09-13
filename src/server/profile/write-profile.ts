@@ -32,7 +32,8 @@ function classifyDatabaseError(error: unknown): ProfileWriteError | null {
 /**
  * 本画面が持つ列だけを取り出す
  *
- * `wallet_address` は SCR-04c、`nationality` は MVP では画面を持たないので触らない
+ * `wallet_address` は SCR-04c ができるまでの暫定で本画面が持つ
+ * `nationality` は MVP では画面を持たないので触らない
  * `email` は INSERT のときだけ入れる (UNIQUE 制約があるため更新では動かさない)
  */
 function profileValues(input: ProfileSaveInput) {
@@ -47,6 +48,7 @@ function profileValues(input: ProfileSaveInput) {
     leisureGenres: input.leisureGenres,
     budgetJpyc: input.budgetJpyc,
     priority: input.priority,
+    walletAddress: input.walletAddress,
   };
 }
 
@@ -69,6 +71,7 @@ const toDto = (row: typeof userProfiles.$inferSelect): ProfileDto => ({
   leisureGenres: row.leisureGenres,
   budgetJpyc: row.budgetJpyc,
   priority: row.priority as ProfileDto["priority"],
+  walletAddress: row.walletAddress,
   updatedAt: row.updatedAt.toISOString(),
 });
 

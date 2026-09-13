@@ -12,6 +12,7 @@ const valid = {
   leisureGenres: ["art"],
   budgetJpyc: 50000,
   priority: "time",
+  walletAddress: "addr1q9demo0000",
 };
 
 const fieldErrors = (input: unknown) => {
@@ -37,6 +38,7 @@ describe("profileSaveSchema", () => {
       residencePref: "",
       priority: "",
       budgetJpyc: null,
+      walletAddress: "",
     });
 
     expect(parsed).toMatchObject({
@@ -47,6 +49,7 @@ describe("profileSaveSchema", () => {
       residencePref: null,
       priority: null,
       budgetJpyc: null,
+      walletAddress: null,
     });
   });
 
@@ -102,14 +105,19 @@ describe("profileSaveSchema", () => {
     );
   });
 
+  it("rejects a wallet address shorter than the database check allows", () => {
+    expect(fieldErrors({ ...valid, walletAddress: "short" })).toHaveProperty(
+      "walletAddress",
+    );
+  });
+
   it("rejects columns the screen does not own", () => {
-    expect(
-      profileSaveSchema.safeParse({ ...valid, walletAddress: "addr12345" })
-        .success,
-    ).toBe(false);
     expect(
       profileSaveSchema.safeParse({ ...valid, email: "other@example.com" })
         .success,
+    ).toBe(false);
+    expect(
+      profileSaveSchema.safeParse({ ...valid, nationality: "JP" }).success,
     ).toBe(false);
   });
 

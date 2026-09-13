@@ -31,6 +31,7 @@ type ProposalResponse = {
   message?: string;
   fallback?: boolean;
   groups?: ProposalGroup[];
+  notice?: string;
 };
 
 // 表示の順番と見出しはここで決める
@@ -316,6 +317,11 @@ export default function Home() {
                 <p className="text-lg leading-8 text-[#34453d]">
                   {result.message}
                 </p>
+                {result.notice && (
+                  <p className="rounded-xl border border-[#d9c38a] bg-[#fdf6e4] p-4 text-sm leading-6 text-[#7a5c1d]">
+                    {result.notice}
+                  </p>
+                )}
                 {result.groups?.map((group) => {
                   const label = KIND_LABELS[group.kind];
 
