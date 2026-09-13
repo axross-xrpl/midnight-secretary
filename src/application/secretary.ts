@@ -309,6 +309,24 @@ export const loadDashboard = async (
 };
 
 /**
+ * ユーザの trip を読み込む
+ *
+ * `loadDashboard` からカレンダーと mandate の読み取りを外したもの (予定一覧の手配中と確定旅程が使う)
+ */
+export const loadTrips = async (
+  userId: UserId,
+  deps: SecretaryDeps,
+): Promise<Result<readonly Trip[], SecretaryError>> => {
+  const trips = await deps.store.listTrips(userId);
+
+  if (!trips.ok) {
+    return err(fromStore(trips.error));
+  }
+
+  return ok(trips.value);
+};
+
+/**
  * ユーザの mandate を作ってリンクする
  *
  * ユーザがすでに mandate を持っていれば失敗する

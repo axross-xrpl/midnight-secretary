@@ -6,6 +6,7 @@ import { secretaryContext } from "@/adapters/auth/session";
 import { Conversation } from "@/components/chat/conversation-view";
 import { FailureNotice } from "@/components/chat/failure-notice";
 import { backLinkClass, emptyStateClass } from "@/components/chat/styles";
+import { parseTasksQuery, tasksHref } from "@/components/tasks/query";
 import { parseCalendarEventId } from "@/domain/identifiers.parse";
 import { Link, redirect } from "@/i18n/navigation";
 import type { ChatLoadError } from "@/server/secretary/chat-page";
@@ -52,14 +53,20 @@ const LoadFailure = ({ error, noEvent }: LoadFailureProps): ReactElement => {
 
 type ChatPageProps = {
   params: Promise<{ eventId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 /**
  * 予定 1 件の会話画面 (提案 -> 承認 -> 支払い -> カレンダー登録)
  *
  * 読み取りはこの Server Component が use case を直接呼び、変更はクライアントが Route Handler を叩く
+ * 「予定一覧へ」は開いたときのタブ (URL の `tab`) に戻る
+ * スキャンはユーザの操作なので、戻るときにやり直さない (`scan` は引き継がない)
  */
-const ChatPage = async ({ params }: ChatPageProps): Promise<ReactElement> => {
+const ChatPage = async ({
+  params,
+  searchParams,
+}: ChatPageProps): Promise<ReactElement> => {
   const context = await secretaryContext();
 
   if (!context.ok) {
@@ -73,6 +80,10 @@ const ChatPage = async ({ params }: ChatPageProps): Promise<ReactElement> => {
     notFound();
   }
 
+  const backHref = tasksHref({
+    tab: parseTasksQuery(await searchParams).tab,
+    scan: false,
+  });
   const t = await getTranslations("Conversation");
   const data = await loadChatData(context.value, parsedEventId.value);
 
@@ -80,7 +91,7 @@ const ChatPage = async ({ params }: ChatPageProps): Promise<ReactElement> => {
     return (
       <ChatShell>
         <div className="flex flex-col gap-5 p-[22px] px-[26px] pb-[26px]">
-          <Link href="/tasks" className={backLinkClass}>
+          <Link href={backHref} className={backLinkClass}>
             {`← ${t("back")}`}
           </Link>
           <LoadFailure error={data.error} noEvent={t("noEvent")} />
@@ -97,6 +108,7 @@ const ChatPage = async ({ params }: ChatPageProps): Promise<ReactElement> => {
         mandate={data.value.mandate}
         trip={data.value.trip}
         publicLedger={data.value.publicLedger}
+        backHref={backHref}
       />
     </ChatShell>
   );

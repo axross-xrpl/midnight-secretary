@@ -30,7 +30,32 @@
     "ja": "日本語"
   },
   "TasksPage": {
-    "title": "Tasks"
+    "title": "Tasks",
+    "tabs": {
+      "label": "Switch the list",
+      "detect": "Detected",
+      "trips": "Confirmed trips"
+    },
+    "scan": "Scan the calendar",
+    "scanHelper": "Reads the next 30 days of your calendar and lists the events that are not arranged yet.",
+    "candidates": "Events you can arrange",
+    "notScanned": "Scan the calendar to see the events you can arrange.",
+    "noCandidates": "Nothing to arrange.",
+    "active": "Trips in progress",
+    "noActive": "No trip is in progress.",
+    "noConfirmed": "No confirmed trip yet.",
+    "chat": "Ask the secretary",
+    "open": "See the conversation",
+    "noTitle": "(No title)",
+    "noLocation": "No location",
+    "total": "Total",
+    "route": "{from} to {to} · {count, plural, one {# booking} other {# bookings}}",
+    "status": {
+      "proposed": "Proposed",
+      "approved": "Approved",
+      "paid": "Paid",
+      "written": "On calendar"
+    }
   },
   "SettingsNav": {
     "title": "Settings",
@@ -216,24 +241,6 @@
       "verifications": "Required checks",
       "yes": "Yes",
       "no": "No"
-    }
-  },
-  "CalendarScan": {
-    "scan": "Scan calendar",
-    "scanning": "Scanning...",
-    "helper": "Reads the next 30 days of your Google Calendar.",
-    "count": "{count, plural, one {# event} other {# events}} in the next 30 days",
-    "empty": "No events in the next 30 days.",
-    "noTitle": "(No title)",
-    "noLocation": "No location",
-    "errors": {
-      "unauthenticated": "Sign in with Google again to scan the calendar.",
-      "tokenExpired": "The Google session expired. Sign in again to scan the calendar.",
-      "refreshFailed": "The Google sign-in expired. Sign in again.",
-      "forbidden": "This Google account did not grant calendar access. Sign in again and allow it.",
-      "http": "Scan failed. Google Calendar returned an error; check the server log.",
-      "network": "Scan failed. The server could not reach Google Calendar.",
-      "schema": "Scan failed. The response had an unexpected shape; check the server log."
     }
   },
   "WriteBack": {

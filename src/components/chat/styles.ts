@@ -14,6 +14,12 @@ export const emptyStateClass =
   "rounded-xl border border-border bg-surface p-6 text-center text-[13px] text-muted";
 
 /**
+ * 一覧の 1 行をそれ自体のカードにしたもの (予定一覧の行)
+ */
+export const rowCardClass =
+  "flex flex-wrap items-center gap-3.5 rounded-xl border border-border bg-surface p-3.5 px-5";
+
+/**
  * 塗りつぶした主要な操作のボタン
  */
 export const primaryButtonClass =
@@ -30,6 +36,18 @@ export const strongButtonClass =
  */
 export const ghostButtonClass =
   "cursor-pointer rounded-[10px] border border-ghost-border bg-surface px-[18px] py-2 text-[13px] font-medium text-ink disabled:cursor-default disabled:opacity-40";
+
+/**
+ * 一覧の行に置く塗りつぶしボタン (`primaryButtonClass` を行の大きさに合わせたもの)
+ */
+export const smallPrimaryButtonClass =
+  "cursor-pointer rounded-[9px] bg-accent px-3.5 py-1.5 text-[12px] font-semibold text-white disabled:cursor-default disabled:opacity-50";
+
+/**
+ * 一覧の行に置く控えめなボタン (`ghostButtonClass` を行の大きさに合わせたもの)
+ */
+export const smallGhostButtonClass =
+  "cursor-pointer rounded-[9px] border border-ghost-border bg-surface px-3.5 py-1.5 text-[12px] font-medium text-ink disabled:cursor-default disabled:opacity-50";
 
 /**
  * 区画の上に置く見出し
@@ -49,6 +67,16 @@ export const faintLabelClass = "text-[11px] text-faint";
 const pillClass = "rounded-full px-2.5 py-[3px] text-[11px] font-semibold";
 
 /**
+ * 何も起きていないことを示すバッジ (未手配)
+ */
+export const neutralPillClass = `${pillClass} bg-neutral-bg text-muted`;
+
+/**
+ * 進んでいる途中を示すバッジ (提案済み、承認済み)
+ */
+export const accentPillClass = `${pillClass} bg-accent-bg text-accent`;
+
+/**
  * 公開台帳に載るものを示すバッジ
  */
 export const publicPillClass = `${pillClass} bg-public-bg text-public`;
@@ -57,6 +85,11 @@ export const publicPillClass = `${pillClass} bg-public-bg text-public`;
  * 非公開データのままのものを示すバッジ
  */
 export const privatePillClass = `${pillClass} bg-private-bg text-private`;
+
+/**
+ * やり終えたことを示すバッジ (登録済み)
+ */
+export const okPillClass = `${pillClass} bg-ok-bg text-ok`;
 
 /**
  * エラーを出す箱

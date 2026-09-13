@@ -139,6 +139,8 @@ type ConversationProps = {
   mandate?: MandateResponse;
   trip?: TripResponse;
   publicLedger: PublicLedgerView;
+  // 「予定一覧へ」の戻り先 (開いたときの一覧の表示)
+  backHref: string;
 };
 
 /**
@@ -269,7 +271,7 @@ export const Conversation = (props: ConversationProps): ReactElement => {
         className="chat-layout__conversation flex flex-col gap-5"
       >
         <header className="flex flex-col gap-3">
-          <Link href="/tasks" className={backLinkClass}>
+          <Link href={props.backHref} className={backLinkClass}>
             {`← ${t("back")}`}
           </Link>
           <div className="flex flex-col gap-1">

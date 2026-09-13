@@ -29,14 +29,18 @@ carries a line naming the ports that are stand-ins. The source variables are rea
 starts, so `SECRETARY_MODE=demo npm start` works as well; a misconfiguration stops the server there
 instead of degrading at runtime.
 
-Then open [http://localhost:3000/ja/tasks/seed-2](http://localhost:3000/ja/tasks/seed-2) directly (the
-task list will link to it in a later change) and walk the one path as a conversation with the secretary:
-press **計画を提案して** (the first proposal sets up a 200,000 MST spending allowance for you), then
-approve, pay, and add the trip to the calendar from the reply buttons. `seed-3` is a one-night trip that
-adds lodging and draws on the same allowance; `seed-1` shows the secretary declining an event that is
-not a trip; `seed-9` is not on the calendar. The ledger panel in the sidebar (below the conversation on a
-narrow window) counts each payment on the public side while the cap and the spent amount stay on the
-private side. Everything lives in memory, so restarting the server starts over.
+Then open **Tasks** ([http://localhost:3000/ja/tasks](http://localhost:3000/ja/tasks)) and press
+**カレンダーをスキャン** on the 検知 tab. The next 30 days of the calendar are read and the events that are
+not arranged yet are listed, and **秘書に相談** on a row opens that event's conversation with the
+secretary. Start with 大阪出張 (取引先訪問) and walk the one path: press **計画を提案して** (the first
+proposal sets up a 200,000 MST spending allowance for you), then approve, pay, and add the trip to the
+calendar from the reply buttons. Back in **Tasks**, a trip that is still under way sits under
+**手配中の出張** with its status, a trip that has reached the calendar moves to the **確定旅程** tab, and
+the event the secretary wrote back does not appear in the scan results.
+大阪出張 (展示会) is a one-night trip that adds lodging and draws on the same allowance; チーム定例 shows
+the secretary declining an event that is not a trip. The ledger panel in the sidebar of the conversation
+(below it on a narrow window) counts each payment on the public side while the cap and the spent amount
+stay on the private side. Everything lives in memory, so restarting the server starts over.
 
 The dev sign-in trusts whoever clicks the button, so it only starts when `NEXTAUTH_URL` points at
 localhost, and it forces the calendar to the fake (that session has no Google token).
@@ -49,7 +53,8 @@ localhost, and it forces the calendar to the fake (that session has no Google to
    consent screen.
 3. In `.env.local`, set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `NEXTAUTH_SECRET`, and
    `NEXTAUTH_URL=http://localhost:3000`, and leave `SECRETARY_MODE` unset (everything real).
-4. `npm run build && npm start`, sign in with Google, then open **Tasks** and scan the calendar.
+4. `npm run build && npm start`, sign in with Google, then open **Tasks** and scan the calendar; the
+   next 30 days of your calendar are listed there.
 
 To keep the real calendar while the ports other lanes own stay fake, set only what you need, for
 example `SECRETARY_CATALOG=fake`.
