@@ -308,7 +308,7 @@ describe("handleProposeTrip", () => {
 
     expect(trip.ok && trip.value.status).toBe("proposed");
     expect(trip.ok && trip.value.plan.total).toStrictEqual({
-      amount: 29440,
+      amount: 28920,
       currency: "DEMO",
     });
   });

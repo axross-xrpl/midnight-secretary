@@ -74,17 +74,17 @@ const USER = userId("user-1");
 // 30 日の窓は seed の予定 4 件すべてを含む
 const RANGE = { from: NOW, to: at("2026-10-09T00:00:00Z") };
 
-// 大阪は日帰り、福岡は 1 泊、チーム定例は出張ではない
+// 取引先訪問は日帰り、展示会は 1 泊、チーム定例は出張ではない
 const OSAKA_EVENT = eventId("seed-2");
 
-const FUKUOKA_EVENT = eventId("seed-3");
+const OVERNIGHT_EVENT = eventId("seed-3");
 
 const MEETING_EVENT = eventId("seed-1");
 
-// seedCatalog の価格から計算した合計 (rail 往復と、福岡は 1 泊の宿)
-const OSAKA_TOTAL = 14720 + 14720;
+// seedCatalog の価格から計算した合計 (鉄道優先なので ひかり505号 と のぞみ232号 の往復、1 泊は なんばホテルC)
+const OSAKA_TOTAL = 14400 + 14520;
 
-const FUKUOKA_TOTAL = 23000 + 23000 + 11000;
+const OVERNIGHT_TOTAL = 14400 + 14520 + 12500;
 
 const ENOUGH_CAP = 200000;
 
@@ -304,8 +304,8 @@ describe("proposeTrip", () => {
     expect(trip.status).toBe("proposed");
     expect(trip.event.id).toBe("seed-2");
     expect(trip.proposedAt).toBe(NOW);
-    expect(trip.plan.outbound.id).toBe("rail-tokyo-osaka");
-    expect(trip.plan.inbound.id).toBe("rail-osaka-tokyo");
+    expect(trip.plan.outbound.id).toBe("rail-hikari-505");
+    expect(trip.plan.inbound.id).toBe("rail-nozomi-232");
     expect(trip.plan.lodging).toBeUndefined();
     expect(trip.plan.total).toStrictEqual(demo(OSAKA_TOTAL));
   });
@@ -314,11 +314,11 @@ describe("proposeTrip", () => {
     const deps = testDeps();
 
     await mustSetUpMandate(deps, ENOUGH_CAP);
-    const trip = await mustPropose(deps, FUKUOKA_EVENT);
+    const trip = await mustPropose(deps, OVERNIGHT_EVENT);
 
-    expect(lodgingOf(trip.plan).id).toBe("hotel-fukuoka");
-    expect(lodgingOf(trip.plan).price).toStrictEqual(demo(11000));
-    expect(trip.plan.total).toStrictEqual(demo(FUKUOKA_TOTAL));
+    expect(lodgingOf(trip.plan).id).toBe("hotel-namba-c");
+    expect(lodgingOf(trip.plan).price).toStrictEqual(demo(12500));
+    expect(trip.plan.total).toStrictEqual(demo(OVERNIGHT_TOTAL));
   });
 
   test("出張ではない予定は planner の notATrip になる", async () => {
@@ -470,7 +470,7 @@ describe("payForTrip", () => {
     const deps = testDeps();
 
     await mustSetUpMandate(deps, ENOUGH_CAP);
-    const proposed = await mustPropose(deps, FUKUOKA_EVENT);
+    const proposed = await mustPropose(deps, OVERNIGHT_EVENT);
 
     await mustApprove(deps, proposed.id);
 
@@ -489,11 +489,15 @@ describe("payForTrip", () => {
       paid.authorizations.map(
         (authorization) => authorization.settlement.recipient,
       ),
-    ).toStrictEqual(["demo-payee-jr", "demo-payee-jr", "demo-payee-hotels"]);
+    ).toStrictEqual([
+      "mn_shield-addr_test1demo-transport-seller",
+      "mn_shield-addr_test1demo-transport-seller",
+      "mn_shield-addr_test1demo-service-seller",
+    ]);
 
     const ledger = mustOk(await loadLedgerViews(USER, deps));
 
-    expect(ledger.privateMandate?.spent).toStrictEqual(demo(FUKUOKA_TOTAL));
+    expect(ledger.privateMandate?.spent).toStrictEqual(demo(OVERNIGHT_TOTAL));
   });
 
   test("日帰りの出張は往路と復路の 2 件で済む", async () => {
@@ -533,7 +537,7 @@ describe("payForTrip", () => {
     const deps = testDeps();
 
     await mustSetUpMandate(deps, ENOUGH_CAP);
-    const proposed = await mustPropose(deps, FUKUOKA_EVENT);
+    const proposed = await mustPropose(deps, OVERNIGHT_EVENT);
 
     await mustApprove(deps, proposed.id);
 
@@ -589,7 +593,7 @@ describe("writeBackTrip", () => {
     const deps = testDeps();
 
     await mustSetUpMandate(deps, ENOUGH_CAP);
-    const proposed = await mustPropose(deps, FUKUOKA_EVENT);
+    const proposed = await mustPropose(deps, OVERNIGHT_EVENT);
 
     await mustApprove(deps, proposed.id);
     const paid = await mustPay(deps, proposed.id);
@@ -607,14 +611,14 @@ describe("writeBackTrip", () => {
       ok: true,
       value: {
         id: written.writtenEventId,
-        title: "福岡 出張",
-        description: `合計 ${FUKUOKA_TOTAL} DEMO`,
+        title: "大阪 出張",
+        description: `合計 ${OVERNIGHT_TOTAL} DEMO`,
         when: {
           kind: "timed",
-          start: "2026-09-21T08:00:00+09:00",
-          end: "2026-09-22T22:00:00+09:00",
+          start: "2026-09-21T08:33:00+09:00",
+          end: "2026-09-22T17:27:00+09:00",
         },
-        location: "福岡",
+        location: "大阪",
       },
     });
   });
@@ -652,7 +656,7 @@ describe("loadLedgerViews", () => {
     const deps = testDeps();
 
     await mustSetUpMandate(deps, ENOUGH_CAP);
-    const proposed = await mustPropose(deps, FUKUOKA_EVENT);
+    const proposed = await mustPropose(deps, OVERNIGHT_EVENT);
 
     await mustApprove(deps, proposed.id);
     await mustPay(deps, proposed.id);
@@ -660,7 +664,7 @@ describe("loadLedgerViews", () => {
     const ledger = mustOk(await loadLedgerViews(USER, deps));
 
     expect(ledger.publicLedger.authorizedCount).toBe(3);
-    expect(ledger.privateMandate?.spent).toStrictEqual(demo(FUKUOKA_TOTAL));
+    expect(ledger.privateMandate?.spent).toStrictEqual(demo(OVERNIGHT_TOTAL));
   });
 
   test("mandate が無ければ privateMandate を省く", async () => {

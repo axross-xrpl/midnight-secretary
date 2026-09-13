@@ -99,6 +99,8 @@ const OFFERS: OfferSet = {
   outbound: [OUTBOUND],
   inbound: [INBOUND],
   lodging: [HOTEL],
+  dining: [],
+  leisure: [],
 };
 
 const ONE_NIGHT = intentOn("2026-09-14", "2026-09-15");
