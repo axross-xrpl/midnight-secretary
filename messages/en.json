@@ -38,6 +38,91 @@
     "services": "Services",
     "wallet": "Wallet"
   },
+  "ProfileSettings": {
+    "eyebrow": "Settings",
+    "title": "Profile",
+    "description": "The AI secretary uses these settings to decide where you travel from, what to suggest, and which identity checks you can satisfy.",
+    "newProfileNotice": "Nothing is saved yet. Choose a home city and save to get started.",
+    "unselected": "Not selected",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved.",
+    "reload": "Reload",
+    "addGenre": "Add",
+    "genrePlaceholder": "Add your own",
+    "removeGenre": "Remove {genre}",
+    "clearPriority": "Clear",
+    "residenceOverseas": "Outside Japan",
+    "sections": {
+      "basic": "Basic information",
+      "verification": "Details used for identity checks",
+      "home": "Where you travel from",
+      "preferences": "Preferences",
+      "budget": "Budget and priority"
+    },
+    "labels": {
+      "email": "Email",
+      "fullName": "Full name",
+      "address": "Address",
+      "birthDate": "Date of birth",
+      "residencePref": "Prefecture of residence",
+      "homeCity": "Home city",
+      "homeSpot": "Home departure point",
+      "diningGenres": "Dining preferences",
+      "leisureGenres": "Leisure interests",
+      "budgetJpyc": "Budget per trip",
+      "priority": "Priority"
+    },
+    "hints": {
+      "email": "Taken from the account you signed in with. It cannot be changed here.",
+      "address": "Shown for reference only. It is not used to work out travel times or identity checks.",
+      "verification": "The values you enter here are not disclosed. Only the proof that you meet a condition is presented.",
+      "birthDate": "Used for the age check. Without it, services that require one are left out of suggestions.",
+      "residencePref": "Used for the residence check, such as discounts limited to local residents.",
+      "home": "The options come from the transport services that are currently registered.",
+      "genres": "Up to {max}. Matched against the genre of each restaurant and leisure service.",
+      "budgetJpyc": "Used as a hard limit when the secretary filters options.",
+      "priority": "Decides how options are weighted when the secretary picks one."
+    },
+    "priorities": {
+      "time": "Time",
+      "price": "Price",
+      "comfort": "Comfort"
+    },
+    "verifications": {
+      "age": "Age check",
+      "residence": "Residence check"
+    },
+    "readiness": {
+      "title": "What these settings unlock",
+      "description": "Services that require an identity check are only suggested when the matching detail is filled in.",
+      "ready": "Ready",
+      "missing": "Not set",
+      "none": "Not set",
+      "note": {
+        "age": "Enter your date of birth to include services with an age limit.",
+        "residence": "Enter your prefecture to include resident-only rates."
+      }
+    },
+    "errors": {
+      "invalid": "Check the highlighted fields.",
+      "conflict": "This profile was changed somewhere else. Reload and try again.",
+      "notFound": "This profile no longer exists. Reload the page.",
+      "failed": "The profile could not be saved.",
+      "field": {
+        "fullName": "Enter up to 80 characters.",
+        "address": "Enter up to 200 characters.",
+        "birthDate": "Enter a valid date that is not in the future.",
+        "residencePref": "Choose one of the listed options.",
+        "homeCity": "Choose a home city.",
+        "homeSpot": "Choose one of the listed options.",
+        "diningGenres": "Up to 10, with no duplicates.",
+        "leisureGenres": "Up to 10, with no duplicates.",
+        "budgetJpyc": "Enter a whole number of 0 or more.",
+        "priority": "Choose one of the listed options."
+      }
+    }
+  },
   "ServiceManagement": {
     "eyebrow": "Settings",
     "title": "Service management",

@@ -521,7 +521,7 @@ AI秘書のツール（`basic-spec.md` §4）と DB の対応。秘書は Next.j
 
 | 用途 | エンドポイント |
 |---|---|
-| プロフィール取得・更新 | `GET` / `PUT /api/profile` |
+| プロフィール更新 | `PUT /api/profile`（取得は画面がサーバ関数を直接呼ぶため `GET` は未実装・`profile-page-spec.md` §6.5） |
 | サービス横断一覧 | `GET /api/services?category=&city=&q=&active=`（`service_catalog` を読む） |
 | 交通の詳細・登録・更新・無効化 | `GET` / `POST /api/services/transport` ／ `PUT` / `DELETE /api/services/transport/{id}` |
 | 場所系の詳細・登録・更新・無効化 | `GET` / `POST /api/services/place` ／ `PUT` / `DELETE /api/services/place/{id}` |
@@ -575,7 +575,7 @@ AI秘書のツール（`basic-spec.md` §4）と DB の対応。秘書は Next.j
 | `register-page-spec.md` | **本書に合わせて改訂済み**（SCR-04b・2テーブル構成。旧仕様からのラベル変更は同書 §16 に列挙） |
 | `basic-spec.md` §3 | 未反映。アーキ図のバックエンドを「単一 FastAPI」から実装（Next.js）に合わせる。データ層の `directory` / `fares` も本書のテーブル名にする |
 | `basic-spec.md` §5 | 未反映。SCR-04b の説明を「サービス登録」から「サービス管理」に揃える（画面IDは SCR-04b のまま） |
-| `src/auth.ts` | 未反映。`user_profiles.user_id` に Google の `sub` を使うため、セッション（または JWT）から `sub` を取り出せるようにする変更が必要 |
+| `src/auth.ts` | **反映済み**。session コールバックで JWT の `sub` をセッションに載せ、`user_profiles.user_id` に使えるようにした（`profile-page-spec.md` §6.1） |
 
 ---
 

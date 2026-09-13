@@ -103,3 +103,47 @@ export function databaseWriteErrorResponse(error: unknown) {
     { status: 500 },
   );
 }
+
+export function profileNotFoundResponse() {
+  return NextResponse.json(
+    { error: { code: "not_found", message: "The profile was not found" } },
+    { status: 404 },
+  );
+}
+
+export function profileConflictResponse() {
+  return NextResponse.json(
+    {
+      error: {
+        code: "conflict",
+        message: "The profile was changed elsewhere; reload and try again",
+      },
+    },
+    { status: 409 },
+  );
+}
+
+export function profileConstraintResponse() {
+  return NextResponse.json(
+    {
+      error: {
+        code: "constraint_violation",
+        message: "The profile data violates a database constraint",
+      },
+    },
+    { status: 422 },
+  );
+}
+
+export function duplicateEmailResponse() {
+  return NextResponse.json(
+    {
+      error: {
+        code: "duplicate_email",
+        message: "The email address is already in use",
+        issues: { fieldErrors: { email: ["The email is already in use"] } },
+      },
+    },
+    { status: 422 },
+  );
+}

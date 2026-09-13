@@ -38,6 +38,91 @@
     "services": "サービス",
     "wallet": "ウォレット"
   },
+  "ProfileSettings": {
+    "eyebrow": "設定",
+    "title": "プロフィール",
+    "description": "AI秘書がどこから出発するか、何を提案するか、どの本人確認を満たせるかを、この設定から判断します。",
+    "newProfileNotice": "まだ保存されていません。拠点都市を選んで保存してください。",
+    "unselected": "未選択",
+    "save": "保存",
+    "saving": "保存中…",
+    "saved": "保存しました。",
+    "reload": "再読み込み",
+    "addGenre": "追加",
+    "genrePlaceholder": "自分で追加する",
+    "removeGenre": "{genre} を外す",
+    "clearPriority": "指定なしにする",
+    "residenceOverseas": "国外",
+    "sections": {
+      "basic": "基本情報",
+      "verification": "本人確認に使う情報",
+      "home": "出発の拠点",
+      "preferences": "好み",
+      "budget": "予算と優先度"
+    },
+    "labels": {
+      "email": "メールアドレス",
+      "fullName": "氏名",
+      "address": "住所",
+      "birthDate": "生年月日",
+      "residencePref": "居住都道府県",
+      "homeCity": "拠点都市",
+      "homeSpot": "起点最寄り",
+      "diningGenres": "食事の好み",
+      "leisureGenres": "趣味・レジャー",
+      "budgetJpyc": "1旅程あたりの上限",
+      "priority": "優先度"
+    },
+    "hints": {
+      "email": "サインインしたアカウントの値です。ここでは変更できません。",
+      "address": "表示用です。移動時間の算出にも本人確認にも使いません。",
+      "verification": "ここに入れた値そのものは相手に渡しません。条件を満たすことの証明だけを提示します。",
+      "birthDate": "年齢確認に使います。未入力だと、年齢確認が要るサービスは提案から外れます。",
+      "residencePref": "住居確認に使います。県民割引など、住んでいる地域が条件のサービスで必要です。",
+      "home": "選択肢は、登録済みの交通サービスから出しています。",
+      "genres": "{max}件まで。飲食店・レジャーのジャンルと突き合わせます。",
+      "budgetJpyc": "秘書が候補を絞るときの上限として使います。",
+      "priority": "秘書が候補を選ぶときの重み付けを決めます。"
+    },
+    "priorities": {
+      "time": "時間",
+      "price": "価格",
+      "comfort": "快適さ"
+    },
+    "verifications": {
+      "age": "年齢確認",
+      "residence": "住居確認"
+    },
+    "readiness": {
+      "title": "この設定で手配できる範囲",
+      "description": "本人確認が要るサービスは、対応する項目が埋まっているときだけ提案に出ます。",
+      "ready": "設定済み",
+      "missing": "未設定",
+      "none": "指定なし",
+      "note": {
+        "age": "生年月日を入れると、年齢制限のあるサービスが提案に入ります。",
+        "residence": "居住都道府県を入れると、住民限定の料金が提案に入ります。"
+      }
+    },
+    "errors": {
+      "invalid": "赤字の項目を確認してください。",
+      "conflict": "別の場所で更新されています。再読み込みしてください。",
+      "notFound": "このプロフィールは存在しません。再読み込みしてください。",
+      "failed": "保存できませんでした。",
+      "field": {
+        "fullName": "80文字以内で入力してください。",
+        "address": "200文字以内で入力してください。",
+        "birthDate": "未来ではない、正しい日付を入力してください。",
+        "residencePref": "一覧から選んでください。",
+        "homeCity": "拠点都市を選んでください。",
+        "homeSpot": "一覧から選んでください。",
+        "diningGenres": "10件まで、重複なしで指定してください。",
+        "leisureGenres": "10件まで、重複なしで指定してください。",
+        "budgetJpyc": "0以上の整数を入力してください。",
+        "priority": "一覧から選んでください。"
+      }
+    }
+  },
   "ServiceManagement": {
     "eyebrow": "設定",
     "title": "サービス管理",
