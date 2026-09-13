@@ -156,5 +156,63 @@
     },
     "noLodging": "None",
     "total": "{amount} {currency}"
+  },
+  "SecretaryError": {
+    "calendar": {
+      "unauthenticated": "Sign in with Google again to read the calendar.",
+      "tokenExpired": "The Google session expired. Sign in again.",
+      "forbidden": "This Google account did not grant calendar access.",
+      "http": "Google Calendar returned an error; check the server log.",
+      "network": "The server could not reach Google Calendar.",
+      "schema": "The calendar response had an unexpected shape."
+    },
+    "catalog": {
+      "unknownDestination": "The fare catalog has no fares for that destination.",
+      "unavailable": "The fare catalog is not reachable right now.",
+      "schema": "The fare catalog returned an unexpected shape."
+    },
+    "planner": {
+      "notATrip": "The secretary does not read this event as a trip.",
+      "noViableChoice": "The secretary found no workable combination of fares.",
+      "llm": "The planner did not respond; try again.",
+      "schema": "The planner answered in an unexpected shape."
+    },
+    "plan": {
+      "unknownOffer": "The plan referred to a fare that is not in the catalog.",
+      "lodgingRequired": "An overnight trip needs lodging, but the plan has none.",
+      "lodgingNotAllowed": "A day trip cannot include lodging.",
+      "overBudget": "Over budget: the plan totals {total} but only {budget} remains on the allowance.",
+      "currencyMismatch": "The fares mix currencies.",
+      "negativeResult": "The plan's amounts do not add up."
+    },
+    "mandate": {
+      "notFound": "The allowance was not found on the contract.",
+      "overBudget": "The payment of {requested} does not fit: {spent} of the {cap} cap is already spent.",
+      "expired": "The allowance has expired.",
+      "alreadyAuthorized": "This payment was already authorized.",
+      "proofFailed": "Proof generation failed; try again.",
+      "unavailable": "The allowance contract is not reachable right now."
+    },
+    "money": {
+      "currencyMismatch": "Amounts in different currencies were mixed.",
+      "negativeResult": "An amount went negative."
+    },
+    "store": {
+      "unavailable": "Storage is not reachable right now.",
+      "schema": "A stored record had an unexpected shape."
+    },
+    "flow": {
+      "noMandate": "Set up a spending allowance first.",
+      "mandateExists": "You already have a spending allowance.",
+      "eventNotFound": "That event is no longer on the calendar.",
+      "eventAlreadyArranged": "A trip for this event is already past the proposal stage.",
+      "tripNotFound": "That trip was not found.",
+      "wrongStatus": "The trip is not at the step this action needs; reload the page."
+    },
+    "unauthorized": "Your session ended. Sign in again.",
+    "invalid_request": "The request was rejected as invalid.",
+    "network": "The server could not be reached.",
+    "schema": "The response had an unexpected shape.",
+    "unknown": "Something went wrong."
   }
 }

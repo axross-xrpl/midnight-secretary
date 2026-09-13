@@ -156,5 +156,63 @@
     },
     "noLodging": "なし",
     "total": "{amount} {currency}"
+  },
+  "SecretaryError": {
+    "calendar": {
+      "unauthenticated": "カレンダーを読むには Google でサインインし直してください。",
+      "tokenExpired": "Google のセッションが期限切れです。サインインし直してください。",
+      "forbidden": "この Google アカウントはカレンダーへのアクセスを許可していません。",
+      "http": "Google カレンダーがエラーを返しました。サーバのログを確認してください。",
+      "network": "サーバから Google カレンダーに接続できませんでした。",
+      "schema": "カレンダーの応答の形が想定と違います。"
+    },
+    "catalog": {
+      "unknownDestination": "料金表にその目的地の運賃がありません。",
+      "unavailable": "料金表にいま接続できません。",
+      "schema": "料金表の応答の形が想定と違います。"
+    },
+    "planner": {
+      "notATrip": "秘書はこの予定を出張とは読み取りませんでした。",
+      "noViableChoice": "秘書は成り立つ候補の組み合わせを見つけられませんでした。",
+      "llm": "計画の提案が応答しませんでした。もう一度お試しください。",
+      "schema": "計画の提案の応答の形が想定と違います。"
+    },
+    "plan": {
+      "unknownOffer": "計画が料金表に無い候補を指していました。",
+      "lodgingRequired": "宿泊を伴う出張なのに計画に宿がありません。",
+      "lodgingNotAllowed": "日帰りの出張に宿は付けられません。",
+      "overBudget": "予算超過: 計画の合計は {total} ですが、支払い枠の残りは {budget} です。",
+      "currencyMismatch": "候補の通貨が混ざっています。",
+      "negativeResult": "計画の金額の計算が合いません。"
+    },
+    "mandate": {
+      "notFound": "支払い枠がコントラクトに見つかりません。",
+      "overBudget": "{requested} の支払いは枠に収まりません。上限 {cap} のうち {spent} を使用済みです。",
+      "expired": "支払い枠は期限切れです。",
+      "alreadyAuthorized": "この支払いはすでに承認済みです。",
+      "proofFailed": "証明の生成に失敗しました。もう一度お試しください。",
+      "unavailable": "支払い枠のコントラクトにいま接続できません。"
+    },
+    "money": {
+      "currencyMismatch": "異なる通貨の金額が混ざりました。",
+      "negativeResult": "金額が負になりました。"
+    },
+    "store": {
+      "unavailable": "保存データにいま接続できません。",
+      "schema": "保存データの形が想定と違います。"
+    },
+    "flow": {
+      "noMandate": "先に支払い枠を設定してください。",
+      "mandateExists": "支払い枠はすでにあります。",
+      "eventNotFound": "その予定はもうカレンダーにありません。",
+      "eventAlreadyArranged": "この予定の出張はすでに提案より先に進んでいます。",
+      "tripNotFound": "その出張が見つかりません。",
+      "wrongStatus": "出張の状態がこの操作と合いません。ページを読み直してください。"
+    },
+    "unauthorized": "セッションが切れました。サインインし直してください。",
+    "invalid_request": "リクエストが不正として拒否されました。",
+    "network": "サーバに接続できませんでした。",
+    "schema": "応答の形が想定と違います。",
+    "unknown": "問題が起きました。"
   }
 }
