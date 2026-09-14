@@ -19,6 +19,7 @@ import type { Result } from "@/lib/result";
 import { fromPromise } from "@/lib/result";
 import type { SchemaIssue } from "@/lib/schema";
 import {
+  parseApproveTripInput,
   parseProposeTripInput,
   parseSetUpMandateInput,
   parseTripIdParam,
@@ -148,7 +149,7 @@ export const handleProposeTrip = async (
 };
 
 /**
- * 提案済みの出張を承認する
+ * 提案済みの出張を、候補ごとの公開範囲つきで承認する
  */
 export const handleApproveTrip = async (
   request: NextRequest,
@@ -167,9 +168,22 @@ export const handleApproveTrip = async (
     return invalidRequestResponse(parsedTripId.error.issues);
   }
 
+  const body = await readJsonBody(request);
+
+  if (!body.ok) {
+    return invalidRequestResponse(body.error);
+  }
+
+  const input = parseApproveTripInput(body.value);
+
+  if (!input.ok) {
+    return invalidRequestResponse(input.error.issues);
+  }
+
   const approved = await approveTrip(
     context.value.userId,
     parsedTripId.value,
+    input.value,
     context.value.now,
     context.value.deps,
   );

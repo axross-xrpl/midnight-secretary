@@ -138,10 +138,16 @@ export const plainSpaces = (text: string): string => {
 
 /**
  * 計画の 1 行
+ *
+ * `category` は公開範囲の候補と同じ名前で、往路と復路を見分けるのにも使う
  */
 export type PlanRow =
-  | { kind: "transport"; offer: TransportOfferResponse }
-  | { kind: "lodging"; offer: LodgingOfferResponse };
+  | {
+      kind: "transport";
+      category: "outbound" | "inbound";
+      offer: TransportOfferResponse;
+    }
+  | { kind: "lodging"; category: "lodging"; offer: LodgingOfferResponse };
 
 /**
  * 計画を時系列の行にする (往路、宿泊があれば宿泊、復路)
@@ -151,17 +157,17 @@ export type PlanRow =
 export const planRows = (plan: TripPlanResponse): readonly PlanRow[] => {
   if (plan.lodging === undefined) {
     return [
-      { kind: "transport", offer: plan.outbound },
+      { kind: "transport", category: "outbound", offer: plan.outbound },
 
-      { kind: "transport", offer: plan.inbound },
+      { kind: "transport", category: "inbound", offer: plan.inbound },
     ];
   }
 
   return [
-    { kind: "transport", offer: plan.outbound },
+    { kind: "transport", category: "outbound", offer: plan.outbound },
 
-    { kind: "lodging", offer: plan.lodging },
+    { kind: "lodging", category: "lodging", offer: plan.lodging },
 
-    { kind: "transport", offer: plan.inbound },
+    { kind: "transport", category: "inbound", offer: plan.inbound },
   ];
 };

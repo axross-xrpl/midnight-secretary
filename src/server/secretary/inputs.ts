@@ -10,7 +10,9 @@ import {
 import type { Locale } from "@/domain/locale";
 import type { MandateDraft } from "@/domain/mandate";
 import type { Currency } from "@/domain/money";
+import type { PaymentVisibilityInput } from "@/domain/trip";
 import {
+  approveTripBodySchema,
   proposeTripBodySchema,
   setUpMandateBodySchema,
   writeBackBodySchema,
@@ -96,6 +98,23 @@ export const parseProposeTripInput = (
   }
 
   return ok({ eventId: eventId.value, locale: body.value.locale });
+};
+
+/**
+ * `POST /api/secretary/trips/[tripId]/approve` の body を公開範囲の指定にする
+ *
+ * 計画に合わせるのは use case の仕事なので、ここは形だけを見る
+ */
+export const parseApproveTripInput = (
+  raw: unknown,
+): Result<PaymentVisibilityInput, SchemaError> => {
+  const body = fromZod(approveTripBodySchema.safeParse(raw));
+
+  if (!body.ok) {
+    return body;
+  }
+
+  return ok(body.value.visibility);
 };
 
 /**

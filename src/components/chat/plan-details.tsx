@@ -3,7 +3,12 @@
 import { useFormatter, useTranslations } from "next-intl";
 import type { ReactElement } from "react";
 import { match } from "ts-pattern";
-import type { TripPlanResponse } from "@/lib/secretary-response";
+import type {
+  SettlementVisibilityResponse,
+  TripPlanResponse,
+} from "@/lib/secretary-response";
+import type { PlanVisibility } from "./conversation";
+import type { VisibilityCategory } from "./flow";
 import type { PlanRow } from "./format";
 import {
   DATE_OPTIONS,
@@ -14,8 +19,32 @@ import {
   TIMED_OPTIONS,
 } from "./format";
 import type { VendorKind } from "./styles";
-import { labelClass, vendorMark } from "./styles";
+import {
+  labelClass,
+  neutralPillClass,
+  privatePillClass,
+  vendorMark,
+} from "./styles";
 import { useFormatNumber } from "./use-format-number";
+
+/**
+ * 候補 1 件の公開範囲を切り替える
+ */
+export type VisibilityChangeHandler = (
+  category: VisibilityCategory,
+  value: SettlementVisibilityResponse,
+) => void;
+
+// トグルは非公開の入切なので、チェックの有無をそのまま公開範囲に写す
+const visibilityOfChecked = (
+  checked: boolean,
+): SettlementVisibilityResponse => {
+  if (checked) {
+    return "private";
+  }
+
+  return "public";
+};
 
 type VendorCircleProps = {
   kind: VendorKind;
@@ -32,18 +61,95 @@ const VendorCircle = ({ kind }: VendorCircleProps): ReactElement => {
   );
 };
 
-type TripItemRowProps = {
+type PrivateToggleProps = {
+  category: VisibilityCategory;
+  checked: boolean;
+  disabled: boolean;
+  onChange: VisibilityChangeHandler;
+};
+
+const PrivateToggle = ({
+  category,
+  checked,
+  disabled,
+  onChange,
+}: PrivateToggleProps): ReactElement => {
+  const t = useTranslations("Conversation");
+
+  return (
+    <label className={`flex flex-none items-center gap-1.5 ${labelClass}`}>
+      {/* switch は checked の対応づけを暗黙に頼らず aria-checked も持たせる */}
+      <input
+        type="checkbox"
+        role="switch"
+        className="cursor-pointer accent-accent disabled:cursor-default disabled:opacity-40"
+        checked={checked}
+        aria-checked={checked}
+        disabled={disabled}
+        onChange={(event) =>
+          onChange(category, visibilityOfChecked(event.target.checked))
+        }
+      />
+      {t("plan.privateToggle")}
+    </label>
+  );
+};
+
+type VisibilityBadgeProps = {
+  chosen: SettlementVisibilityResponse;
+};
+
+const VisibilityBadge = ({ chosen }: VisibilityBadgeProps): ReactElement => {
+  const t = useTranslations("Conversation");
+
+  return (
+    <span
+      className={chosen === "private" ? privatePillClass : neutralPillClass}
+    >
+      {t(`plan.visibility.${chosen}`)}
+    </span>
+  );
+};
+
+type RowVisibilityProps = {
+  category: VisibilityCategory;
+  visibility: PlanVisibility;
+  onChange: VisibilityChangeHandler;
+};
+
+// 提案済みで選べるときはトグル、承認済み以降は記録された公開範囲のバッジ
+const RowVisibility = ({
+  category,
+  visibility,
+  onChange,
+}: RowVisibilityProps): ReactElement => {
+  return match(visibility)
+    .with({ mode: "editor" }, ({ value, disabled }) => (
+      <PrivateToggle
+        category={category}
+        checked={value[category] === "private"}
+        disabled={disabled}
+        onChange={onChange}
+      />
+    ))
+    .with({ mode: "badges" }, ({ value }) => (
+      <VisibilityBadge chosen={value[category] ?? "public"} />
+    ))
+    .exhaustive();
+};
+
+type TripItemBodyProps = {
   row: PlanRow;
 };
 
-const TripItemRow = ({ row }: TripItemRowProps): ReactElement => {
+// 行の中身 (事業者のアイコン、見出し、時刻と事業者名)
+const TripItemBody = ({ row }: TripItemBodyProps): ReactElement => {
   const t = useTranslations("Conversation");
   const format = useFormatter();
-  const formatNumber = useFormatNumber();
 
   return match(row)
     .with({ kind: "transport" }, ({ offer }) => (
-      <li className="flex flex-wrap items-center gap-2.5 py-2">
+      <>
         <VendorCircle kind={offer.mode} />
         <span className="min-w-0 flex-1">
           <span className="block text-[13px] font-medium">
@@ -65,13 +171,10 @@ const TripItemRow = ({ row }: TripItemRowProps): ReactElement => {
             {offer.vendor}
           </span>
         </span>
-        <span className="text-[13px] font-bold tabular-nums">
-          {moneyText(offer.price, formatNumber)}
-        </span>
-      </li>
+      </>
     ))
     .with({ kind: "lodging" }, ({ offer }) => (
-      <li className="flex flex-wrap items-center gap-2.5 py-2">
+      <>
         <VendorCircle kind="lodging" />
         <span className="min-w-0 flex-1">
           <span className="block text-[13px] font-medium">
@@ -92,24 +195,58 @@ const TripItemRow = ({ row }: TripItemRowProps): ReactElement => {
             {offer.vendor}
           </span>
         </span>
-        <span className="text-[13px] font-bold tabular-nums">
-          {moneyText(offer.price, formatNumber)}
-        </span>
-      </li>
+      </>
     ))
     .exhaustive();
 };
 
+type TripItemRowProps = {
+  row: PlanRow;
+  visibility?: PlanVisibility;
+  onVisibilityChange: VisibilityChangeHandler;
+};
+
+const TripItemRow = ({
+  row,
+  visibility,
+  onVisibilityChange,
+}: TripItemRowProps): ReactElement => {
+  const formatNumber = useFormatNumber();
+
+  return (
+    <li className="flex flex-wrap items-center gap-2.5 py-2">
+      <TripItemBody row={row} />
+      <span className="text-[13px] font-bold tabular-nums">
+        {moneyText(row.offer.price, formatNumber)}
+      </span>
+      {visibility === undefined ? undefined : (
+        <RowVisibility
+          category={row.category}
+          visibility={visibility}
+          onChange={onVisibilityChange}
+        />
+      )}
+    </li>
+  );
+};
+
 type PlanDetailsProps = {
   plan: TripPlanResponse;
+  visibility?: PlanVisibility;
+  onVisibilityChange: VisibilityChangeHandler;
 };
 
 /**
  * 計画の中身 (往路、あれば宿、復路、合計、理由)
  *
  * 提案の吹き出しの中に置く
+ * `visibility` があれば候補ごとに公開範囲のトグルかバッジを並べる
  */
-export const PlanDetails = ({ plan }: PlanDetailsProps): ReactElement => {
+export const PlanDetails = ({
+  plan,
+  visibility,
+  onVisibilityChange,
+}: PlanDetailsProps): ReactElement => {
   const t = useTranslations("Conversation");
   const formatNumber = useFormatNumber();
 
@@ -117,7 +254,12 @@ export const PlanDetails = ({ plan }: PlanDetailsProps): ReactElement => {
     <div className="flex flex-col">
       <ul className="flex flex-col divide-y divide-border-sub">
         {planRows(plan).map((row) => (
-          <TripItemRow key={row.offer.id} row={row} />
+          <TripItemRow
+            key={row.offer.id}
+            row={row}
+            visibility={visibility}
+            onVisibilityChange={onVisibilityChange}
+          />
         ))}
       </ul>
       <div className="mt-0.5 flex flex-wrap items-baseline justify-end gap-2 border-t-2 border-divider-strong pt-2.5">

@@ -62,6 +62,21 @@ describe("failureMessageOf", () => {
     ).toStrictEqual({ kind: "plain", key: "planner.notATrip" });
   });
 
+  test("非公開に対応していない支払い枠の失敗も plain キーになる", () => {
+    expect(
+      failureMessageOf({
+        code: "secretary",
+        error: {
+          source: "flow",
+          error: { kind: "privateSettlementUnsupported", tripId: "trip-1" },
+        },
+      }),
+    ).toStrictEqual({
+      kind: "plain",
+      key: "flow.privateSettlementUnsupported",
+    });
+  });
+
   test("plan.overBudget は予算と合計を持つ variant になる", () => {
     expect(
       failureMessageOf({

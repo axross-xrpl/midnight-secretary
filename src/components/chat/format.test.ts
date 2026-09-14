@@ -157,19 +157,19 @@ describe("inclusiveEndDate", () => {
 describe("planRows", () => {
   test("宿があれば往路、宿、復路の 3 行になる", () => {
     expect(planRows(OVERNIGHT_PLAN)).toStrictEqual([
-      { kind: "transport", offer: RAIL_OUT },
+      { kind: "transport", category: "outbound", offer: RAIL_OUT },
 
-      { kind: "lodging", offer: HOTEL },
+      { kind: "lodging", category: "lodging", offer: HOTEL },
 
-      { kind: "transport", offer: RAIL_BACK },
+      { kind: "transport", category: "inbound", offer: RAIL_BACK },
     ]);
   });
 
   test("宿が無ければ往路と復路の 2 行になる", () => {
     expect(planRows(DAY_TRIP_PLAN)).toStrictEqual([
-      { kind: "transport", offer: RAIL_OUT },
+      { kind: "transport", category: "outbound", offer: RAIL_OUT },
 
-      { kind: "transport", offer: RAIL_BACK },
+      { kind: "transport", category: "inbound", offer: RAIL_BACK },
     ]);
   });
 });

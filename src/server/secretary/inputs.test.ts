@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  parseApproveTripInput,
   parseProposeTripInput,
   parseSetUpMandateInput,
   parseTripIdParam,
@@ -77,6 +78,42 @@ describe("parseProposeTripInput", () => {
         issues: [{ path: ["calendarEventId"], message: "invalid" }],
       },
     });
+  });
+});
+
+describe("parseApproveTripInput", () => {
+  test("候補ごとの公開範囲を取り出す", () => {
+    expect(
+      parseApproveTripInput({
+        visibility: { outbound: "public", lodging: "private" },
+      }),
+    ).toStrictEqual({
+      ok: true,
+      value: { outbound: "public", lodging: "private" },
+    });
+  });
+
+  test("すべて省いた指定も通す (指定の無い候補は use case が公開にする)", () => {
+    expect(parseApproveTripInput({ visibility: {} })).toStrictEqual({
+      ok: true,
+      value: {},
+    });
+  });
+
+  test("visibility が無い body は schema の失敗になる", () => {
+    expect(parseApproveTripInput({}).ok).toBe(false);
+  });
+
+  test("知らない公開範囲は schema の失敗になる", () => {
+    expect(
+      parseApproveTripInput({ visibility: { outbound: "secret" } }).ok,
+    ).toBe(false);
+  });
+
+  test("知らない候補は schema の失敗になる", () => {
+    expect(
+      parseApproveTripInput({ visibility: { dining: "private" } }).ok,
+    ).toBe(false);
   });
 });
 

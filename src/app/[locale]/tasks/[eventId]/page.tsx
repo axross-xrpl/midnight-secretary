@@ -108,6 +108,7 @@ const ChatPage = async ({
         mandate={data.value.mandate}
         trip={data.value.trip}
         publicLedger={data.value.publicLedger}
+        capabilities={data.value.capabilities}
         backHref={backHref}
       />
     </ChatShell>

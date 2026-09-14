@@ -135,6 +135,7 @@ describe("createFakeStore", () => {
       ...proposed,
       status: "approved",
       approvedAt: at("2026-09-09T10:00:00+09:00"),
+      visibility: { outbound: "public", inbound: "public" },
       authorizations: [],
     };
 

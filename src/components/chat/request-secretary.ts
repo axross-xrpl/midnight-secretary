@@ -3,6 +3,7 @@ import type { Result } from "@/lib/result";
 import { err, fromPromise, ok } from "@/lib/result";
 import type { SchemaError } from "@/lib/schema";
 import type {
+  ApproveTripBody,
   ProposeTripBody,
   SetUpMandateBody,
   WriteBackBody,
@@ -34,7 +35,7 @@ const tripPath = (tripId: string, action: string): string => {
   return `${TRIPS_PATH}/${encodeURIComponent(tripId)}/${action}`;
 };
 
-// body が無い操作 (承認と支払い) には content-type を付けない
+// body が無い操作 (支払い) には content-type を付けない
 const initFor = (body: unknown): RequestInit => {
   if (body === undefined) {
     return { method: "POST" };
@@ -107,15 +108,18 @@ export const requestProposeTrip = (
 
 /**
  * `POST /api/secretary/trips/[tripId]/approve`
+ *
+ * `body.visibility` は候補ごとの公開範囲で、指定の無い候補は公開になる
  */
 export const requestApproveTrip = (
   fetchFn: FetchLike,
   tripId: string,
+  body: ApproveTripBody,
 ): Promise<Result<TripResponse, RequestFailure>> => {
   return postJson(
     fetchFn,
     tripPath(tripId, "approve"),
-    undefined,
+    body,
     parseTripResponse,
   );
 };

@@ -298,6 +298,7 @@
     "echo": {
       "propose": "Please propose a plan.",
       "approve": "I approve the plan.",
+      "approvePartlyPrivate": "I approve the plan ({count, plural, one {# payment} other {# payments}} kept private).",
       "pay": "Please pay from the allowance.",
       "resume": "Please resume the payment.",
       "writeBack": "Please add it to my calendar."
@@ -309,6 +310,11 @@
         "air": "air"
       },
       "lodging": "{hotel}, {nights, plural, one {# night} other {# nights}}",
+      "privateToggle": "Keep private",
+      "visibility": {
+        "public": "Public",
+        "private": "Private"
+      },
       "total": "Total",
       "rationale": "Why this plan"
     },
@@ -317,6 +323,7 @@
       "paymentRef": "Payment reference",
       "amount": "Amount",
       "authorizedAt": "Authorized at",
+      "visibility": "Visibility",
       "transaction": "Transaction"
     }
   },
@@ -408,7 +415,8 @@
       "eventNotFound": "That event is no longer on the calendar.",
       "eventAlreadyArranged": "A trip for this event is already past the proposal stage.",
       "tripNotFound": "That trip was not found.",
-      "wrongStatus": "The trip is not at the step this action needs; reload the page."
+      "wrongStatus": "The trip is not at the step this action needs; reload the page.",
+      "privateSettlementUnsupported": "This allowance cannot settle payments privately. Approve with every payment public."
     },
     "unauthorized": "Your session ended. Sign in again.",
     "invalid_request": "The request was rejected as invalid.",

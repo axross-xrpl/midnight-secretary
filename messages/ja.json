@@ -298,6 +298,7 @@
     "echo": {
       "propose": "計画を提案して",
       "approve": "計画を承認します",
+      "approvePartlyPrivate": "計画を承認します ({count} 件は非公開で)",
       "pay": "支払い枠で支払って",
       "resume": "支払いを続けて",
       "writeBack": "カレンダーに登録して"
@@ -309,6 +310,11 @@
         "air": "航空"
       },
       "lodging": "{hotel}、{nights}泊",
+      "privateToggle": "非公開にする",
+      "visibility": {
+        "public": "公開",
+        "private": "非公開"
+      },
       "total": "合計",
       "rationale": "この計画の理由"
     },
@@ -317,6 +323,7 @@
       "paymentRef": "支払い参照",
       "amount": "金額",
       "authorizedAt": "承認日時",
+      "visibility": "公開範囲",
       "transaction": "トランザクション"
     }
   },
@@ -408,7 +415,8 @@
       "eventNotFound": "その予定はもうカレンダーにありません。",
       "eventAlreadyArranged": "この予定の出張はすでに提案より先に進んでいます。",
       "tripNotFound": "その出張が見つかりません。",
-      "wrongStatus": "出張の状態がこの操作と合いません。ページを読み直してください。"
+      "wrongStatus": "出張の状態がこの操作と合いません。ページを読み直してください。",
+      "privateSettlementUnsupported": "この支払い枠では非公開の支払いを扱えません。すべて公開で承認してください。"
     },
     "unauthorized": "セッションが切れました。サインインし直してください。",
     "invalid_request": "リクエストが不正として拒否されました。",

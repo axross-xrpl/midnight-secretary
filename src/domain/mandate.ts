@@ -35,9 +35,17 @@ export type MandateDraft = {
 };
 
 /**
+ * 支払い 1 件を公開台帳にどう載せるか
+ *
+ * `public` は unshielded 送金 (送り手、受取先、金額が公開)、`private` は shielded 送金 (受取先が非公開)
+ */
+export type SettlementVisibility = "public" | "private";
+
+/**
  * 秘書が mandate に承認を求める支払い 1 件
  *
  * 支払いは候補 (事業者) ごとに 1 件で、`recipient` はその事業者の受取先
+ * `visibility` は承認のときにユーザが候補ごとに選んだ公開範囲
  * circuit がまだチェーン時刻に束縛されていない (既知の未対応箇所) ので `now` を引数で渡す
  */
 export type PaymentRequest = {
@@ -45,6 +53,7 @@ export type PaymentRequest = {
   paymentRef: PaymentRef;
   amount: Money;
   recipient: WalletAddress;
+  visibility: SettlementVisibility;
   now: IsoDateTime;
 };
 
@@ -52,13 +61,16 @@ export type PaymentRequest = {
  * 承認と同時に行われたトークンの移動
  *
  * Wave 1 は証明と送金を 1 つの circuit で原子的に行うので、承認があれば送金もある
+ * `tokenTransfer` は unshielded、`shieldedTransfer` は shielded の送金で、選ぶのは `PaymentRequest.visibility`
  * 承認だけで送金を後回しにする形が要るようになったら (Wave 2 の Lace 連携など) ここに variant を足す
  */
-export type Settlement = {
-  kind: "tokenTransfer";
-  transactionId: string;
-  recipient: WalletAddress;
-};
+export type Settlement =
+  | { kind: "tokenTransfer"; transactionId: string; recipient: WalletAddress }
+  | {
+      kind: "shieldedTransfer";
+      transactionId: string;
+      recipient: WalletAddress;
+    };
 
 /**
  * 支払いが mandate のもとで承認され、トークンが受取先へ送られた証拠
@@ -141,11 +153,22 @@ export type ReadPublicLedger = () => Promise<
 >;
 
 /**
+ * adapter が扱える支払いの形
+ *
+ * `privateSettlement` が false の adapter に `visibility: "private"` を渡してはいけない (use case が先に弾く)
+ * adapter を作った時点で決まるので関数ではなく値で持つ
+ */
+export type MandateCapabilities = {
+  privateSettlement: boolean;
+};
+
+/**
  * Compact のコントラクトに裏打ちされた mandate の機能
  *
  * どこで動くか (サーバ側のエージェントウォレットかブラウザのウォレットか) は adapter の関心事
  */
 export type MandatePort = {
+  capabilities: MandateCapabilities;
   createMandate: CreateMandate;
   authorizePayment: AuthorizePayment;
   readMandate: ReadMandate;

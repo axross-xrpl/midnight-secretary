@@ -38,7 +38,10 @@ calendar from the reply buttons. Back in **Tasks**, a trip that is still under w
 **手配中の出張** with its status, a trip that has reached the calendar moves to the **確定旅程** tab, and
 the event the secretary wrote back does not appear in the scan results.
 大阪出張 (展示会) is a one-night trip that adds lodging and draws on the same allowance; チーム定例 shows
-the secretary declining an event that is not a trip. The ledger panel in the sidebar of the conversation
+the secretary declining an event that is not a trip. In demo mode each payment can be kept private
+before approval (a shielded transfer in the fake ledger); the real mandate adapter declares whether it
+supports that, and the toggle is hidden when it does not.
+The ledger panel in the sidebar of the conversation
 (below it on a narrow window) counts each payment on the public side while the cap and the spent amount
 stay on the private side. Everything lives in memory, so restarting the server starts over.
 

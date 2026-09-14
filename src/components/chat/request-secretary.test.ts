@@ -240,23 +240,27 @@ describe("requestProposeTrip", () => {
 });
 
 describe("requestApproveTrip", () => {
-  test("approve のパスを body 無しで POST する", async () => {
+  test("approve のパスへ公開範囲を body にして POST する", async () => {
     const recorder = newRecorder();
     const fetchFn = recordingFetch(recorder, () =>
       jsonResponse({ data: TRIP }),
     );
+    const body = { visibility: { lodging: "private" } } as const;
 
-    expect(await requestApproveTrip(fetchFn, TRIP_ID)).toStrictEqual({
+    expect(await requestApproveTrip(fetchFn, TRIP_ID, body)).toStrictEqual({
       ok: true,
       value: TRIP,
     });
     expect(recorder.calls).toStrictEqual([
       {
         url: `/api/secretary/trips/${TRIP_ID}/approve`,
-        init: { method: "POST" },
+        init: {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        },
       },
     ]);
-    expect(recorder.calls[0]?.init?.body).toBeUndefined();
   });
 });
 

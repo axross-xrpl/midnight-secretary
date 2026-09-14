@@ -1,7 +1,29 @@
 import type { CalendarEvent, CalendarEventDraft } from "./calendar";
 import type { CalendarEventId, IsoDateTime, TripId } from "./identifiers";
-import type { Authorization } from "./mandate";
+import type { Authorization, SettlementVisibility } from "./mandate";
 import type { TripPlan } from "./plan";
+
+/**
+ * 承認のときに選んだ、候補ごとの支払いの公開範囲
+ *
+ * `lodging` は計画に宿があるときだけ持つ (計画の形と揃える)
+ */
+export type PaymentVisibility = {
+  outbound: SettlementVisibility;
+  inbound: SettlementVisibility;
+  lodging?: SettlementVisibility;
+};
+
+/**
+ * クライアントから受け取る公開範囲の指定
+ *
+ * 指定の無い候補は公開、計画に無い候補の指定は捨てるので、すべて任意
+ */
+export type PaymentVisibilityInput = {
+  outbound?: SettlementVisibility;
+  inbound?: SettlementVisibility;
+  lodging?: SettlementVisibility;
+};
 
 /**
  * 秘書が提案したプラン
@@ -20,6 +42,7 @@ export type ProposedTrip = {
  * ユーザが承認したプラン
  *
  * 支払えるのは承認済みの出張だけ
+ * `visibility` は承認のときに候補ごとに選んだ公開範囲で、支払いはこれに従う
  * `authorizations` は候補ごとの支払いのうち済んだもので、承認直後は空
  * 途中で失敗した支払いを再試行するとき、済んだ候補を飛ばすためにここに残す
  */
@@ -30,6 +53,7 @@ export type ApprovedTrip = {
   plan: TripPlan;
   proposedAt: IsoDateTime;
   approvedAt: IsoDateTime;
+  visibility: PaymentVisibility;
   authorizations: readonly Authorization[];
 };
 
@@ -45,6 +69,7 @@ export type PaidTrip = {
   plan: TripPlan;
   proposedAt: IsoDateTime;
   approvedAt: IsoDateTime;
+  visibility: PaymentVisibility;
   authorizations: readonly Authorization[];
   paidAt: IsoDateTime;
 };
@@ -59,6 +84,7 @@ export type WrittenTrip = {
   plan: TripPlan;
   proposedAt: IsoDateTime;
   approvedAt: IsoDateTime;
+  visibility: PaymentVisibility;
   authorizations: readonly Authorization[];
   paidAt: IsoDateTime;
   writtenEventId: CalendarEventId;
@@ -88,13 +114,53 @@ export type EventText = {
 };
 
 /**
- * ユーザの承認を記録する
+ * 計画のすべての候補を公開にした公開範囲
+ *
+ * トグルの既定値で、非公開に対応していない adapter が唯一取れる形
+ */
+export const allPublic = (plan: TripPlan): PaymentVisibility => {
+  if (plan.lodging === undefined) {
+    return { outbound: "public", inbound: "public" };
+  }
+
+  return { outbound: "public", inbound: "public", lodging: "public" };
+};
+
+/**
+ * クライアントの指定を計画の形に合わせた公開範囲にする
+ *
+ * すべて公開を土台に指定で上書きし、計画に無い候補 (日帰りの宿) の指定は捨てる
+ */
+export const visibilityFor = (
+  plan: TripPlan,
+  requested: PaymentVisibilityInput,
+): PaymentVisibility => {
+  const base = allPublic(plan);
+
+  return {
+    outbound: requested.outbound ?? base.outbound,
+    inbound: requested.inbound ?? base.inbound,
+    ...(base.lodging === undefined
+      ? {}
+      : { lodging: requested.lodging ?? base.lodging }),
+  };
+};
+
+/**
+ * ユーザの承認と、そのとき選んだ候補ごとの公開範囲を記録する
  */
 export const markApproved = (
   trip: ProposedTrip,
   approvedAt: IsoDateTime,
+  visibility: PaymentVisibility,
 ): ApprovedTrip => {
-  return { ...trip, status: "approved", approvedAt, authorizations: [] };
+  return {
+    ...trip,
+    status: "approved",
+    approvedAt,
+    visibility,
+    authorizations: [],
+  };
 };
 
 /**

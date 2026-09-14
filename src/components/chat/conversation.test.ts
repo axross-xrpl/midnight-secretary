@@ -1,15 +1,22 @@
 import { describe, expect, test } from "vitest";
 import { tripIdAt } from "@/testing/ids";
+import type { PaymentVisibilityInput } from "@/domain/trip";
 import type { ScanEvent } from "@/lib/calendar-scan-response";
 import type {
   AuthorizationResponse,
   MoneyResponse,
+  PaymentVisibilityResponse,
   TripPlanResponse,
   TripResponse,
 } from "@/lib/secretary-response";
-import type { Bubble, ChatState } from "./conversation";
+import type { Bubble, ChatState, PlanVisibility } from "./conversation";
 import { conversationOf } from "./conversation";
-import type { Activity, RequestFailure, Step } from "./types";
+import type {
+  Activity,
+  MandateCapabilities,
+  RequestFailure,
+  Step,
+} from "./types";
 
 const TRIP_ID = tripIdAt(1);
 
@@ -77,6 +84,11 @@ const SECOND_AUTHORIZATION: AuthorizationResponse = {
   settlement: { ...AUTHORIZATION.settlement, transactionId: "tx-2" },
 };
 
+const ALL_PUBLIC: PaymentVisibilityResponse = {
+  outbound: "public",
+  inbound: "public",
+};
+
 const BASE = {
   id: TRIP_ID,
   event: OSAKA,
@@ -90,6 +102,7 @@ const APPROVED: TripResponse = {
   status: "approved",
   ...BASE,
   approvedAt: "2026-09-10T00:01:00Z",
+  visibility: ALL_PUBLIC,
   authorizations: [],
 };
 
@@ -97,6 +110,7 @@ const PARTIALLY_PAID: TripResponse = {
   status: "approved",
   ...BASE,
   approvedAt: "2026-09-10T00:01:00Z",
+  visibility: ALL_PUBLIC,
   authorizations: [AUTHORIZATION],
 };
 
@@ -104,6 +118,7 @@ const PAID: TripResponse = {
   status: "paid",
   ...BASE,
   approvedAt: "2026-09-10T00:01:00Z",
+  visibility: ALL_PUBLIC,
   authorizations: [AUTHORIZATION, SECOND_AUTHORIZATION],
   paidAt: "2026-09-10T00:02:00Z",
 };
@@ -112,6 +127,7 @@ const WRITTEN: TripResponse = {
   status: "written",
   ...BASE,
   approvedAt: "2026-09-10T00:01:00Z",
+  visibility: ALL_PUBLIC,
   authorizations: [AUTHORIZATION, SECOND_AUTHORIZATION],
   paidAt: "2026-09-10T00:02:00Z",
   writtenEventId: "written-1",
@@ -120,15 +136,23 @@ const WRITTEN: TripResponse = {
 
 const IDLE: Activity = { kind: "idle" };
 
+const CAN_KEEP_PRIVATE: MandateCapabilities = { privateSettlement: true };
+
+const PUBLIC_ONLY: MandateCapabilities = { privateSettlement: false };
+
 const stateOf = (
   trip: TripResponse | undefined,
   activity: Activity = IDLE,
+  capabilities: MandateCapabilities = CAN_KEEP_PRIVATE,
+  visibility: PaymentVisibilityInput = {},
 ): ChatState => {
   return {
     event: OSAKA,
     cap: CAP,
     ...(trip === undefined ? {} : { trip }),
     activity,
+    capabilities,
+    visibility,
   };
 };
 
@@ -136,13 +160,40 @@ const busy = (step: Step): Activity => {
   return { kind: "busy", step };
 };
 
-const PROPOSAL_BUBBLE: Bubble = {
-  speaker: "secretary",
-  line: { kind: "proposal", title: OSAKA.title, plan: PLAN },
-  at: "2026-09-10T00:00:00Z",
+const proposalBubble = (visibility?: PlanVisibility): Bubble => {
+  return {
+    speaker: "secretary",
+    line: {
+      kind: "proposal",
+      title: OSAKA.title,
+      plan: PLAN,
+      ...(visibility === undefined ? {} : { visibility }),
+    },
+    at: "2026-09-10T00:00:00Z",
+  };
 };
 
-const APPROVE_BUBBLE: Bubble = { speaker: "user", line: { kind: "approve" } };
+// 提案済みで非公開を選べるとき (まだ何も選んでいない)
+const EDITOR_PROPOSAL_BUBBLE = proposalBubble({
+  mode: "editor",
+  value: {},
+  disabled: false,
+});
+
+// 進行中はトグルを止める
+const BUSY_EDITOR_PROPOSAL_BUBBLE = proposalBubble({
+  mode: "editor",
+  value: {},
+  disabled: true,
+});
+
+// 承認済み以降は記録された公開範囲のバッジになる
+const PROPOSAL_BUBBLE = proposalBubble({ mode: "badges", value: ALL_PUBLIC });
+
+const APPROVE_BUBBLE: Bubble = {
+  speaker: "user",
+  line: { kind: "approve", privateCount: 0 },
+};
 
 const ASK_PAY_BUBBLE: Bubble = {
   speaker: "secretary",
@@ -198,8 +249,8 @@ describe("conversationOf (休止状態)", () => {
 
   test("proposed は導入 (挨拶、問いかけ、依頼の写し) の後に提案の吹き出しで、返答は承認だけ", () => {
     expect(conversationOf(stateOf(PROPOSED))).toStrictEqual({
-      bubbles: [...INTRO_BUBBLES, PROPOSAL_BUBBLE],
-      replies: [{ kind: "approve", trip: PROPOSED }],
+      bubbles: [...INTRO_BUBBLES, EDITOR_PROPOSAL_BUBBLE],
+      replies: [{ kind: "approve", trip: PROPOSED, visibility: {} }],
     });
   });
 
@@ -272,12 +323,12 @@ describe("conversationOf (進行中)", () => {
     });
   });
 
-  test("承認は approve の写しになる", () => {
+  test("承認は approve の写しになり、進行中はトグルを止める", () => {
     expect(
       conversationOf(stateOf(PROPOSED, busy("approve"))).bubbles,
     ).toStrictEqual([
       ...INTRO_BUBBLES,
-      PROPOSAL_BUBBLE,
+      BUSY_EDITOR_PROPOSAL_BUBBLE,
       APPROVE_BUBBLE,
 
       {
@@ -329,6 +380,78 @@ describe("conversationOf (進行中)", () => {
         line: { kind: "working", step: "writeBack", title: OSAKA.title },
       },
     ]);
+  });
+});
+
+describe("conversationOf (公開範囲)", () => {
+  test("非公開を扱えない支払い枠ではトグルを出さず、承認の返答も空の指定になる", () => {
+    expect(conversationOf(stateOf(PROPOSED, IDLE, PUBLIC_ONLY))).toStrictEqual({
+      bubbles: [...INTRO_BUBBLES, proposalBubble()],
+      replies: [{ kind: "approve", trip: PROPOSED, visibility: {} }],
+    });
+  });
+
+  test("非公開を扱えない支払い枠では、選択が残っていても返答に載せない", () => {
+    const state = stateOf(PROPOSED, IDLE, PUBLIC_ONLY, { inbound: "private" });
+
+    expect(conversationOf(state).replies).toStrictEqual([
+      { kind: "approve", trip: PROPOSED, visibility: {} },
+    ]);
+  });
+
+  test("選んだ非公開はトグルの値と承認の返答の両方に載る", () => {
+    const state = stateOf(PROPOSED, IDLE, CAN_KEEP_PRIVATE, {
+      inbound: "private",
+    });
+
+    expect(conversationOf(state)).toStrictEqual({
+      bubbles: [
+        ...INTRO_BUBBLES,
+        proposalBubble({
+          mode: "editor",
+          value: { inbound: "private" },
+          disabled: false,
+        }),
+      ],
+      replies: [
+        {
+          kind: "approve",
+          trip: PROPOSED,
+          visibility: { inbound: "private" },
+        },
+      ],
+    });
+  });
+
+  test("承認の写しは選んだ非公開の件数を持つ", () => {
+    const state = stateOf(PROPOSED, busy("approve"), CAN_KEEP_PRIVATE, {
+      inbound: "private",
+    });
+
+    expect(conversationOf(state).bubbles.at(-2)).toStrictEqual({
+      speaker: "user",
+      line: { kind: "approve", privateCount: 1 },
+    });
+  });
+
+  test("承認済み以降の写しは trip に残った公開範囲から数える", () => {
+    const approved: TripResponse = {
+      ...APPROVED,
+      visibility: { outbound: "public", inbound: "private" },
+    };
+
+    const bubbles = conversationOf(stateOf(approved)).bubbles;
+
+    expect(bubbles[3]).toStrictEqual(
+      proposalBubble({
+        mode: "badges",
+        value: { outbound: "public", inbound: "private" },
+      }),
+    );
+    expect(bubbles[4]).toStrictEqual({
+      speaker: "user",
+      line: { kind: "approve", privateCount: 1 },
+    });
   });
 });
 

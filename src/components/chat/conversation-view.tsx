@@ -4,6 +4,7 @@ import { useFormatter, useLocale, useTranslations } from "next-intl";
 import type { ReactElement } from "react";
 import { useEffect, useReducer, useRef } from "react";
 import { match, P } from "ts-pattern";
+import type { PaymentVisibilityInput } from "@/domain/trip";
 import { Link, useRouter } from "@/i18n/navigation";
 import type { ScanEvent, ScanEventTime } from "@/lib/calendar-scan-response";
 import type { Result } from "@/lib/result";
@@ -25,6 +26,7 @@ import {
 import { LedgerPanel } from "./ledger-panel";
 import { MandateCard } from "./mandate-card";
 import { defaultMandateDraft } from "./mandate-defaults";
+import type { VisibilityChangeHandler } from "./plan-details";
 import {
   requestApproveTrip,
   requestPayForTrip,
@@ -43,7 +45,12 @@ import {
   sectionLabelClass,
   strongButtonClass,
 } from "./styles";
-import type { PublicLedgerView, RequestFailure, Step } from "./types";
+import type {
+  MandateCapabilities,
+  PublicLedgerView,
+  RequestFailure,
+  Step,
+} from "./types";
 
 // 1 手を進める fetch (成功すれば次の状態の trip が返る)
 type StepRequest = () => Promise<Result<TripResponse, RequestFailure>>;
@@ -139,6 +146,8 @@ type ConversationProps = {
   mandate?: MandateResponse;
   trip?: TripResponse;
   publicLedger: PublicLedgerView;
+  // 支払いの adapter が非公開を扱えるか (扱えないときは公開範囲のトグルを出さない)
+  capabilities: MandateCapabilities;
   // 「予定一覧へ」の戻り先 (開いたときの一覧の表示)
   backHref: string;
 };
@@ -168,6 +177,8 @@ export const Conversation = (props: ConversationProps): ReactElement => {
     cap,
     ...(trip === undefined ? {} : { trip }),
     activity: state.activity,
+    capabilities: props.capabilities,
+    visibility: state.visibility,
   });
   const busy = state.activity.kind === "busy";
   const tail = tailOf(conversation.bubbles);
@@ -239,8 +250,13 @@ export const Conversation = (props: ConversationProps): ReactElement => {
     return runStep("propose", () => proposeWithMandate(eventId));
   };
 
-  const approve = (tripId: string): Promise<void> => {
-    return runStep("approve", () => requestApproveTrip(fetch, tripId));
+  const approve = (
+    tripId: string,
+    visibility: PaymentVisibilityInput,
+  ): Promise<void> => {
+    return runStep("approve", () =>
+      requestApproveTrip(fetch, tripId, { visibility }),
+    );
   };
 
   const pay = (tripId: string): Promise<void> => {
@@ -256,11 +272,17 @@ export const Conversation = (props: ConversationProps): ReactElement => {
   const onReply: ReplyHandler = (reply) => {
     match(reply)
       .with({ kind: "propose" }, ({ eventId }) => propose(eventId))
-      .with({ kind: "approve" }, ({ trip: target }) => approve(target.id))
+      .with({ kind: "approve" }, ({ trip: target, visibility }) =>
+        approve(target.id, visibility),
+      )
       .with({ kind: "pay" }, ({ trip: target }) => pay(target.id))
       .with({ kind: "writeBack" }, ({ trip: target }) => writeBack(target.id))
       .with({ kind: "dismiss" }, () => dispatch({ type: "dismiss" }))
       .exhaustive();
+  };
+
+  const onVisibilityChange: VisibilityChangeHandler = (category, value) => {
+    dispatch({ type: "setVisibility", category, value });
   };
 
   // DOM は会話が先で、2 カラムのときだけ CSS がサイドバーを左に置く
@@ -294,7 +316,11 @@ export const Conversation = (props: ConversationProps): ReactElement => {
         >
           <ol className="flex flex-col gap-[18px]">
             {conversation.bubbles.map((bubble) => (
-              <BubbleItem key={bubbleKey(bubble)} bubble={bubble} />
+              <BubbleItem
+                key={bubbleKey(bubble)}
+                bubble={bubble}
+                onVisibilityChange={onVisibilityChange}
+              />
             ))}
           </ol>
         </section>

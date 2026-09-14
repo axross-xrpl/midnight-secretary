@@ -27,13 +27,39 @@ export const mandateSchema = z.object({
 });
 
 /**
- * 承認と同時に行われたトークンの移動
+ * 支払い 1 件の公開範囲
  */
-export const settlementSchema = z.object({
-  kind: z.literal("tokenTransfer"),
-  transactionId: z.string(),
-  recipient: z.string(),
+export const settlementVisibilitySchema = z.enum(["public", "private"]);
+
+/**
+ * 承認のときに選んだ、候補ごとの支払いの公開範囲
+ *
+ * `lodging` は計画に宿があるときだけ載る
+ */
+export const paymentVisibilitySchema = z.object({
+  outbound: settlementVisibilitySchema,
+  inbound: settlementVisibilitySchema,
+  lodging: settlementVisibilitySchema.optional(),
 });
+
+/**
+ * 承認と同時に行われたトークンの移動
+ *
+ * `tokenTransfer` は unshielded、`shieldedTransfer` は shielded の送金
+ */
+export const settlementSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("tokenTransfer"),
+    transactionId: z.string(),
+    recipient: z.string(),
+  }),
+
+  z.object({
+    kind: z.literal("shieldedTransfer"),
+    transactionId: z.string(),
+    recipient: z.string(),
+  }),
+]);
 
 /**
  * 支払い 1 件が mandate のもとで承認された証拠
@@ -112,6 +138,7 @@ const tripBase = {
 const approvedFields = {
   ...tripBase,
   approvedAt: z.string(),
+  visibility: paymentVisibilitySchema,
   authorizations: z.array(authorizationSchema).readonly(),
 };
 
@@ -151,6 +178,18 @@ export const secretaryErrorJsonSchema = z.object({
  * 通貨の最小単位で表した金額
  */
 export type MoneyResponse = z.infer<typeof moneySchema>;
+
+/**
+ * 支払い 1 件の公開範囲
+ */
+export type SettlementVisibilityResponse = z.infer<
+  typeof settlementVisibilitySchema
+>;
+
+/**
+ * 承認のときに選んだ、候補ごとの支払いの公開範囲
+ */
+export type PaymentVisibilityResponse = z.infer<typeof paymentVisibilitySchema>;
 
 /**
  * 支払い 1 件が mandate のもとで承認された証拠
