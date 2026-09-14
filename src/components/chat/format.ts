@@ -3,6 +3,7 @@ import type {
   LodgingOfferResponse,
   MandateResponse,
   MoneyResponse,
+  PlaceOfferResponse,
   TransportOfferResponse,
   TripPlanResponse,
 } from "@/lib/secretary-response";
@@ -147,27 +148,51 @@ export type PlanRow =
       category: "outbound" | "inbound";
       offer: TransportOfferResponse;
     }
-  | { kind: "lodging"; category: "lodging"; offer: LodgingOfferResponse };
+  | { kind: "lodging"; category: "lodging"; offer: LodgingOfferResponse }
+  | { kind: "dining"; category: "dining"; offer: PlaceOfferResponse }
+  | { kind: "leisure"; category: "leisure"; offer: PlaceOfferResponse };
 
-/**
- * 計画を時系列の行にする (往路、宿泊があれば宿泊、復路)
- *
- * 支払いの順 (往路、復路、宿泊) とは違う
- */
-export const planRows = (plan: TripPlanResponse): readonly PlanRow[] => {
-  if (plan.lodging === undefined) {
-    return [
-      { kind: "transport", category: "outbound", offer: plan.outbound },
-
-      { kind: "transport", category: "inbound", offer: plan.inbound },
-    ];
+const lodgingRowOf = (
+  lodging: LodgingOfferResponse | undefined,
+): readonly PlanRow[] => {
+  if (lodging === undefined) {
+    return [];
   }
 
+  return [{ kind: "lodging", category: "lodging", offer: lodging }];
+};
+
+const diningRowOf = (
+  dining: PlaceOfferResponse | undefined,
+): readonly PlanRow[] => {
+  if (dining === undefined) {
+    return [];
+  }
+
+  return [{ kind: "dining", category: "dining", offer: dining }];
+};
+
+const leisureRowOf = (
+  leisure: PlaceOfferResponse | undefined,
+): readonly PlanRow[] => {
+  if (leisure === undefined) {
+    return [];
+  }
+
+  return [{ kind: "leisure", category: "leisure", offer: leisure }];
+};
+
+/**
+ * 計画を時系列の行にする (往路、宿泊があれば宿泊、飲食があれば飲食、レジャーがあればレジャー、復路)
+ *
+ * 支払いの順 (往路、復路、宿泊、飲食、レジャー) とは違う
+ */
+export const planRows = (plan: TripPlanResponse): readonly PlanRow[] => {
   return [
     { kind: "transport", category: "outbound", offer: plan.outbound },
-
-    { kind: "lodging", category: "lodging", offer: plan.lodging },
-
+    ...lodgingRowOf(plan.lodging),
+    ...diningRowOf(plan.dining),
+    ...leisureRowOf(plan.leisure),
     { kind: "transport", category: "inbound", offer: plan.inbound },
   ];
 };

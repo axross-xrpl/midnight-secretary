@@ -20,6 +20,7 @@ const WRITE_BACK_MESSAGES: Record<Locale, WriteBackMessages> = {
       ...en.WriteBack,
       ...ja.WriteBack,
       mode: { ...en.WriteBack.mode, ...ja.WriteBack.mode },
+      lines: { ...en.WriteBack.lines, ...ja.WriteBack.lines },
     },
   },
 };

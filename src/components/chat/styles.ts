@@ -98,19 +98,21 @@ export const dangerBoxClass =
   "rounded-[10px] bg-danger-bg px-4 py-2.5 text-[12.5px] font-semibold text-danger";
 
 /**
- * 出張の候補の種類 (交通手段 2 つと宿泊)
+ * 出張の候補の種類 (交通手段 2 つ、宿泊、飲食、レジャー)
  *
  * 交通手段は `TransportOfferResponse.mode` と同じ値
  */
-export type VendorKind = "rail" | "air" | "lodging";
+export type VendorKind = "rail" | "air" | "lodging" | "dining" | "leisure";
 
 /**
- * 出張の候補 1 件のアイコンと丸の色 (交通手段か宿泊かで分ける)
+ * 出張の候補 1 件のアイコンと丸の色 (交通手段か宿泊か飲食かレジャーかで分ける)
  */
 export const vendorMark = {
   rail: { icon: "\u{1F684}", circleClass: "bg-rail" },
   air: { icon: "✈", circleClass: "bg-air" },
   lodging: { icon: "\u{1F3E8}", circleClass: "bg-hotel" },
+  dining: { icon: "\u{1F37A}", circleClass: "bg-dining" },
+  leisure: { icon: "\u{1F3AB}", circleClass: "bg-leisure" },
 } as const satisfies Record<VendorKind, { icon: string; circleClass: string }>;
 
 /**

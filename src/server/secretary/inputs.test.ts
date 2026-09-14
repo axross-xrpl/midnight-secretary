@@ -110,9 +110,26 @@ describe("parseApproveTripInput", () => {
     ).toBe(false);
   });
 
+  test("飲食の公開範囲も取り出す", () => {
+    expect(
+      parseApproveTripInput({ visibility: { dining: "private" } }),
+    ).toStrictEqual({ ok: true, value: { dining: "private" } });
+  });
+
+  test("レジャーの公開範囲も取り出す", () => {
+    expect(
+      parseApproveTripInput({
+        visibility: { dining: "private", leisure: "private" },
+      }),
+    ).toStrictEqual({
+      ok: true,
+      value: { dining: "private", leisure: "private" },
+    });
+  });
+
   test("知らない候補は schema の失敗になる", () => {
     expect(
-      parseApproveTripInput({ visibility: { dining: "private" } }).ok,
+      parseApproveTripInput({ visibility: { breakfast: "private" } }).ok,
     ).toBe(false);
   });
 });

@@ -120,9 +120,13 @@ const user = (line: UserLine): Bubble => {
 
 // 非公開に選ばれた候補の数 (選択の無い候補は公開なので数えない)
 const privateCountOf = (visibility: PaymentVisibilityInput): number => {
-  return [visibility.outbound, visibility.inbound, visibility.lodging].filter(
-    (chosen) => chosen === "private",
-  ).length;
+  return [
+    visibility.outbound,
+    visibility.inbound,
+    visibility.lodging,
+    visibility.dining,
+    visibility.leisure,
+  ].filter((chosen) => chosen === "private").length;
 };
 
 // 非公開を扱えない adapter では選択そのものが無いので、返答にも写しにも空を渡す

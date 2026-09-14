@@ -149,6 +149,56 @@ describe("parseSecretaryFailure", () => {
   });
 });
 
+// 居酒屋つきの計画
+const APPROVED_WITH_DINING_PAYLOAD = {
+  data: {
+    ...APPROVED_PAYLOAD.data,
+    plan: {
+      ...APPROVED_PAYLOAD.data.plan,
+      dining: {
+        id: "restaurant-izakaya-tenma",
+        kind: "restaurant",
+        payee: "wallet-service",
+        name: "天満 立ち飲み居酒屋 大和",
+        city: "大阪",
+        genre: "居酒屋",
+        price: { amount: 3000, currency: "MST" },
+        requiredVerifications: ["age"],
+        ageLimit: 20,
+      },
+      total: { amount: 32440, currency: "MST" },
+    },
+    visibility: { outbound: "public", inbound: "private", dining: "private" },
+  },
+};
+
+// 居酒屋とレジャーつきの計画
+const APPROVED_WITH_LEISURE_PAYLOAD = {
+  data: {
+    ...APPROVED_WITH_DINING_PAYLOAD.data,
+    plan: {
+      ...APPROVED_WITH_DINING_PAYLOAD.data.plan,
+      leisure: {
+        id: "leisure-inbound-guide-tour",
+        kind: "leisure",
+        payee: "wallet-service",
+        name: "訪日外国人限定 大阪ガイドツアー",
+        city: "大阪",
+        genre: "tour",
+        price: { amount: 3500, currency: "MST" },
+        requiredVerifications: ["nationality"],
+      },
+      total: { amount: 35940, currency: "MST" },
+    },
+    visibility: {
+      outbound: "public",
+      inbound: "private",
+      dining: "private",
+      leisure: "private",
+    },
+  },
+};
+
 describe("parseTripResponse", () => {
   test("status の無い応答は拒否する", () => {
     const parsed = parseTripResponse({ data: { id: "trip-1" } });
@@ -170,6 +220,41 @@ describe("parseTripResponse", () => {
 
   test("visibility の無い承認済みの応答は拒否する", () => {
     const parsed = parseTripResponse(WITHOUT_VISIBILITY);
+
+    expect(parsed.ok).toBe(false);
+  });
+
+  test("飲食を持つ承認済みの応答を通す", () => {
+    const parsed = parseTripResponse(APPROVED_WITH_DINING_PAYLOAD);
+
+    expect(parsed).toStrictEqual({
+      ok: true,
+      value: APPROVED_WITH_DINING_PAYLOAD.data,
+    });
+  });
+
+  test("レジャーを持つ承認済みの応答を通す", () => {
+    const parsed = parseTripResponse(APPROVED_WITH_LEISURE_PAYLOAD);
+
+    expect(parsed).toStrictEqual({
+      ok: true,
+      value: APPROVED_WITH_LEISURE_PAYLOAD.data,
+    });
+  });
+
+  test("知らない本人確認の種類を持つ飲食は拒否する", () => {
+    const parsed = parseTripResponse({
+      data: {
+        ...APPROVED_WITH_DINING_PAYLOAD.data,
+        plan: {
+          ...APPROVED_WITH_DINING_PAYLOAD.data.plan,
+          dining: {
+            ...APPROVED_WITH_DINING_PAYLOAD.data.plan.dining,
+            requiredVerifications: ["passport"],
+          },
+        },
+      },
+    });
 
     expect(parsed.ok).toBe(false);
   });

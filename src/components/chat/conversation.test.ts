@@ -64,6 +64,45 @@ const PLAN: TripPlanResponse = {
   rationale: "日帰りで往復できる",
 };
 
+const IZAKAYA = {
+  id: "restaurant-izakaya-tenma",
+  kind: "restaurant",
+  payee: "wallet-service",
+  name: "天満 立ち飲み居酒屋 大和",
+  city: "大阪",
+  genre: "居酒屋",
+  price: mst(3000),
+  requiredVerifications: ["age"],
+  ageLimit: 20,
+} as const;
+
+// 居酒屋つきの計画
+const GATHERING_PLAN: TripPlanResponse = {
+  ...PLAN,
+  intent: { ...PLAN.intent, purpose: "取引先と懇親会" },
+  dining: IZAKAYA,
+  total: mst(32440),
+};
+
+const TOUR = {
+  id: "leisure-inbound-guide-tour",
+  kind: "leisure",
+  payee: "wallet-service",
+  name: "訪日外国人限定 大阪ガイドツアー",
+  city: "大阪",
+  genre: "tour",
+  price: mst(3500),
+  requiredVerifications: ["nationality"],
+} as const;
+
+// 居酒屋とレジャーつきの計画
+const INSPECTION_PLAN: TripPlanResponse = {
+  ...GATHERING_PLAN,
+  intent: { ...PLAN.intent, purpose: "工場視察と懇親会" },
+  leisure: TOUR,
+  total: mst(35940),
+};
+
 const AUTHORIZATION: AuthorizationResponse = {
   mandateId: "mandate-1",
   paymentRef: `trip:${TRIP_ID}:rail-tokyo-osaka`,
@@ -132,6 +171,18 @@ const WRITTEN: TripResponse = {
   paidAt: "2026-09-10T00:02:00Z",
   writtenEventId: "written-1",
   writtenAt: "2026-09-10T00:03:00Z",
+};
+
+const PROPOSED_GATHERING: TripResponse = {
+  status: "proposed",
+  ...BASE,
+  plan: GATHERING_PLAN,
+};
+
+const PROPOSED_INSPECTION: TripResponse = {
+  status: "proposed",
+  ...BASE,
+  plan: INSPECTION_PLAN,
 };
 
 const IDLE: Activity = { kind: "idle" };
@@ -431,6 +482,34 @@ describe("conversationOf (公開範囲)", () => {
     expect(conversationOf(state).bubbles.at(-2)).toStrictEqual({
       speaker: "user",
       line: { kind: "approve", privateCount: 1 },
+    });
+  });
+
+  test("飲食を非公開にすると、写しの件数にも数える", () => {
+    const state = stateOf(
+      PROPOSED_GATHERING,
+      busy("approve"),
+      CAN_KEEP_PRIVATE,
+      { dining: "private" },
+    );
+
+    expect(conversationOf(state).bubbles.at(-2)).toStrictEqual({
+      speaker: "user",
+      line: { kind: "approve", privateCount: 1 },
+    });
+  });
+
+  test("飲食とレジャーを非公開にすると、写しの件数は 2 になる", () => {
+    const state = stateOf(
+      PROPOSED_INSPECTION,
+      busy("approve"),
+      CAN_KEEP_PRIVATE,
+      { dining: "private", leisure: "private" },
+    );
+
+    expect(conversationOf(state).bubbles.at(-2)).toStrictEqual({
+      speaker: "user",
+      line: { kind: "approve", privateCount: 2 },
     });
   });
 

@@ -1,5 +1,10 @@
 import { describe, expect, test } from "vitest";
-import type { LodgingOffer, OfferSet, TransportOffer } from "./catalog";
+import type {
+  LodgingOffer,
+  OfferSet,
+  PlaceOffer,
+  TransportOffer,
+} from "./catalog";
 import type {
   IsoDate,
   IsoDateTime,
@@ -67,6 +72,38 @@ const lodging = (id: string, price: Money): LodgingOffer => {
   };
 };
 
+const place = (
+  id: string,
+  price: Money,
+  requiredVerifications: PlaceOffer["requiredVerifications"],
+  ageLimit?: number,
+): PlaceOffer => {
+  return {
+    id: offerId(id),
+    kind: "restaurant",
+    payee: walletAddress("demo-payee-service"),
+    name: `デモ飲食 ${id}`,
+    city: "大阪",
+    genre: "居酒屋",
+    price,
+    requiredVerifications,
+    ...(ageLimit === undefined ? {} : { ageLimit }),
+  };
+};
+
+const leisurePlace = (id: string, price: Money): PlaceOffer => {
+  return {
+    id: offerId(id),
+    kind: "leisure",
+    payee: walletAddress("demo-payee-service"),
+    name: `デモレジャー ${id}`,
+    city: "大阪",
+    genre: "tour",
+    price,
+    requiredVerifications: [],
+  };
+};
+
 const intentOn = (departOn: string, returnOn: string): TripIntent => {
   return {
     destination: "大阪",
@@ -80,11 +117,15 @@ const choiceOf = (
   outboundId: string,
   inboundId: string,
   lodgingId?: string,
+  diningId?: string,
+  leisureId?: string,
 ): PlanChoice => {
   return {
     outboundId: offerId(outboundId),
     inboundId: offerId(inboundId),
     ...(lodgingId === undefined ? {} : { lodgingId: offerId(lodgingId) }),
+    ...(diningId === undefined ? {} : { diningId: offerId(diningId) }),
+    ...(leisureId === undefined ? {} : { leisureId: offerId(leisureId) }),
     rationale: RATIONALE,
   };
 };
@@ -95,12 +136,20 @@ const INBOUND = transport("rail-in", money(14720));
 
 const HOTEL = lodging("hotel-osaka", money(12000));
 
+const IZAKAYA = place("izakaya", money(3000), ["age"], 20);
+
+const CAFE = place("cafe", money(1200), []);
+
+const BAR_WITHOUT_LIMIT = place("bar", money(6000), ["age"]);
+
+const TOUR = leisurePlace("tour", money(3500));
+
 const OFFERS: OfferSet = {
   outbound: [OUTBOUND],
   inbound: [INBOUND],
   lodging: [HOTEL],
-  dining: [],
-  leisure: [],
+  dining: [IZAKAYA, CAFE, BAR_WITHOUT_LIMIT],
+  leisure: [TOUR],
 };
 
 const ONE_NIGHT = intentOn("2026-09-14", "2026-09-15");
@@ -261,6 +310,118 @@ describe("assemblePlan", () => {
     ).toStrictEqual({
       ok: false,
       error: { kind: "currencyMismatch", expected: "MST", actual: "NIGHT" },
+    });
+  });
+
+  test("飲食を選ぶと plan に入り、合計にも足される", () => {
+    expect(
+      assemblePlan(
+        SAME_DAY,
+        OFFERS,
+        choiceOf("rail-out", "rail-in", undefined, "izakaya"),
+        money(100000),
+      ),
+    ).toStrictEqual({
+      ok: true,
+      value: {
+        intent: SAME_DAY,
+        outbound: OUTBOUND,
+        inbound: INBOUND,
+        dining: IZAKAYA,
+        total: money(32440),
+        rationale: RATIONALE,
+      },
+    });
+  });
+
+  test("宿と飲食の両方を選ぶと合計に両方が入る", () => {
+    const assembled = assemblePlan(
+      ONE_NIGHT,
+      OFFERS,
+      choiceOf("rail-out", "rail-in", "hotel-osaka", "izakaya"),
+      money(100000),
+    );
+
+    expect(assembled.ok && assembled.value.total).toStrictEqual(money(44440));
+    expect(assembled.ok && assembled.value.dining).toStrictEqual(IZAKAYA);
+  });
+
+  test("飲食 id が集合に無いと unknownOffer になる", () => {
+    expect(
+      assemblePlan(
+        SAME_DAY,
+        OFFERS,
+        choiceOf("rail-out", "rail-in", undefined, "sushi"),
+        money(100000),
+      ),
+    ).toStrictEqual({
+      ok: false,
+      error: { kind: "unknownOffer", offerId: "sushi" },
+    });
+  });
+
+  test("飲食を足した合計が予算を超えると overBudget になる", () => {
+    expect(
+      assemblePlan(
+        SAME_DAY,
+        OFFERS,
+        choiceOf("rail-out", "rail-in", undefined, "izakaya"),
+        money(30000),
+      ),
+    ).toStrictEqual({
+      ok: false,
+      error: {
+        kind: "overBudget",
+        budget: money(30000),
+        total: money(32440),
+      },
+    });
+  });
+
+  test("レジャーを選ぶと plan に入り、合計にも足される", () => {
+    expect(
+      assemblePlan(
+        SAME_DAY,
+        OFFERS,
+        choiceOf("rail-out", "rail-in", undefined, undefined, "tour"),
+        money(100000),
+      ),
+    ).toStrictEqual({
+      ok: true,
+      value: {
+        intent: SAME_DAY,
+        outbound: OUTBOUND,
+        inbound: INBOUND,
+        leisure: TOUR,
+        total: money(32940),
+        rationale: RATIONALE,
+      },
+    });
+  });
+
+  test("宿、飲食、レジャーをすべて選ぶと合計に全部が入る", () => {
+    const assembled = assemblePlan(
+      ONE_NIGHT,
+      OFFERS,
+      choiceOf("rail-out", "rail-in", "hotel-osaka", "izakaya", "tour"),
+      money(100000),
+    );
+
+    expect(assembled.ok && assembled.value.total).toStrictEqual(money(47940));
+    expect(assembled.ok && assembled.value.leisure).toStrictEqual(TOUR);
+  });
+
+  test("レジャー id が集合に無いと unknownOffer になる", () => {
+    expect(
+      assemblePlan(
+        SAME_DAY,
+        OFFERS,
+        choiceOf("rail-out", "rail-in", undefined, undefined, "aquarium"),
+        money(100000),
+      ),
+    ).toStrictEqual({
+      ok: false,
+      error: { kind: "unknownOffer", offerId: "aquarium" },
     });
   });
 });

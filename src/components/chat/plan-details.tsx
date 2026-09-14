@@ -4,6 +4,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import type { ReactElement } from "react";
 import { match } from "ts-pattern";
 import type {
+  PlaceOfferResponse,
   SettlementVisibilityResponse,
   TripPlanResponse,
 } from "@/lib/secretary-response";
@@ -138,6 +139,39 @@ const RowVisibility = ({
     .exhaustive();
 };
 
+type PlaceBodyProps = {
+  kind: "dining" | "leisure";
+  offer: PlaceOfferResponse;
+};
+
+// 飲食とレジャーの行の中身は同じ形で、名前と genre、都市と年齢の下限のバッジ (価格と公開範囲は行の枠が出す)
+const PlaceBody = ({ kind, offer }: PlaceBodyProps): ReactElement => {
+  const t = useTranslations("Conversation");
+  const nameKey = kind === "dining" ? "plan.dining" : "plan.leisure";
+  const name =
+    offer.genre === undefined
+      ? offer.name
+      : t(nameKey, { name: offer.name, genre: offer.genre });
+
+  return (
+    <>
+      <VendorCircle kind={kind} />
+      <span className="min-w-0 flex-1">
+        <span className="block text-[13px] font-medium">{name}</span>
+        {/* 年齢の下限は文言に混ぜず、バッジで出す */}
+        <span className={`flex flex-wrap items-center gap-2 ${labelClass}`}>
+          {offer.city}
+          {offer.ageLimit === undefined ? undefined : (
+            <span className={neutralPillClass}>
+              {t("plan.ageLimit", { age: offer.ageLimit })}
+            </span>
+          )}
+        </span>
+      </span>
+    </>
+  );
+};
+
 type TripItemBodyProps = {
   row: PlanRow;
 };
@@ -197,6 +231,12 @@ const TripItemBody = ({ row }: TripItemBodyProps): ReactElement => {
         </span>
       </>
     ))
+    .with({ kind: "dining" }, ({ offer }) => (
+      <PlaceBody kind="dining" offer={offer} />
+    ))
+    .with({ kind: "leisure" }, ({ offer }) => (
+      <PlaceBody kind="leisure" offer={offer} />
+    ))
     .exhaustive();
 };
 
@@ -237,7 +277,7 @@ type PlanDetailsProps = {
 };
 
 /**
- * 計画の中身 (往路、あれば宿、復路、合計、理由)
+ * 計画の中身 (往路、あれば宿、あれば飲食、あればレジャー、復路、合計、理由)
  *
  * 提案の吹き出しの中に置く
  * `visibility` があれば候補ごとに公開範囲のトグルかバッジを並べる

@@ -34,6 +34,20 @@ const timedOn = (date: IsoDate, from: string, to: string): EventTime => {
   };
 };
 
+// 日をまたぐ時刻ありの予定 (泊まりの出張)
+const timedBetween = (
+  startDate: IsoDate,
+  from: string,
+  endDate: IsoDate,
+  to: string,
+): EventTime => {
+  return {
+    kind: "timed",
+    start: jstDateTimeOf(startDate, from),
+    end: jstDateTimeOf(endDate, to),
+  };
+};
+
 const startMs = (when: EventTime): number => {
   if (when.kind === "allDay") {
     return Date.parse(when.startDate);
@@ -67,6 +81,8 @@ const byStart = (a: CalendarEvent, b: CalendarEvent): number => {
  *
  * 共有の demo 用 Google アカウントのカレンダーと同じ内容なので、real と fake の見た目が揃う
  * demo preset に限らず、カレンダーの port が fake のときは常に使う
+ * seed-5 (+6 日) と seed-6 (+9 日) は居酒屋つきの日帰り
+ * seed-7 (+16 日から 1 泊) は宿、居酒屋、レジャーがすべて付く
  */
 export const seedCalendarEvents = (now: IsoDateTime): CalendarEvent[] => {
   const today = jstDateOf(now);
@@ -101,6 +117,32 @@ export const seedCalendarEvents = (now: IsoDateTime): CalendarEvent[] => {
       title: "歯医者",
       when: timedOn(addDays(today, 8), "14:00", "15:00"),
       location: "品川",
+    },
+
+    {
+      id: toEventId("seed-5"),
+      title: "大阪出張 (取引先と懇親会)",
+      when: timedOn(addDays(today, 6), "10:00", "20:00"),
+      location: "大阪市北区",
+    },
+
+    {
+      id: toEventId("seed-6"),
+      title: "大阪出張 (パートナー会食)",
+      when: timedOn(addDays(today, 9), "10:00", "20:00"),
+      location: "大阪市北区",
+    },
+
+    {
+      id: toEventId("seed-7"),
+      title: "大阪出張 (工場視察と懇親会)",
+      when: timedBetween(
+        addDays(today, 16),
+        "10:00",
+        addDays(today, 17),
+        "17:00",
+      ),
+      location: "大阪市北区",
     },
   ];
 };

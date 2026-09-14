@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { LodgingOffer, TransportOffer } from "./catalog";
+import type { LodgingOffer, PlaceOffer, TransportOffer } from "./catalog";
 import {
   mustParse,
   parseAmount,
@@ -62,7 +62,42 @@ const LODGING: LodgingOffer = {
   price: mst(12000),
 };
 
-const planFor = (lodging: LodgingOffer | undefined): TripPlan => {
+const DINING: PlaceOffer = {
+  id: mustParse(parseOfferId("restaurant-izakaya-tenma")),
+  kind: "restaurant",
+  payee: mustParse(parseWalletAddress("demo-payee-service")),
+  name: "天満 立ち飲み居酒屋 大和",
+  city: "大阪",
+  genre: "居酒屋",
+  price: mst(3000),
+  requiredVerifications: ["age"],
+  ageLimit: 20,
+};
+
+const LEISURE: PlaceOffer = {
+  id: mustParse(parseOfferId("leisure-kaiyukan")),
+  kind: "leisure",
+  payee: mustParse(parseWalletAddress("demo-payee-service")),
+  name: "海遊館",
+  city: "大阪",
+  genre: "aquarium",
+  price: mst(2700),
+  requiredVerifications: [],
+};
+
+type PlanOptions = {
+  lodging?: LodgingOffer;
+  dining?: PlaceOffer;
+  leisure?: PlaceOffer;
+};
+
+const planFor = (options: PlanOptions): TripPlan => {
+  const { lodging, dining, leisure } = options;
+  const extra =
+    (lodging === undefined ? 0 : 12000) +
+    (dining === undefined ? 0 : 3000) +
+    (leisure === undefined ? 0 : 2700);
+
   return {
     intent: {
       destination: "大阪",
@@ -73,14 +108,24 @@ const planFor = (lodging: LodgingOffer | undefined): TripPlan => {
     outbound: OUTBOUND,
     inbound: INBOUND,
     ...(lodging === undefined ? {} : { lodging }),
-    total: lodging === undefined ? mst(29440) : mst(41440),
+    ...(dining === undefined ? {} : { dining }),
+    ...(leisure === undefined ? {} : { leisure }),
+    total: mst(29440 + extra),
     rationale: "test",
   };
 };
 
-const ONE_NIGHT = planFor(LODGING);
+const ONE_NIGHT = planFor({ lodging: LODGING });
 
-const SAME_DAY = planFor(undefined);
+const SAME_DAY = planFor({});
+
+const WITH_DINING = planFor({ lodging: LODGING, dining: DINING });
+
+const WITH_EVERYTHING = planFor({
+  lodging: LODGING,
+  dining: DINING,
+  leisure: LEISURE,
+});
 
 const proposedWith = (plan: TripPlan): ProposedTrip => {
   return {
@@ -124,6 +169,25 @@ describe("allPublic", () => {
       inbound: "public",
     });
   });
+
+  test("飲食のある計画は飲食も公開になる", () => {
+    expect(allPublic(WITH_DINING)).toStrictEqual({
+      outbound: "public",
+      inbound: "public",
+      lodging: "public",
+      dining: "public",
+    });
+  });
+
+  test("全部ある計画は 5 候補すべてが公開になる", () => {
+    expect(allPublic(WITH_EVERYTHING)).toStrictEqual({
+      outbound: "public",
+      inbound: "public",
+      lodging: "public",
+      dining: "public",
+      leisure: "public",
+    });
+  });
 });
 
 describe("visibilityFor", () => {
@@ -147,6 +211,44 @@ describe("visibilityFor", () => {
     expect(
       visibilityFor(SAME_DAY, { outbound: "private", lodging: "private" }),
     ).toStrictEqual({ outbound: "private", inbound: "public" });
+  });
+
+  test("飲食のある計画では飲食だけを非公開にできる", () => {
+    expect(visibilityFor(WITH_DINING, { dining: "private" })).toStrictEqual({
+      outbound: "public",
+      inbound: "public",
+      lodging: "public",
+      dining: "private",
+    });
+  });
+
+  test("計画に無い飲食の指定は捨てる", () => {
+    expect(visibilityFor(ONE_NIGHT, { dining: "private" })).toStrictEqual({
+      outbound: "public",
+      inbound: "public",
+      lodging: "public",
+    });
+  });
+
+  test("レジャーのある計画ではレジャーだけを非公開にできる", () => {
+    expect(
+      visibilityFor(WITH_EVERYTHING, { leisure: "private" }),
+    ).toStrictEqual({
+      outbound: "public",
+      inbound: "public",
+      lodging: "public",
+      dining: "public",
+      leisure: "private",
+    });
+  });
+
+  test("計画に無いレジャーの指定は捨てる", () => {
+    expect(visibilityFor(WITH_DINING, { leisure: "private" })).toStrictEqual({
+      outbound: "public",
+      inbound: "public",
+      lodging: "public",
+      dining: "public",
+    });
   });
 });
 

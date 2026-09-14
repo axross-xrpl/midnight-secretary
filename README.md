@@ -45,6 +45,13 @@ The ledger panel in the sidebar of the conversation
 (below it on a narrow window) counts each payment on the public side while the cap and the spent amount
 stay on the private side. Everything lives in memory, so restarting the server starts over.
 
+大阪出張 (取引先と懇親会) and 大阪出張 (パートナー会食) each include an izakaya (age 20 or over), so the
+plan totals 31,920 MST and the payment is three bookings; the izakaya row carries the same "keep private"
+switch as the transport rows. 大阪出張 (工場視察と懇親会) is the one-night trip where every category
+meets: lodging, the izakaya and a leisure place (the first one for the destination that asks for no
+verification, 海遊館 here), so the plan totals 47,120 MST, the payment is five bookings, and each row can
+be kept private on its own.
+
 The dev sign-in trusts whoever clicks the button, so it only starts when `NEXTAUTH_URL` points at
 localhost, and it forces the calendar to the fake (that session has no Google token).
 

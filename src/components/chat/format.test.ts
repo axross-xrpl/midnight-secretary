@@ -92,6 +92,35 @@ const DAY_TRIP_PLAN: TripPlanResponse = {
   rationale: "日帰りで往復できる",
 };
 
+const IZAKAYA = {
+  id: "restaurant-izakaya-tenma",
+  kind: "restaurant",
+  payee: "wallet-service",
+  name: "天満 立ち飲み居酒屋 大和",
+  city: "大阪",
+  genre: "居酒屋",
+  price: mst(3000),
+  requiredVerifications: ["age"],
+  ageLimit: 20,
+} as const;
+
+const GATHERING_PLAN: TripPlanResponse = {
+  ...DAY_TRIP_PLAN,
+  dining: IZAKAYA,
+  total: mst(49000),
+};
+
+const TOUR = {
+  id: "leisure-inbound-guide-tour",
+  kind: "leisure",
+  payee: "wallet-service",
+  name: "訪日外国人限定 大阪ガイドツアー",
+  city: "大阪",
+  genre: "tour",
+  price: mst(3500),
+  requiredVerifications: ["nationality"],
+} as const;
+
 describe("moneyText", () => {
   test("桁区切りの整数と通貨コードを並べる", () => {
     expect(moneyText(mst(150000), formatNumber)).toBe("150,000 MST");
@@ -171,6 +200,40 @@ describe("planRows", () => {
 
       { kind: "transport", category: "inbound", offer: RAIL_BACK },
     ]);
+  });
+
+  test("飲食があれば往路、飲食、復路の 3 行になる", () => {
+    expect(planRows(GATHERING_PLAN)).toStrictEqual([
+      { kind: "transport", category: "outbound", offer: RAIL_OUT },
+
+      { kind: "dining", category: "dining", offer: IZAKAYA },
+
+      { kind: "transport", category: "inbound", offer: RAIL_BACK },
+    ]);
+  });
+
+  test("宿と飲食があれば往路、宿、飲食、復路の 4 行になる", () => {
+    expect(
+      planRows({ ...OVERNIGHT_PLAN, dining: IZAKAYA }).map((row) => row.kind),
+    ).toStrictEqual(["transport", "lodging", "dining", "transport"]);
+  });
+
+  test("レジャーがあれば往路、レジャー、復路の 3 行になる", () => {
+    expect(planRows({ ...DAY_TRIP_PLAN, leisure: TOUR })).toStrictEqual([
+      { kind: "transport", category: "outbound", offer: RAIL_OUT },
+
+      { kind: "leisure", category: "leisure", offer: TOUR },
+
+      { kind: "transport", category: "inbound", offer: RAIL_BACK },
+    ]);
+  });
+
+  test("全部あれば往路、宿、飲食、レジャー、復路の 5 行になる", () => {
+    expect(
+      planRows({ ...OVERNIGHT_PLAN, dining: IZAKAYA, leisure: TOUR }).map(
+        (row) => row.kind,
+      ),
+    ).toStrictEqual(["transport", "lodging", "dining", "leisure", "transport"]);
   });
 });
 
