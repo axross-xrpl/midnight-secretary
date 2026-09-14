@@ -25,6 +25,7 @@ import { DEFAULT_GEMINI_MODEL, geminiGenerate } from "./planner/gemini-client";
 import { createFakeProfile } from "./profile/fake";
 import { createNeonProfile } from "./profile/neon";
 import { createFakeStore } from "./store/fake";
+import { createNeonStore } from "./store/neon";
 
 /**
  * adapter に渡すプロセス全体の入力で、環境変数と開始時刻と id の生成関数
@@ -107,6 +108,8 @@ export const createSecretaryFactories = (
     },
   });
   const fakeStore = createFakeStore();
+  // 進行中の出張はメモリのまま、確定旅程だけ Neon に写す (接続は listConfirmedTrips / putConfirmedTrip の getDb() が持つ)
+  const neonStore = createNeonStore({ memory: fakeStore });
   const fakeIdentity = createFakeIdentity({ ids: resources.identityIds });
   const fakeProfile = createFakeProfile({
     birthDate: resources.demoBirthDate,
@@ -119,7 +122,7 @@ export const createSecretaryFactories = (
     catalog: { real: () => neonCatalog, fake: () => fakeCatalog },
     planner: { real: () => geminiPlanner, fake: () => fakePlanner },
     mandate: { real: () => realMandate, fake: () => fakeMandate },
-    store: { real: () => fakeStore, fake: () => fakeStore },
+    store: { real: () => neonStore, fake: () => fakeStore },
     identity: { real: () => fakeIdentity, fake: () => fakeIdentity },
     profile: { real: () => neonProfile, fake: () => fakeProfile },
     newTripId: resources.newTripId,

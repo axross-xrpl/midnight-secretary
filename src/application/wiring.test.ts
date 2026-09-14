@@ -45,6 +45,7 @@ const stubCatalog = (destinations: readonly string[]): FareCatalogPort => {
         dining: [],
         leisure: [],
       }),
+    resolveServiceIds: async () => err({ kind: "unavailable", cause: "stub" }),
   };
 };
 
@@ -74,6 +75,8 @@ const stubStore = (): SecretaryStore => {
     putTrip: async () => ok(undefined),
     getMandateLink: async () => ok(undefined),
     putMandateLink: async () => ok(undefined),
+    listConfirmedTrips: async () => ok([]),
+    putConfirmedTrip: async () => ok(undefined),
   };
 };
 

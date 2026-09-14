@@ -706,10 +706,17 @@ export const seedCatalog = (): FakeCatalogSeed => {
  * seed を読むだけのカタログ
  *
  * `findOffers` は seed の現地時刻にクエリの日付を当てはめる
+ * seed はサービス行の id (uuid) を持たないので `resolveServiceIds` は必ず失敗する
+ * (demo では確定旅程を DB に書かず、Fake の store がメモリに持つ)
  */
 export const createFakeCatalog = (seed: FakeCatalogSeed): FareCatalogPort => {
   return {
     listDestinations: async () => ok(seed.destinations),
     findOffers: async (query) => findOffers(seed, query),
+    resolveServiceIds: async (codes) =>
+      err({
+        kind: "unavailable",
+        cause: { reason: "fakeCatalogHasNoServiceIds", codes },
+      }),
   };
 };
