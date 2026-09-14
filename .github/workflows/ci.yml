@@ -25,5 +25,31 @@ jobs:
 
       - run: npm test
 
-      # The Compact compile step (midnightntwrk/setup-compact-action) is added
-      # together with the contracts workspace.
+  # Compiles every contract under contract/compact with the pinned compiler.
+  # A Compact contract that compiles is the entry condition of the buildathon.
+  compact:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contract
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: contract/package-lock.json
+
+      # The version must match COMPILER_VERSION in contract/scripts/compile.sh.
+      - uses: midnightntwrk/setup-compact-action@v1
+        with:
+          compact-version: "0.31.1"
+
+      - run: npm ci
+
+      # --skip-zk leaves out the proving keys; the circuits and the TypeScript bindings are still generated.
+      - run: npm run compile
+
+      # The scripts under contract/src import the generated bindings, so they only typecheck after compile.
+      - run: npm run typecheck
