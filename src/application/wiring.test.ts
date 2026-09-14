@@ -55,6 +55,7 @@ const stubPlanner = (): PlannerPort => {
 
 const stubMandate = (): MandatePort => {
   return {
+    capabilities: { privateSettlement: false },
     createMandate: async () => err({ kind: "unavailable", cause: "stub" }),
     authorizePayment: async () => err({ kind: "unavailable", cause: "stub" }),
     readMandate: async () => ok(undefined),

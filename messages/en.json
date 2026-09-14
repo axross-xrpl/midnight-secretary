@@ -408,7 +408,8 @@
       "eventNotFound": "That event is no longer on the calendar.",
       "eventAlreadyArranged": "A trip for this event is already past the proposal stage.",
       "tripNotFound": "That trip was not found.",
-      "wrongStatus": "The trip is not at the step this action needs; reload the page."
+      "wrongStatus": "The trip is not at the step this action needs; reload the page.",
+      "privateSettlementUnsupported": "This allowance cannot settle payments privately. Approve with every payment public."
     },
     "unauthorized": "Your session ended. Sign in again.",
     "invalid_request": "The request was rejected as invalid.",

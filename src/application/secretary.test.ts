@@ -26,12 +26,23 @@ import {
   parseMandateId,
   parseUserId,
 } from "@/domain/identifiers.parse";
-import type { Mandate, MandateDraft, MandatePort } from "@/domain/mandate";
+import type {
+  Mandate,
+  MandateDraft,
+  MandatePort,
+  PaymentRequest,
+} from "@/domain/mandate";
 import { paymentRefFor } from "@/domain/mandate.parse";
 import type { Money } from "@/domain/money";
 import type { TripPlan } from "@/domain/plan";
 import type { SecretaryStore } from "@/domain/store";
-import type { ApprovedTrip, PaidTrip, ProposedTrip, Trip } from "@/domain/trip";
+import type {
+  ApprovedTrip,
+  PaidTrip,
+  PaymentVisibilityInput,
+  ProposedTrip,
+  Trip,
+} from "@/domain/trip";
 import type { Result } from "@/lib/result";
 import { err } from "@/lib/result";
 import type { SecretaryDeps } from "./deps";
@@ -198,8 +209,9 @@ const mustPropose = async (
 const mustApprove = async (
   deps: SecretaryDeps,
   id: TripId,
+  requested: PaymentVisibilityInput = {},
 ): Promise<ApprovedTrip> => {
-  return mustOk(await approveTrip(USER, id, NOW, deps));
+  return mustOk(await approveTrip(USER, id, requested, NOW, deps));
 };
 
 const mustPay = async (deps: SecretaryDeps, id: TripId): Promise<PaidTrip> => {
@@ -228,6 +240,32 @@ const failsAtSecondPayment = (mandate: MandatePort): MandatePort => {
       if (state.calls === 2) {
         return err({ kind: "unavailable", cause: "stub" });
       }
+
+      return mandate.authorizePayment(request);
+    },
+  };
+};
+
+// 非公開に対応していない adapter を模し、他は Fake に委譲する
+const withoutPrivateSettlement = (mandate: MandatePort): MandatePort => {
+  return { ...mandate, capabilities: { privateSettlement: false } };
+};
+
+// 支払いの要求を順に溜める入れ物 (テストの中だけで見る)
+type SeenPayments = {
+  requests: readonly PaymentRequest[];
+};
+
+// 受け取った支払いの要求を記録し、支払い自体は Fake に委譲する
+const recordsPayments = (
+  mandate: MandatePort,
+  seen: SeenPayments,
+): MandatePort => {
+  return {
+    ...mandate,
+    authorizePayment: async (request) => {
+      // テスト設定に閉じた記録用の代入 (関数の外からは seen 経由でしか見ない)
+      seen.requests = [...seen.requests, request];
 
       return mandate.authorizePayment(request);
     },
@@ -475,7 +513,7 @@ describe("proposeTrip", () => {
 });
 
 describe("approveTrip", () => {
-  test("提案済みを承認すると authorizations が空で始まる", async () => {
+  test("指定なしで承認すると、すべて公開で authorizations が空で始まる", async () => {
     const deps = testDeps();
 
     await mustSetUpMandate(deps, ENOUGH_CAP);
@@ -485,15 +523,88 @@ describe("approveTrip", () => {
 
     expect(approved.status).toBe("approved");
     expect(approved.approvedAt).toBe(NOW);
+    expect(approved.visibility).toStrictEqual({
+      outbound: "public",
+      inbound: "public",
+    });
     expect(approved.authorizations).toStrictEqual([]);
     expect(await storedTrip(deps, proposed.id)).toStrictEqual(approved);
+  });
+
+  test("宿だけを非公開にすると、その候補だけ private になる", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, OVERNIGHT_EVENT);
+
+    const approved = await mustApprove(deps, proposed.id, {
+      lodging: "private",
+    });
+
+    expect(approved.visibility).toStrictEqual({
+      outbound: "public",
+      inbound: "public",
+      lodging: "private",
+    });
+  });
+
+  test("非公開に対応していない adapter に非公開を頼むと privateSettlementUnsupported になる", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, OVERNIGHT_EVENT);
+
+    const limited = {
+      ...deps,
+      mandate: withoutPrivateSettlement(deps.mandate),
+    };
+
+    expect(
+      await approveTrip(
+        USER,
+        proposed.id,
+        { lodging: "private" },
+        NOW,
+        limited,
+      ),
+    ).toStrictEqual({
+      ok: false,
+      error: {
+        source: "flow",
+        error: {
+          kind: "privateSettlementUnsupported",
+          tripId: proposed.id,
+        },
+      },
+    });
+    expect((await storedTrip(deps, proposed.id)).status).toBe("proposed");
+  });
+
+  test("非公開に対応していない adapter でも、すべて公開なら承認できる", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, OVERNIGHT_EVENT);
+
+    const limited = {
+      ...deps,
+      mandate: withoutPrivateSettlement(deps.mandate),
+    };
+
+    const approved = await mustApprove(limited, proposed.id);
+
+    expect(approved.visibility).toStrictEqual({
+      outbound: "public",
+      inbound: "public",
+      lodging: "public",
+    });
   });
 
   test("知らない trip id は tripNotFound になる", async () => {
     const deps = testDeps();
     const unknown = UNKNOWN_TRIP_ID;
 
-    expect(await approveTrip(USER, unknown, NOW, deps)).toStrictEqual({
+    expect(await approveTrip(USER, unknown, {}, NOW, deps)).toStrictEqual({
       ok: false,
       error: {
         source: "flow",
@@ -510,7 +621,7 @@ describe("approveTrip", () => {
 
     await mustApprove(deps, proposed.id);
 
-    expect(await approveTrip(USER, proposed.id, NOW, deps)).toStrictEqual({
+    expect(await approveTrip(USER, proposed.id, {}, NOW, deps)).toStrictEqual({
       ok: false,
       error: {
         source: "flow",
@@ -571,6 +682,32 @@ describe("payForTrip", () => {
     const paid = await mustPay(deps, proposed.id);
 
     expect(paid.authorizations).toHaveLength(2);
+  });
+
+  test("承認で選んだ候補ごとの公開範囲を、支払いの要求にそのまま写す", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, OVERNIGHT_EVENT);
+
+    await mustApprove(deps, proposed.id, {
+      inbound: "private",
+      lodging: "private",
+    });
+
+    const seen: SeenPayments = { requests: [] };
+    const watched = { ...deps, mandate: recordsPayments(deps.mandate, seen) };
+
+    const paid = await mustPay(watched, proposed.id);
+
+    expect(seen.requests.map((request) => request.visibility)).toStrictEqual([
+      "public",
+      "private",
+      "private",
+    ]);
+    expect(
+      paid.authorizations.map((authorization) => authorization.settlement.kind),
+    ).toStrictEqual(["tokenTransfer", "shieldedTransfer", "shieldedTransfer"]);
   });
 
   test("提案済みのままでは wrongStatus になる", async () => {

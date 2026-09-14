@@ -124,6 +124,7 @@ const authorizePayment = async (
  * mandate 自体の上限・使用済み・期限・commitment はプロセスのメモリ上でのみ管理する
  * (token.compact に mandate という概念が無いため) 。fake との違いは
  * `authorizePayment` が実際に on-chain のトークン送金を行う一点のみ
+ * 送金は unshielded (`sendToken`) だけなので `privateSettlement` は false で、契約サーバが shielded 送金を持ったら true にする
  */
 export const createRealMandate = (seed: RealMandateSeed): MandatePort => {
   const state: MandateLedgerState = {
@@ -134,6 +135,7 @@ export const createRealMandate = (seed: RealMandateSeed): MandatePort => {
   };
 
   return {
+    capabilities: { privateSettlement: false },
     createMandate: async (draft) => ok(createMandateIn(state, seed.ids, draft)),
     authorizePayment: (request) =>
       authorizePayment(state, seed.ids, seed.deps, request),

@@ -12,7 +12,11 @@ import {
   parsePaymentRef,
   parseWalletAddress,
 } from "@/domain/identifiers.parse";
-import type { MandateDraft, MandatePort } from "@/domain/mandate";
+import type {
+  MandateDraft,
+  MandatePort,
+  PaymentRequest,
+} from "@/domain/mandate";
 import type { Money } from "@/domain/money";
 import type { FakeMandateIds } from "./fake";
 import { createFakeMandate } from "./fake";
@@ -81,6 +85,14 @@ const setUp = async (
   return mandate;
 };
 
+describe("capabilities", () => {
+  test("Fake は非公開の支払いを扱える", () => {
+    expect(emptyMandate().capabilities).toStrictEqual({
+      privateSettlement: true,
+    });
+  });
+});
+
 describe("createMandate", () => {
   test("id と commitment を採番し、spent 0 で保存する", async () => {
     const mandate = emptyMandate();
@@ -124,6 +136,7 @@ describe("authorizePayment", () => {
       paymentRef: paymentRef("trip:1"),
       amount: mst(14720),
       recipient: PAYEE,
+      visibility: "public",
       now: at("2026-09-09T09:00:00+09:00"),
     });
 
@@ -159,6 +172,7 @@ describe("authorizePayment", () => {
       paymentRef: paymentRef("trip:1"),
       amount: mst(12000),
       recipient: walletAddress("demo-payee-hotels"),
+      visibility: "public",
       now: at("2026-09-09T09:00:00+09:00"),
     });
 
@@ -169,13 +183,33 @@ describe("authorizePayment", () => {
     });
   });
 
+  test("非公開に選ばれた支払いは shieldedTransfer になる", async () => {
+    const mandate = await setUp(50000);
+
+    const authorized = await mandate.authorizePayment({
+      mandateId: mandateId("mandate-1"),
+      paymentRef: paymentRef("trip:1"),
+      amount: mst(12000),
+      recipient: PAYEE,
+      visibility: "private",
+      now: at("2026-09-09T09:00:00+09:00"),
+    });
+
+    expect(authorized.ok && authorized.value.settlement).toStrictEqual({
+      kind: "shieldedTransfer",
+      transactionId: "tx-1",
+      recipient: PAYEE,
+    });
+  });
+
   test("同じ paymentRef は二度目に alreadyAuthorized になる", async () => {
     const mandate = await setUp(50000);
-    const request = {
+    const request: PaymentRequest = {
       mandateId: mandateId("mandate-1"),
       paymentRef: paymentRef("trip:1"),
       amount: mst(14720),
       recipient: PAYEE,
+      visibility: "public",
       now: at("2026-09-09T09:00:00+09:00"),
     };
 
@@ -195,6 +229,7 @@ describe("authorizePayment", () => {
       paymentRef: paymentRef("trip:1"),
       amount: mst(14720),
       recipient: PAYEE,
+      visibility: "public",
       now: at("2026-09-09T09:00:00+09:00"),
     });
 
@@ -204,6 +239,7 @@ describe("authorizePayment", () => {
         paymentRef: paymentRef("trip:2"),
         amount: mst(14720),
         recipient: PAYEE,
+        visibility: "public",
         now: at("2026-09-09T09:00:00+09:00"),
       }),
     ).toStrictEqual({
@@ -229,6 +265,7 @@ describe("authorizePayment", () => {
       paymentRef: paymentRef("trip:1"),
       amount: mst(14720),
       recipient: PAYEE,
+      visibility: "public",
       now: at("2026-09-09T09:00:00+09:00"),
     });
 
@@ -244,6 +281,7 @@ describe("authorizePayment", () => {
         paymentRef: paymentRef("trip:1"),
         amount: mst(1),
         recipient: PAYEE,
+        visibility: "public",
         now: at("2026-09-09T09:00:00+09:00"),
       }),
     ).toStrictEqual({
@@ -265,6 +303,7 @@ describe("authorizePayment", () => {
         paymentRef: paymentRef("trip:1"),
         amount: mst(1),
         recipient: PAYEE,
+        visibility: "public",
         now: at("2026-09-09T09:00:00+09:00"),
       }),
     ).toStrictEqual({
@@ -283,6 +322,29 @@ describe("readPublicLedger", () => {
       paymentRef: paymentRef("trip:1"),
       amount: mst(14720),
       recipient: PAYEE,
+      visibility: "public",
+      now: at("2026-09-09T09:00:00+09:00"),
+    });
+
+    expect(await mandate.readPublicLedger()).toStrictEqual({
+      ok: true,
+      value: {
+        commitments: [{ mandateId: "mandate-1", commitment: "commitment-1" }],
+        authorizations: [{ publicHash: "hash:mandate-1:trip:1" }],
+        authorizedCount: 1,
+      },
+    });
+  });
+
+  test("非公開の支払いでも公開台帳の形は変わらない", async () => {
+    const mandate = await setUp(50000);
+
+    await mandate.authorizePayment({
+      mandateId: mandateId("mandate-1"),
+      paymentRef: paymentRef("trip:1"),
+      amount: mst(14720),
+      recipient: PAYEE,
+      visibility: "private",
       now: at("2026-09-09T09:00:00+09:00"),
     });
 

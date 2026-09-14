@@ -408,7 +408,8 @@
       "eventNotFound": "その予定はもうカレンダーにありません。",
       "eventAlreadyArranged": "この予定の出張はすでに提案より先に進んでいます。",
       "tripNotFound": "その出張が見つかりません。",
-      "wrongStatus": "出張の状態がこの操作と合いません。ページを読み直してください。"
+      "wrongStatus": "出張の状態がこの操作と合いません。ページを読み直してください。",
+      "privateSettlementUnsupported": "この支払い枠では非公開の支払いを扱えません。すべて公開で承認してください。"
     },
     "unauthorized": "セッションが切れました。サインインし直してください。",
     "invalid_request": "リクエストが不正として拒否されました。",

@@ -114,6 +114,10 @@ export const statusOf = (error: SecretaryError): number => {
       },
       () => 409,
     )
+    .with(
+      { source: "flow", error: { kind: "privateSettlementUnsupported" } },
+      () => 422,
+    )
     .with({ source: "mandate", error: { kind: "notFound" } }, () => 404)
     .with(
       { source: "mandate", error: { kind: "alreadyAuthorized" } },

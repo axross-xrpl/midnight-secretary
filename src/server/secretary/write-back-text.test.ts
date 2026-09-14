@@ -82,6 +82,10 @@ const tripFor = (lodging: LodgingOffer | undefined): PaidTrip => {
     plan: planFor(lodging),
     proposedAt: at,
     approvedAt: at,
+    visibility:
+      lodging === undefined
+        ? { outbound: "public", inbound: "public" }
+        : { outbound: "public", inbound: "public", lodging: "public" },
     authorizations: [],
     paidAt: at,
   };

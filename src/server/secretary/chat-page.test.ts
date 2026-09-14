@@ -177,6 +177,15 @@ describe("loadChatData", () => {
     });
   });
 
+  test("mandate の adapter が扱える支払いの形をそのまま渡す", async () => {
+    const context = testContext();
+
+    const data = mustOk(await loadChatData(context, OSAKA_EVENT));
+
+    expect(data.capabilities).toStrictEqual(context.deps.mandate.capabilities);
+    expect(data.capabilities.privateSettlement).toBe(true);
+  });
+
   test("窓に無い予定は eventNotFound になる", async () => {
     const context = testContext();
 

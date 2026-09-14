@@ -176,12 +176,43 @@ const proposeRequest = async (event: string): Promise<Response> => {
   );
 };
 
-const approveRequest = async (id: string): Promise<Response> => {
+const approveRequest = async (
+  id: string,
+  visibility: unknown = {},
+): Promise<Response> => {
   return handleApproveTrip(
-    postRequest(`/api/secretary/trips/${id}/approve`),
+    postRequest(`/api/secretary/trips/${id}/approve`, { visibility }),
     id,
     state.deps,
   );
+};
+
+// body の形そのものを確かめるテスト用に、封筒を組まずそのまま送る
+const rawApproveRequest = async (
+  id: string,
+  body?: unknown,
+): Promise<Response> => {
+  return handleApproveTrip(
+    postRequest(`/api/secretary/trips/${id}/approve`, body),
+    id,
+    state.deps,
+  );
+};
+
+// 非公開に対応していない adapter を持つ文脈 (他は同じ Fake)
+const withoutPrivateSettlement = (
+  context: SecretaryContext,
+): SecretaryContext => {
+  return {
+    ...context,
+    deps: {
+      ...context.deps,
+      mandate: {
+        ...context.deps.mandate,
+        capabilities: { privateSettlement: false },
+      },
+    },
+  };
 };
 
 const payRequest = async (id: string): Promise<Response> => {
@@ -390,6 +421,77 @@ describe("承認から書き戻しまで", () => {
         },
       },
     });
+  });
+
+  test("宿を非公開にして承認すると 200 で公開範囲を返す", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-3");
+
+    const response = await approveRequest(id, { lodging: "private" });
+
+    expect(response.status).toBe(200);
+    expect(parseTripResponse(await response.json())).toMatchObject({
+      ok: true,
+      value: {
+        status: "approved",
+        visibility: {
+          outbound: "public",
+          inbound: "public",
+          lodging: "private",
+        },
+      },
+    });
+  });
+
+  test("非公開に対応していない支払い枠で非公開を頼むと 422 になる", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-3");
+
+    const response = await handleApproveTrip(
+      postRequest(`/api/secretary/trips/${id}/approve`, {
+        visibility: { lodging: "private" },
+      }),
+      id,
+      handlerDepsFor(withoutPrivateSettlement(state.context)),
+    );
+
+    expect(response.status).toBe(422);
+    expect(parseSecretaryFailure(await response.json())).toStrictEqual({
+      code: "secretary",
+      error: {
+        source: "flow",
+        error: { kind: "privateSettlementUnsupported", tripId: id },
+      },
+    });
+  });
+
+  test("body の無い承認は 422 になる", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-2");
+
+    const response = await rawApproveRequest(id);
+
+    expect(response.status).toBe(422);
+    expect(parseSecretaryFailure(await response.json())).toStrictEqual({
+      code: "invalid_request",
+      issues: [{ path: [], message: "invalid JSON" }],
+    });
+  });
+
+  test("形の違う visibility は 422 で issues を返す", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-2");
+
+    const response = await rawApproveRequest(id, {
+      visibility: { outbound: "secret" },
+    });
+
+    expect(response.status).toBe(422);
+
+    const failure = parseSecretaryFailure(await response.json());
+
+    expect(failure.code).toBe("invalid_request");
+    expect(failure).toHaveProperty("issues");
   });
 
   test("UUID でない tripId は 422 になる", async () => {

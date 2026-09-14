@@ -81,6 +81,15 @@ describe("statusOf", () => {
     ).toBe(409);
   });
 
+  test("非公開に対応していない支払い枠は 422 になる", () => {
+    expect(
+      statusOf({
+        source: "flow",
+        error: { kind: "privateSettlementUnsupported", tripId: TRIP_ID },
+      }),
+    ).toBe(422);
+  });
+
   test("プランの予算超過は 422 になる", () => {
     expect(
       statusOf({

@@ -63,6 +63,7 @@ const APPROVED_PAYLOAD = {
     },
     proposedAt: "2026-09-10T00:00:00Z",
     approvedAt: "2026-09-10T00:01:00Z",
+    visibility: { outbound: "public", inbound: "private" },
     authorizations: [
       {
         mandateId: "mandate-1",
@@ -78,6 +79,28 @@ const APPROVED_PAYLOAD = {
       },
     ],
   },
+};
+
+// 非公開に選んだ支払いの応答 (送金の kind だけが違う)
+const SHIELDED_PAYLOAD = {
+  data: {
+    ...APPROVED_PAYLOAD.data,
+    authorizations: APPROVED_PAYLOAD.data.authorizations.map(
+      (authorization) => ({
+        ...authorization,
+        settlement: { ...authorization.settlement, kind: "shieldedTransfer" },
+      }),
+    ),
+  },
+};
+
+// visibility を落とした応答 (スキーマが必須として弾くことを確かめる)
+const WITHOUT_VISIBILITY = {
+  data: Object.fromEntries(
+    Object.entries(APPROVED_PAYLOAD.data).filter(
+      ([key]) => key !== "visibility",
+    ),
+  ),
 };
 
 describe("parseSecretaryFailure", () => {
@@ -137,6 +160,18 @@ describe("parseTripResponse", () => {
     const parsed = parseTripResponse(APPROVED_PAYLOAD);
 
     expect(parsed).toStrictEqual({ ok: true, value: APPROVED_PAYLOAD.data });
+  });
+
+  test("shieldedTransfer の送金も通す", () => {
+    const parsed = parseTripResponse(SHIELDED_PAYLOAD);
+
+    expect(parsed).toStrictEqual({ ok: true, value: SHIELDED_PAYLOAD.data });
+  });
+
+  test("visibility の無い承認済みの応答は拒否する", () => {
+    const parsed = parseTripResponse(WITHOUT_VISIBILITY);
+
+    expect(parsed.ok).toBe(false);
   });
 });
 

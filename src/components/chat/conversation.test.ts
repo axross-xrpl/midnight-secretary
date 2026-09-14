@@ -4,6 +4,7 @@ import type { ScanEvent } from "@/lib/calendar-scan-response";
 import type {
   AuthorizationResponse,
   MoneyResponse,
+  PaymentVisibilityResponse,
   TripPlanResponse,
   TripResponse,
 } from "@/lib/secretary-response";
@@ -77,6 +78,11 @@ const SECOND_AUTHORIZATION: AuthorizationResponse = {
   settlement: { ...AUTHORIZATION.settlement, transactionId: "tx-2" },
 };
 
+const ALL_PUBLIC: PaymentVisibilityResponse = {
+  outbound: "public",
+  inbound: "public",
+};
+
 const BASE = {
   id: TRIP_ID,
   event: OSAKA,
@@ -90,6 +96,7 @@ const APPROVED: TripResponse = {
   status: "approved",
   ...BASE,
   approvedAt: "2026-09-10T00:01:00Z",
+  visibility: ALL_PUBLIC,
   authorizations: [],
 };
 
@@ -97,6 +104,7 @@ const PARTIALLY_PAID: TripResponse = {
   status: "approved",
   ...BASE,
   approvedAt: "2026-09-10T00:01:00Z",
+  visibility: ALL_PUBLIC,
   authorizations: [AUTHORIZATION],
 };
 
@@ -104,6 +112,7 @@ const PAID: TripResponse = {
   status: "paid",
   ...BASE,
   approvedAt: "2026-09-10T00:01:00Z",
+  visibility: ALL_PUBLIC,
   authorizations: [AUTHORIZATION, SECOND_AUTHORIZATION],
   paidAt: "2026-09-10T00:02:00Z",
 };
@@ -112,6 +121,7 @@ const WRITTEN: TripResponse = {
   status: "written",
   ...BASE,
   approvedAt: "2026-09-10T00:01:00Z",
+  visibility: ALL_PUBLIC,
   authorizations: [AUTHORIZATION, SECOND_AUTHORIZATION],
   paidAt: "2026-09-10T00:02:00Z",
   writtenEventId: "written-1",

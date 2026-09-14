@@ -6,7 +6,11 @@ import { loadDashboard, loadLedgerViews } from "@/application/secretary";
 import type { CalendarEvent, DateRange } from "@/domain/calendar";
 import type { CalendarEventId, IsoDateTime } from "@/domain/identifiers";
 import { mustParse, parseIsoDateTime } from "@/domain/identifiers.parse";
-import type { Mandate, PublicLedgerView } from "@/domain/mandate";
+import type {
+  Mandate,
+  MandateCapabilities,
+  PublicLedgerView,
+} from "@/domain/mandate";
 import type { Trip } from "@/domain/trip";
 import type { Result } from "@/lib/result";
 import { err, ok } from "@/lib/result";
@@ -40,6 +44,7 @@ export const chatRange = (now: IsoDateTime): DateRange => {
  *
  * `Conversation` の props にそのまま渡す (brand は代入で外れる)
  * `LedgerViews.privateMandate` は `Dashboard.mandate` と同じ値なので渡さない
+ * `capabilities` は mandate の adapter が扱える支払いの形で、非公開のトグルを出すかを決める
  */
 export type ChatData = {
   now: IsoDateTime;
@@ -47,6 +52,7 @@ export type ChatData = {
   mandate?: Mandate;
   trip?: Trip;
   publicLedger: PublicLedgerView;
+  capabilities: MandateCapabilities;
 };
 
 /**
@@ -100,5 +106,6 @@ export const loadChatData = async (
       : { mandate: dashboard.value.mandate }),
     ...(trip === undefined ? {} : { trip }),
     publicLedger: ledger.value.publicLedger,
+    capabilities: context.deps.mandate.capabilities,
   });
 };

@@ -17,6 +17,7 @@ import type {
   MandateDraft,
   MandateError,
   PublicLedgerView,
+  SettlementVisibility,
 } from "@/domain/mandate";
 import { remainingAllowance } from "@/domain/mandate";
 import { paymentRefFor } from "@/domain/mandate.parse";
@@ -33,6 +34,8 @@ import type {
   ApprovedTrip,
   EventText,
   PaidTrip,
+  PaymentVisibility,
+  PaymentVisibilityInput,
   ProposedTrip,
   Trip,
   WrittenTrip,
@@ -42,6 +45,7 @@ import {
   markApproved,
   markPaid,
   markWritten,
+  visibilityFor,
 } from "@/domain/trip";
 import type { Result } from "@/lib/result";
 import { err, ok } from "@/lib/result";
@@ -97,8 +101,10 @@ export type WriteBackInput = {
   now: IsoDateTime;
 };
 
-// 交通と宿泊のどちらも同じ形で支払うので、支払いに要る 3 つだけを見る
-type Payable = Pick<TransportOffer, "id" | "price" | "payee">;
+// 交通と宿泊のどちらも同じ形で支払うので、支払いに要る 3 つと、承認で選んだその候補の公開範囲だけを見る
+type Payable = Pick<TransportOffer, "id" | "price" | "payee"> & {
+  visibility: SettlementVisibility;
+};
 
 // 候補 1 件の支払いに要る、trip 以外のもの
 type PaymentContext = {
@@ -218,12 +224,33 @@ const tripIdForEvent = async (
   return ok(existing.id);
 };
 
-const payablesOf = (plan: TripPlan): readonly Payable[] => {
+// 宿の公開範囲は計画に宿があるときだけ選べるので、無い指定は公開に倒す
+const payablesOf = (
+  plan: TripPlan,
+  visibility: PaymentVisibility,
+): readonly Payable[] => {
+  const outbound: Payable = {
+    ...plan.outbound,
+    visibility: visibility.outbound,
+  };
+  const inbound: Payable = { ...plan.inbound, visibility: visibility.inbound };
+
   if (plan.lodging === undefined) {
-    return [plan.outbound, plan.inbound];
+    return [outbound, inbound];
   }
 
-  return [plan.outbound, plan.inbound, plan.lodging];
+  return [
+    outbound,
+    inbound,
+    { ...plan.lodging, visibility: visibility.lodging ?? "public" },
+  ];
+};
+
+// capability の無い adapter に private を渡さないよう、承認の時点で調べる
+const hasPrivate = (visibility: PaymentVisibility): boolean => {
+  return [visibility.outbound, visibility.inbound, visibility.lodging].some(
+    (chosen) => chosen === "private",
+  );
 };
 
 // 証明の生成は直列が前提なので、前の候補の結果を待ってから次の候補を出す
@@ -255,6 +282,7 @@ const payNext = async (
     paymentRef,
     amount: offer.price,
     recipient: offer.payee,
+    visibility: offer.visibility,
     now: context.now,
   });
 
@@ -472,13 +500,16 @@ export const proposeTrip = async (
 };
 
 /**
- * 提案済みの trip を承認する
+ * 提案済みの trip を、候補ごとの公開範囲つきで承認する
  *
- * プランは store から取り、クライアントからは決して受け取らない
+ * プランは store から取り、クライアントからは公開範囲だけを受け取る
+ * 計画に無い候補 (日帰りの宿) の指定は捨て、指定の無い候補は公開にする
+ * adapter が非公開に対応していないのに非公開があれば `flow.privateSettlementUnsupported` で、trip は提案済みのまま
  */
 export const approveTrip = async (
   userId: UserId,
   tripId: TripId,
+  requested: PaymentVisibilityInput,
   now: IsoDateTime,
   deps: SecretaryDeps,
 ): Promise<Result<ApprovedTrip, SecretaryError>> => {
@@ -499,7 +530,13 @@ export const approveTrip = async (
     );
   }
 
-  const approved = markApproved(trip.value, now);
+  const visibility = visibilityFor(trip.value.plan, requested);
+
+  if (hasPrivate(visibility) && !deps.mandate.capabilities.privateSettlement) {
+    return err(fromFlow({ kind: "privateSettlementUnsupported", tripId }));
+  }
+
+  const approved = markApproved(trip.value, now, visibility);
   const saved = await deps.store.putTrip(userId, approved);
 
   if (!saved.ok) {
@@ -555,7 +592,7 @@ export const payForTrip = async (
     now,
     deps,
   };
-  const settled = await payablesOf(approved.plan).reduce<
+  const settled = await payablesOf(approved.plan, approved.visibility).reduce<
     Promise<Result<ApprovedTrip, SecretaryError>>
   >(
     (previous, offer) => payNext(previous, offer, context),

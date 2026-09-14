@@ -1,7 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { tripIdAt } from "@/testing/ids";
 import type { ScanEvent, ScanEventTime } from "@/lib/calendar-scan-response";
-import type { TripPlanResponse, TripResponse } from "@/lib/secretary-response";
+import type {
+  PaymentVisibilityResponse,
+  TripPlanResponse,
+  TripResponse,
+} from "@/lib/secretary-response";
 import { activeTripsOf, candidateEventsOf, confirmedTripsOf } from "./rows";
 
 const timedOn = (date: string): ScanEventTime => {
@@ -64,6 +68,11 @@ const PLAN: TripPlanResponse = {
   rationale: "日帰りで往復できる",
 };
 
+const ALL_PUBLIC: PaymentVisibilityResponse = {
+  outbound: "public",
+  inbound: "public",
+};
+
 const BASE = {
   id: tripIdAt(1),
   event: OSAKA,
@@ -77,6 +86,7 @@ const APPROVED: TripResponse = {
   status: "approved",
   ...BASE,
   approvedAt: "2026-09-10T00:01:00Z",
+  visibility: ALL_PUBLIC,
   authorizations: [],
 };
 
@@ -84,6 +94,7 @@ const PAID: TripResponse = {
   status: "paid",
   ...BASE,
   approvedAt: "2026-09-10T00:01:00Z",
+  visibility: ALL_PUBLIC,
   authorizations: [],
   paidAt: "2026-09-10T00:02:00Z",
 };
@@ -92,6 +103,7 @@ const WRITTEN: TripResponse = {
   status: "written",
   ...BASE,
   approvedAt: "2026-09-10T00:01:00Z",
+  visibility: ALL_PUBLIC,
   authorizations: [],
   paidAt: "2026-09-10T00:02:00Z",
   writtenEventId: WRITTEN_EVENT.id,
@@ -114,6 +126,7 @@ const EXPO_WRITTEN: TripResponse = {
   event: EXPO,
   proposedAt: "2026-09-11T00:00:00Z",
   approvedAt: "2026-09-11T00:01:00Z",
+  visibility: ALL_PUBLIC,
   authorizations: [],
   paidAt: "2026-09-11T00:02:00Z",
   writtenEventId: "written-2",

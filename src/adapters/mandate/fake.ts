@@ -13,6 +13,7 @@ import type {
   MandateError,
   MandatePort,
   PaymentRequest,
+  Settlement,
 } from "@/domain/mandate";
 import type { Result } from "@/lib/result";
 import { ok } from "@/lib/result";
@@ -34,6 +35,27 @@ export type FakeMandateSeed = {
   ids: FakeMandateIds;
 };
 
+// 非公開に選ばれた支払いは shielded 送金として記録する
+// tx の採番と受取先の持ち方は公開のときと同じで、変わるのは kind だけ
+const settlementOf = (
+  ids: FakeMandateIds,
+  request: PaymentRequest,
+): Settlement => {
+  if (request.visibility === "private") {
+    return {
+      kind: "shieldedTransfer",
+      transactionId: ids.newTransactionId(),
+      recipient: request.recipient,
+    };
+  }
+
+  return {
+    kind: "tokenTransfer",
+    transactionId: ids.newTransactionId(),
+    recipient: request.recipient,
+  };
+};
+
 // 送金は無条件で成功する (fake なので on-chain 呼び出しは無い)
 const authorizePayment = (
   state: MandateLedgerState,
@@ -52,11 +74,7 @@ const authorizePayment = (
     amount: request.amount,
     authorizedAt: request.now,
     publicHash: ids.hashAuthorization(request.mandateId, request.paymentRef),
-    settlement: {
-      kind: "tokenTransfer",
-      transactionId: ids.newTransactionId(),
-      recipient: request.recipient,
-    },
+    settlement: settlementOf(ids, request),
   };
 
   commitPayment(state, authorization, validated.value);
@@ -67,6 +85,7 @@ const authorizePayment = (
 /**
  * circuit と同じ規則を適用するメモリ上の mandate で、規則は上限額、期限、payment ref ごとに 1 回の authorization
  *
+ * 非公開の支払いは shielded 送金として扱えるので `privateSettlement` は true
  * `spent` がリクエストをまたいで積み上がるよう、プロセスごとに 1 回だけ作る
  */
 export const createFakeMandate = (seed: FakeMandateSeed): MandatePort => {
@@ -78,6 +97,7 @@ export const createFakeMandate = (seed: FakeMandateSeed): MandatePort => {
   };
 
   return {
+    capabilities: { privateSettlement: true },
     createMandate: async (draft) => ok(createMandateIn(state, seed.ids, draft)),
     authorizePayment: async (request) =>
       authorizePayment(state, seed.ids, request),

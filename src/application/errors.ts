@@ -22,7 +22,8 @@ export type FlowError =
       tripId: TripId;
       expected: TripStatus;
       actual: TripStatus;
-    };
+    }
+  | { kind: "privateSettlementUnsupported"; tripId: TripId };
 
 /**
  * use case で起こりうる期待される失敗を、発生元のタグ付きで表す

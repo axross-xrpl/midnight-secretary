@@ -13,7 +13,11 @@ import {
   parseWalletAddress,
 } from "@/domain/identifiers.parse";
 import type { MandateIds } from "@/domain/mandate-ledger";
-import type { MandateDraft, MandatePort } from "@/domain/mandate";
+import type {
+  MandateDraft,
+  MandatePort,
+  PaymentRequest,
+} from "@/domain/mandate";
 import type { Money } from "@/domain/money";
 import type { RealMandateDeps } from "./real";
 import { createRealMandate } from "./real";
@@ -130,6 +134,7 @@ describe("authorizePayment", () => {
       paymentRef: paymentRef("trip:1"),
       amount: mst(14720),
       recipient: PAYEE,
+      visibility: "public",
       now: at("2026-09-09T09:00:00+09:00"),
     });
 
@@ -166,6 +171,7 @@ describe("authorizePayment", () => {
       paymentRef: paymentRef("trip:1"),
       amount: mst(14720),
       recipient: PAYEE,
+      visibility: "public",
       now: at("2026-09-09T09:00:00+09:00"),
     });
 
@@ -184,11 +190,12 @@ describe("authorizePayment", () => {
   test("同じ paymentRef は二度目に alreadyAuthorized になり、送金は一度きり", async () => {
     const deps = recordingDeps();
     const mandate = await setUp(deps, 50000);
-    const request = {
+    const request: PaymentRequest = {
       mandateId: mandateId("mandate-1"),
       paymentRef: paymentRef("trip:1"),
       amount: mst(14720),
       recipient: PAYEE,
+      visibility: "public",
       now: at("2026-09-09T09:00:00+09:00"),
     };
 
@@ -215,6 +222,7 @@ describe("authorizePayment", () => {
       paymentRef: paymentRef("trip:1"),
       amount: mst(14720),
       recipient: PAYEE,
+      visibility: "public",
       now: at("2026-09-09T09:00:00+09:00"),
     });
 
@@ -241,6 +249,7 @@ describe("authorizePayment", () => {
       paymentRef: paymentRef("trip:1"),
       amount: mst(14720),
       recipient: PAYEE,
+      visibility: "public",
       now: at("2026-09-09T09:00:00+09:00"),
     });
 
@@ -259,6 +268,7 @@ describe("authorizePayment", () => {
         paymentRef: paymentRef("trip:1"),
         amount: mst(1),
         recipient: PAYEE,
+        visibility: "public",
         now: at("2026-09-09T09:00:00+09:00"),
       }),
     ).toStrictEqual({

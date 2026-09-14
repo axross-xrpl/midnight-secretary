@@ -49,6 +49,7 @@ const PLAIN_FAILURE_KEYS = [
   "flow.eventAlreadyArranged",
   "flow.tripNotFound",
   "flow.wrongStatus",
+  "flow.privateSettlementUnsupported",
   "unauthorized",
   "invalid_request",
   "network",
