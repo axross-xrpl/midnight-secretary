@@ -78,6 +78,15 @@ localhost, and it forces the calendar to the fake (that session has no Google to
 To keep the real calendar while the ports other lanes own stay fake, set only what you need, for
 example `SECRETARY_CATALOG=fake`.
 
+### With Gemini as the planner
+
+Set `GEMINI_API_KEY` (Google AI Studio) in `.env.local`, keep `SECRETARY_MODE=demo`, and add
+`SECRETARY_PLANNER=real`. The other ports stay fake, so the secretary's proposals are written by
+Gemini while the calendar, the fare catalog, and the spending allowance are stand-ins. Gemini only
+answers whether an event is a trip, which catalog destination it targets, and which offer ids to
+pick; dates come from the event and prices from the catalog. `GEMINI_MODEL` overrides the default
+model (`gemini-3.5-flash-lite`).
+
 ### Source variables
 
 | Variable | Values | Default |
@@ -94,9 +103,18 @@ example `SECRETARY_CATALOG=fake`.
 
 Precedence: a per-port variable beats `SECRETARY_MODE`, which beats the `normal` default (everything real).
 
-`SECRETARY_PROFILE=real` reads the date of birth from the profile in NeonDB (the profile page's table) and
-needs `DATABASE_URL`; `SECRETARY_IDENTITY=real` still runs the in-process fake until the contract server
-exposes the age verification endpoints.
+Each real port reads its own variables (listed in `.env.example`) from `.env.local`; a missing one does
+not stop the server but makes that port's calls fail:
+
+| Port | Variable | Read when |
+| --- | --- | --- |
+| catalog | `DATABASE_URL` | the first catalog query (`unavailable` when missing) |
+| planner | `GEMINI_API_KEY`, `GEMINI_MODEL` (optional) | every proposal (`planner.llm` when the key is missing) |
+| mandate | `MANDATE_SETTLEMENT_RECIPIENT` | every payment (`unavailable` when missing) |
+| profile | `DATABASE_URL` | the age proof reads the date of birth from the profile page's table |
+
+`SECRETARY_IDENTITY=real` still runs the in-process fake until the contract server exposes the age
+verification endpoints.
 
 ## Getting Started
 

@@ -20,6 +20,8 @@ import type { FakeMandateIds } from "./mandate/fake";
 import { createFakeMandate } from "./mandate/fake";
 import { createRealMandate } from "./mandate/real";
 import { createFakePlanner } from "./planner/fake";
+import { createGeminiPlanner } from "./planner/gemini";
+import { DEFAULT_GEMINI_MODEL, geminiGenerate } from "./planner/gemini-client";
 import { createFakeProfile } from "./profile/fake";
 import { createNeonProfile } from "./profile/neon";
 import { createFakeStore } from "./store/fake";
@@ -56,6 +58,15 @@ const googleCalendarFor = (context: RequestContext): CalendarPort => {
   return createGoogleCalendar(context.googleAccessToken, { fetch });
 };
 
+// 環境変数の空文字は未設定と同じに扱う
+const envValue = (raw: string | undefined): string | undefined => {
+  if (raw === undefined || raw === "") {
+    return undefined;
+  }
+
+  return raw;
+};
+
 /**
  * composition root で、プロセスごとに 1 回呼ぶ
  *
@@ -73,6 +84,13 @@ export const createSecretaryFactories = (
   // DB のハンドルは getDb() が保持するので、ここでは接続せず port だけ作る
   const neonCatalog = createNeonCatalog();
   const fakePlanner = createFakePlanner();
+  // 鍵が無くても作れる (呼ばれたときに llm の失敗を返す)
+  const geminiPlanner = createGeminiPlanner({
+    generate: geminiGenerate(
+      envValue(resources.env.GEMINI_API_KEY),
+      envValue(resources.env.GEMINI_MODEL) ?? DEFAULT_GEMINI_MODEL,
+    ),
+  });
   const fakeMandate = createFakeMandate({
     mandates: [],
     ids: resources.mandateIds,
@@ -99,7 +117,7 @@ export const createSecretaryFactories = (
   return {
     calendar: { real: googleCalendarFor, fake: () => fakeCalendar },
     catalog: { real: () => neonCatalog, fake: () => fakeCatalog },
-    planner: { real: () => fakePlanner, fake: () => fakePlanner },
+    planner: { real: () => geminiPlanner, fake: () => fakePlanner },
     mandate: { real: () => realMandate, fake: () => fakeMandate },
     store: { real: () => fakeStore, fake: () => fakeStore },
     identity: { real: () => fakeIdentity, fake: () => fakeIdentity },
