@@ -1,18 +1,31 @@
 import { match, P } from "ts-pattern";
-import type { TripStatus } from "@/domain/trip";
-import type { MandateResponse, TripResponse } from "@/lib/secretary-response";
+import type { PaymentVisibilityInput, TripStatus } from "@/domain/trip";
+import type {
+  MandateResponse,
+  SettlementVisibilityResponse,
+  TripResponse,
+} from "@/lib/secretary-response";
 import type { Activity, RequestFailure, Step } from "./types";
+
+/**
+ * 公開範囲を選べる候補
+ *
+ * `PaymentVisibilityInput` のキーと同じ集合
+ */
+export type VisibilityCategory = "outbound" | "inbound" | "lodging";
 
 /**
  * クライアントだけが持つ状態
  *
  * `fresh` は直近の応答で得た trip で、props の trip より新しい間だけ優先する
  * `createdMandate` は最初の提案で自動で作った支払い枠で、refresh 後は props が勝つ
+ * `visibility` は提案済みの計画に対していま選んでいる公開範囲で、空はすべて公開
  */
 export type FlowState = {
   activity: Activity;
   fresh?: TripResponse;
   createdMandate?: MandateResponse;
+  visibility: PaymentVisibilityInput;
 };
 
 /**
@@ -23,7 +36,12 @@ export type FlowAction =
   | { type: "succeed"; trip: TripResponse }
   | { type: "fail"; failure: RequestFailure }
   | { type: "dismiss" }
-  | { type: "mandateCreated"; mandate: MandateResponse };
+  | { type: "mandateCreated"; mandate: MandateResponse }
+  | {
+      type: "setVisibility";
+      category: VisibilityCategory;
+      value: SettlementVisibilityResponse;
+    };
 
 /**
  * 出張が進む順
@@ -52,6 +70,7 @@ const IDLE = { kind: "idle" } as const satisfies Activity;
  */
 export const INITIAL_FLOW_STATE = {
   activity: IDLE,
+  visibility: {},
 } as const satisfies FlowState;
 
 const isBusy = (state: FlowState): boolean => {
@@ -66,12 +85,13 @@ const onStart = (state: FlowState, step: Step): FlowState => {
   return { ...state, activity: { kind: "busy", step } };
 };
 
+// 1 手が済めばその計画に対する選択は用済みなので、次の提案に持ち越さない
 const onSucceed = (state: FlowState, trip: TripResponse): FlowState => {
   if (!isBusy(state)) {
     return state;
   }
 
-  return { ...state, activity: IDLE, fresh: trip };
+  return { ...state, activity: IDLE, fresh: trip, visibility: {} };
 };
 
 const onFail = (state: FlowState, failure: RequestFailure): FlowState => {
@@ -101,6 +121,14 @@ const onMandateCreated = (
   return { ...state, createdMandate: mandate };
 };
 
+const onSetVisibility = (
+  state: FlowState,
+  category: VisibilityCategory,
+  value: SettlementVisibilityResponse,
+): FlowState => {
+  return { ...state, visibility: { ...state.visibility, [category]: value } };
+};
+
 /**
  * 状態遷移の純粋関数
  *
@@ -114,6 +142,9 @@ export const reduceFlow = (state: FlowState, action: FlowAction): FlowState => {
     .with({ type: "dismiss" }, () => onDismiss(state))
     .with({ type: "mandateCreated" }, ({ mandate }) =>
       onMandateCreated(state, mandate),
+    )
+    .with({ type: "setVisibility" }, ({ category, value }) =>
+      onSetVisibility(state, category, value),
     )
     .exhaustive();
 };

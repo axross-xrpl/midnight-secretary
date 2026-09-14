@@ -7,6 +7,7 @@ import { AuthorizationList } from "./authorization-list";
 import type { Bubble, SecretaryLine, UserLine } from "./conversation";
 import { FailureNotice } from "./failure-notice";
 import { moneyText, plainSpaces, TIMED_OPTIONS } from "./format";
+import type { VisibilityChangeHandler } from "./plan-details";
 import { PlanDetails } from "./plan-details";
 import {
   bubbleTimeClass,
@@ -22,10 +23,14 @@ import { useFormatNumber } from "./use-format-number";
 
 type SecretaryContentProps = {
   line: SecretaryLine;
+  onVisibilityChange: VisibilityChangeHandler;
 };
 
 // 秘書の吹き出しの中身 (文言と、あれば計画や支払いの明細)
-const SecretaryContent = ({ line }: SecretaryContentProps): ReactElement => {
+const SecretaryContent = ({
+  line,
+  onVisibilityChange,
+}: SecretaryContentProps): ReactElement => {
   const t = useTranslations("Conversation");
   const formatNumber = useFormatNumber();
 
@@ -34,12 +39,16 @@ const SecretaryContent = ({ line }: SecretaryContentProps): ReactElement => {
       <p>{t("lines.greeting", { title, cap: moneyText(cap, formatNumber) })}</p>
     ))
     .with({ kind: "ask" }, ({ title }) => <p>{t("lines.ask", { title })}</p>)
-    .with({ kind: "proposal" }, ({ plan }) => (
+    .with({ kind: "proposal" }, ({ plan, visibility }) => (
       <>
         <p>
           {t("lines.proposal", { total: moneyText(plan.total, formatNumber) })}
         </p>
-        <PlanDetails plan={plan} />
+        <PlanDetails
+          plan={plan}
+          visibility={visibility}
+          onVisibilityChange={onVisibilityChange}
+        />
       </>
     ))
     .with({ kind: "askPay" }, () => <p>{t("lines.askPay")}</p>)
@@ -93,9 +102,14 @@ const SecretaryContent = ({ line }: SecretaryContentProps): ReactElement => {
 type SecretaryBubbleProps = {
   line: SecretaryLine;
   at?: string;
+  onVisibilityChange: VisibilityChangeHandler;
 };
 
-const SecretaryBubble = ({ line, at }: SecretaryBubbleProps): ReactElement => {
+const SecretaryBubble = ({
+  line,
+  at,
+  onVisibilityChange,
+}: SecretaryBubbleProps): ReactElement => {
   const t = useTranslations("Conversation");
   const format = useFormatter();
 
@@ -106,7 +120,10 @@ const SecretaryBubble = ({ line, at }: SecretaryBubbleProps): ReactElement => {
       </span>
       <div className="flex min-w-0 flex-col gap-1">
         <div className={secretaryBubbleClass}>
-          <SecretaryContent line={line} />
+          <SecretaryContent
+            line={line}
+            onVisibilityChange={onVisibilityChange}
+          />
         </div>
         {at === undefined ? undefined : (
           <time className={bubbleTimeClass} dateTime={at}>
@@ -126,7 +143,10 @@ const UserBubble = ({ line }: UserBubbleProps): ReactElement => {
   const t = useTranslations("Conversation");
   const text = match(line)
     .with({ kind: "propose" }, () => t("echo.propose"))
-    .with({ kind: "approve" }, () => t("echo.approve"))
+    .with({ kind: "approve", privateCount: 0 }, () => t("echo.approve"))
+    .with({ kind: "approve" }, ({ privateCount }) =>
+      t("echo.approvePartlyPrivate", { count: privateCount }),
+    )
     .with({ kind: "pay", resume: true }, () => t("echo.resume"))
     .with({ kind: "pay", resume: false }, () => t("echo.pay"))
     .with({ kind: "writeBack" }, () => t("echo.writeBack"))
@@ -141,17 +161,26 @@ const UserBubble = ({ line }: UserBubbleProps): ReactElement => {
 
 type BubbleItemProps = {
   bubble: Bubble;
+  onVisibilityChange: VisibilityChangeHandler;
 };
 
 /**
  * 会話ログの吹き出し 1 つ
  *
  * 秘書は左にアバター付き、ユーザは右に出す
+ * `onVisibilityChange` は提案の計画に置く公開範囲のトグルが使う
  */
-export const BubbleItem = ({ bubble }: BubbleItemProps): ReactElement => {
+export const BubbleItem = ({
+  bubble,
+  onVisibilityChange,
+}: BubbleItemProps): ReactElement => {
   return match(bubble)
     .with({ speaker: "secretary" }, ({ line, at }) => (
-      <SecretaryBubble line={line} at={at} />
+      <SecretaryBubble
+        line={line}
+        at={at}
+        onVisibilityChange={onVisibilityChange}
+      />
     ))
     .with({ speaker: "user" }, ({ line }) => <UserBubble line={line} />)
     .exhaustive();

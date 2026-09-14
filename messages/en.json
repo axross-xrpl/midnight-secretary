@@ -298,6 +298,7 @@
     "echo": {
       "propose": "Please propose a plan.",
       "approve": "I approve the plan.",
+      "approvePartlyPrivate": "I approve the plan ({count, plural, one {# payment} other {# payments}} kept private).",
       "pay": "Please pay from the allowance.",
       "resume": "Please resume the payment.",
       "writeBack": "Please add it to my calendar."
@@ -309,6 +310,11 @@
         "air": "air"
       },
       "lodging": "{hotel}, {nights, plural, one {# night} other {# nights}}",
+      "privateToggle": "Keep private",
+      "visibility": {
+        "public": "Public",
+        "private": "Private"
+      },
       "total": "Total",
       "rationale": "Why this plan"
     },
@@ -317,6 +323,7 @@
       "paymentRef": "Payment reference",
       "amount": "Amount",
       "authorizedAt": "Authorized at",
+      "visibility": "Visibility",
       "transaction": "Transaction"
     }
   },

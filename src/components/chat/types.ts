@@ -13,6 +13,15 @@ export type PublicLedgerView = {
 };
 
 /**
+ * mandate の adapter が扱える支払いの形
+ *
+ * domain の `MandateCapabilities` と同じ形で、Server Component の props でしか渡らないので zod スキーマは持たない
+ */
+export type MandateCapabilities = {
+  privateSettlement: boolean;
+};
+
+/**
  * 画面が扱う失敗
  *
  * サーバの封筒 (`SecretaryFailure`) に、ブラウザ側で起こる 2 つを足したもの

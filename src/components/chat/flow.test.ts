@@ -127,6 +127,7 @@ describe("reduceFlow", () => {
 
     expect(proposing).toStrictEqual({
       activity: { kind: "busy", step: "propose" },
+      visibility: {},
     });
 
     const proposed = reduceFlow(proposing, { type: "succeed", trip: PROPOSED });
@@ -134,6 +135,7 @@ describe("reduceFlow", () => {
     expect(proposed).toStrictEqual({
       activity: { kind: "idle" },
       fresh: PROPOSED,
+      visibility: {},
     });
 
     const approving = reduceFlow(proposed, { type: "start", step: "approve" });
@@ -158,6 +160,7 @@ describe("reduceFlow", () => {
     expect(written).toStrictEqual({
       activity: { kind: "idle" },
       fresh: WRITTEN,
+      visibility: {},
     });
   });
 
@@ -193,6 +196,7 @@ describe("reduceFlow", () => {
 
     expect(reduceFlow(failed, { type: "dismiss" })).toStrictEqual({
       activity: { kind: "idle" },
+      visibility: {},
     });
   });
 
@@ -211,6 +215,7 @@ describe("reduceFlow", () => {
     expect(created).toStrictEqual({
       activity: { kind: "busy", step: "propose" },
       createdMandate: MANDATE,
+      visibility: {},
     });
 
     const failed = reduceFlow(created, {
@@ -222,6 +227,53 @@ describe("reduceFlow", () => {
     expect(
       reduceFlow(failed, { type: "dismiss" }).createdMandate,
     ).toStrictEqual(MANDATE);
+  });
+
+  test("setVisibility は候補ごとに公開範囲を覚え、他の候補を消さない", () => {
+    const lodging = reduceFlow(INITIAL_FLOW_STATE, {
+      type: "setVisibility",
+      category: "lodging",
+      value: "private",
+    });
+
+    expect(lodging.visibility).toStrictEqual({ lodging: "private" });
+
+    const both = reduceFlow(lodging, {
+      type: "setVisibility",
+      category: "outbound",
+      value: "private",
+    });
+
+    expect(both.visibility).toStrictEqual({
+      lodging: "private",
+      outbound: "private",
+    });
+
+    const backToPublic = reduceFlow(both, {
+      type: "setVisibility",
+      category: "lodging",
+      value: "public",
+    });
+
+    expect(backToPublic.visibility).toStrictEqual({
+      lodging: "public",
+      outbound: "private",
+    });
+  });
+
+  test("succeed は次の計画に選択を持ち越さない", () => {
+    const chosen = reduceFlow(busyState("approve"), {
+      type: "setVisibility",
+      category: "lodging",
+      value: "private",
+    });
+
+    const approved = reduceFlow(chosen, {
+      type: "succeed",
+      trip: APPROVED,
+    });
+
+    expect(approved.visibility).toStrictEqual({});
   });
 });
 

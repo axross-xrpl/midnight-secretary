@@ -2,7 +2,11 @@
 
 import { useFormatter, useTranslations } from "next-intl";
 import type { ReactElement } from "react";
-import type { AuthorizationResponse } from "@/lib/secretary-response";
+import { match } from "ts-pattern";
+import type {
+  AuthorizationResponse,
+  SettlementVisibilityResponse,
+} from "@/lib/secretary-response";
 import { moneyText, plainSpaces, shortHash, TIMED_OPTIONS } from "./format";
 import {
   detailKeyClass,
@@ -12,6 +16,17 @@ import {
   monoValueClass,
 } from "./styles";
 import { useFormatNumber } from "./use-format-number";
+
+// 送金の形が公開範囲そのものなので、kind から文言のキーを引く
+const visibilityOfSettlement = (
+  settlement: AuthorizationResponse["settlement"],
+): SettlementVisibilityResponse => {
+  return match(settlement)
+    .returnType<SettlementVisibilityResponse>()
+    .with({ kind: "tokenTransfer" }, () => "public")
+    .with({ kind: "shieldedTransfer" }, () => "private")
+    .exhaustive();
+};
 
 type AuthorizationRowProps = {
   authorization: AuthorizationResponse;
@@ -54,6 +69,14 @@ const AuthorizationRow = ({
         </dd>
       </div>
       <div className={detailRowClass}>
+        <dt className={detailKeyClass}>{t("authorization.visibility")}</dt>
+        <dd>
+          {t(
+            `plan.visibility.${visibilityOfSettlement(authorization.settlement)}`,
+          )}
+        </dd>
+      </div>
+      <div className={detailRowClass}>
         <dt className={detailKeyClass}>{t("authorization.transaction")}</dt>
         <dd className={monoValueClass}>
           {authorization.settlement.transactionId}
@@ -68,7 +91,7 @@ type AuthorizationListProps = {
 };
 
 /**
- * 承認済みの支払いの一覧 (公開ハッシュ、支払い参照、金額、承認日時、トランザクション)
+ * 承認済みの支払いの一覧 (公開ハッシュ、支払い参照、金額、承認日時、公開範囲、トランザクション)
  *
  * 支払い済みと一部支払い済みの吹き出しの中に置く
  */
