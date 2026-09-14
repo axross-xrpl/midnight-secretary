@@ -91,7 +91,10 @@ const NODE_URL = requireEnv("NODE_URL");
 const PROOF_SERVER = requireEnv("PROOF_SERVER");
 const DEPLOYER_SEED = requireEnv("DEPLOYER_SEED");
 const TOKEN_ADDRESS = requireEnv("TOKEN_ADDRESS");
-const SHIELDED_TOKEN_ADDRESS = requireEnv("SHIELDED_TOKEN_ADDRESS");
+// Optional: the settlement path (MandatePort's real adapter) only uses the
+// unshielded token's sendToken, so a server that just needs to serve /token/*
+// shouldn't have to deploy and configure the unrelated shielded-token contract too.
+const SHIELDED_TOKEN_ADDRESS = process.env.SHIELDED_TOKEN_ADDRESS;
 const PORT = Number(process.env.CONTRACT_SERVER_PORT ?? 4900);
 
 type TokenCircuitId = ContractNS.ProvableCircuitId<
@@ -301,47 +304,65 @@ async function main() {
   });
   console.log("Token contract found!");
 
-  const shieldedZkConfigPath = path.resolve(
-    __dirname,
-    "managed/shielded-token",
-  );
-  const shieldedZkConfigProvider =
-    new NodeZkConfigProvider<ShieldedTokenCircuitId>(shieldedZkConfigPath);
-  const shieldedProviders = {
-    walletProvider: walletAndMidnightProvider,
-    midnightProvider: walletAndMidnightProvider,
-    publicDataProvider: indexerPublicDataProvider(INDEXER_HTTP, INDEXER_WS),
-    privateStateProvider: levelPrivateStateProvider({
-      privateStateStoreName: "shielded-token-private-state",
-      privateStoragePasswordProvider: () => "ShieldedToken-Dev-Pa55word!",
-      accountId: "deployer",
-    }),
-    zkConfigProvider: shieldedZkConfigProvider,
-    proofProvider: httpClientProofProvider(
-      PROOF_SERVER,
-      shieldedZkConfigProvider,
-    ),
-  };
-  const shieldedCompiledContract = CompiledContract.make(
-    "shielded-token",
-    ShieldedTokenContract,
-  ).pipe(
-    CompiledContract.withWitnesses(shieldedTokenWitnesses),
-    CompiledContract.withCompiledFileAssets(shieldedZkConfigPath),
-  );
+  // Optional: only set up when SHIELDED_TOKEN_ADDRESS is configured, so a
+  // server that just needs /token/* (the settlement path) can start without
+  // deploying or configuring the unrelated shielded-token contract. A
+  // function (rather than hand-written types) keeps the provider/contract
+  // types inferred.
+  async function setUpShielded(shieldedTokenAddress: string | undefined) {
+    if (!shieldedTokenAddress) {
+      console.log(
+        "SHIELDED_TOKEN_ADDRESS not set -- skipping shielded-token (only /token/* routes will work)",
+      );
+      return undefined;
+    }
 
-  console.log(
-    `Finding deployed shielded-token contract at ${SHIELDED_TOKEN_ADDRESS}...`,
-  );
-  const shieldedContract = await findDeployedContract(shieldedProviders, {
-    contractAddress: SHIELDED_TOKEN_ADDRESS,
-    compiledContract: shieldedCompiledContract,
-    privateStateId: "shielded-token-private-state",
-    initialPrivateState: createShieldedTokenPrivateState(
-      deriveMinterSecret(DEPLOYER_SEED),
-    ),
-  });
-  console.log("Shielded-token contract found!");
+    const shieldedZkConfigPath = path.resolve(
+      __dirname,
+      "managed/shielded-token",
+    );
+    const shieldedZkConfigProvider =
+      new NodeZkConfigProvider<ShieldedTokenCircuitId>(shieldedZkConfigPath);
+    const shieldedProviders = {
+      walletProvider: walletAndMidnightProvider,
+      midnightProvider: walletAndMidnightProvider,
+      publicDataProvider: indexerPublicDataProvider(INDEXER_HTTP, INDEXER_WS),
+      privateStateProvider: levelPrivateStateProvider({
+        privateStateStoreName: "shielded-token-private-state",
+        privateStoragePasswordProvider: () => "ShieldedToken-Dev-Pa55word!",
+        accountId: "deployer",
+      }),
+      zkConfigProvider: shieldedZkConfigProvider,
+      proofProvider: httpClientProofProvider(
+        PROOF_SERVER,
+        shieldedZkConfigProvider,
+      ),
+    };
+    const shieldedCompiledContract = CompiledContract.make(
+      "shielded-token",
+      ShieldedTokenContract,
+    ).pipe(
+      CompiledContract.withWitnesses(shieldedTokenWitnesses),
+      CompiledContract.withCompiledFileAssets(shieldedZkConfigPath),
+    );
+
+    console.log(
+      `Finding deployed shielded-token contract at ${shieldedTokenAddress}...`,
+    );
+    const shieldedContract = await findDeployedContract(shieldedProviders, {
+      contractAddress: shieldedTokenAddress,
+      compiledContract: shieldedCompiledContract,
+      privateStateId: "shielded-token-private-state",
+      initialPrivateState: createShieldedTokenPrivateState(
+        deriveMinterSecret(DEPLOYER_SEED),
+      ),
+    });
+    console.log("Shielded-token contract found!");
+
+    return { shieldedContract, shieldedProviders };
+  }
+
+  const shielded = await setUpShielded(SHIELDED_TOKEN_ADDRESS);
 
   async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const url = new URL(req.url ?? "/", "http://localhost");
@@ -436,6 +457,13 @@ async function main() {
     }
 
     if (req.method === "GET" && url.pathname === "/shielded-token/state") {
+      if (!shielded) {
+        return sendJson(res, 503, {
+          error:
+            "Shielded-token is not configured (set SHIELDED_TOKEN_ADDRESS)",
+        });
+      }
+      const { shieldedContract } = shielded;
       const result = await serialize(async () => {
         // One transaction instead of three -- see shielded-token.compact's
         // getShieldedTokenInfo for why that matters here.
@@ -451,6 +479,13 @@ async function main() {
     }
 
     if (req.method === "POST" && url.pathname === "/shielded-token/request") {
+      if (!shielded) {
+        return sendJson(res, 503, {
+          error:
+            "Shielded-token is not configured (set SHIELDED_TOKEN_ADDRESS)",
+        });
+      }
+      const { shieldedContract, shieldedProviders } = shielded;
       const body = await readJsonBody(req);
       const recipientArg = String(body.recipient ?? "");
       if (!recipientArg) {
