@@ -85,7 +85,7 @@ const newEventId = () => {
 };
 
 describe("seedCalendarEvents", () => {
-  test("now を基準にした 4 件を返す", () => {
+  test("now を基準にした 7 件を返す", () => {
     const events = seedCalendarEvents(NOW);
 
     expect(idsOf(events)).toStrictEqual([
@@ -93,13 +93,50 @@ describe("seedCalendarEvents", () => {
       "seed-2",
       "seed-3",
       "seed-4",
+      "seed-5",
+      "seed-6",
+      "seed-7",
     ]);
     expect(events.map((event) => event.title)).toStrictEqual([
       "チーム定例",
       "大阪出張 (取引先訪問)",
       "大阪出張 (展示会)",
       "歯医者",
+      "大阪出張 (取引先と懇親会)",
+      "大阪出張 (パートナー会食)",
+      "大阪出張 (工場視察と懇親会)",
     ]);
+  });
+
+  test("工場視察は +16 日 10:00 から翌日 17:00 の 1 泊で、大阪市北区", () => {
+    const events = seedCalendarEvents(NOW);
+    const inspection = events.find((event) => event.id === "seed-7");
+
+    expect(inspection?.when).toStrictEqual({
+      kind: "timed",
+      start: "2026-09-25T10:00:00+09:00",
+      end: "2026-09-26T17:00:00+09:00",
+    });
+    expect(inspection?.location).toBe("大阪市北区");
+  });
+
+  test("懇親会は +6 日、会食は +9 日の日帰りで、どちらも大阪市北区", () => {
+    const events = seedCalendarEvents(NOW);
+    const gathering = events.find((event) => event.id === "seed-5");
+    const dinner = events.find((event) => event.id === "seed-6");
+
+    expect(gathering?.when).toStrictEqual({
+      kind: "timed",
+      start: "2026-09-15T10:00:00+09:00",
+      end: "2026-09-15T20:00:00+09:00",
+    });
+    expect(gathering?.location).toBe("大阪市北区");
+    expect(dinner?.when).toStrictEqual({
+      kind: "timed",
+      start: "2026-09-18T10:00:00+09:00",
+      end: "2026-09-18T20:00:00+09:00",
+    });
+    expect(dinner?.location).toBe("大阪市北区");
   });
 
   test("取引先訪問は時刻あり、展示会は終日になる", () => {

@@ -34,12 +34,14 @@ export const settlementVisibilitySchema = z.enum(["public", "private"]);
 /**
  * 承認のときに選んだ、候補ごとの支払いの公開範囲
  *
- * `lodging` は計画に宿があるときだけ載る
+ * `lodging` は計画に宿があるとき、`dining` と `leisure` は計画にその場があるときだけ載る
  */
 export const paymentVisibilitySchema = z.object({
   outbound: settlementVisibilitySchema,
   inbound: settlementVisibilitySchema,
   lodging: settlementVisibilitySchema.optional(),
+  dining: settlementVisibilitySchema.optional(),
+  leisure: settlementVisibilitySchema.optional(),
 });
 
 /**
@@ -103,6 +105,25 @@ export const lodgingOfferSchema = z.object({
 });
 
 /**
+ * 現地のサービス 1 件 (飲食・レジャー)
+ *
+ * `ageLimit` は `requiredVerifications` に `age` を含むときだけ入る
+ */
+export const placeOfferSchema = z.object({
+  id: z.string(),
+  kind: z.enum(["restaurant", "leisure"]),
+  payee: z.string(),
+  name: z.string(),
+  city: z.string(),
+  genre: z.string().optional(),
+  price: moneySchema,
+  requiredVerifications: z
+    .array(z.enum(["age", "nationality", "residence"]))
+    .readonly(),
+  ageLimit: z.number().optional(),
+});
+
+/**
  * プランナーが予定から読み取った内容
  */
 export const tripIntentSchema = z.object({
@@ -115,13 +136,15 @@ export const tripIntentSchema = z.object({
 /**
  * 検証済みのプラン
  *
- * 日帰りには宿泊が無い
+ * 日帰りには宿泊が無く、飲食とレジャーは選ばれたときだけある
  */
 export const tripPlanSchema = z.object({
   intent: tripIntentSchema,
   outbound: transportOfferSchema,
   inbound: transportOfferSchema,
   lodging: lodgingOfferSchema.optional(),
+  dining: placeOfferSchema.optional(),
+  leisure: placeOfferSchema.optional(),
   total: moneySchema,
   rationale: z.string(),
 });
@@ -205,6 +228,11 @@ export type TransportOfferResponse = z.infer<typeof transportOfferSchema>;
  * 予約可能な宿泊 1 件
  */
 export type LodgingOfferResponse = z.infer<typeof lodgingOfferSchema>;
+
+/**
+ * 現地のサービス 1 件 (飲食・レジャー)
+ */
+export type PlaceOfferResponse = z.infer<typeof placeOfferSchema>;
 
 /**
  * 検証済みのプラン

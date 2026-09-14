@@ -4,6 +4,7 @@ import type {
   LodgingOffer,
   OfferQuery,
   OfferSet,
+  PlaceOffer,
   TransportMode,
   TransportOffer,
 } from "./catalog";
@@ -40,17 +41,23 @@ export type PlanChoice = {
   outboundId: OfferId;
   inboundId: OfferId;
   lodgingId?: OfferId;
+  diningId?: OfferId;
+  leisureId?: OfferId;
   rationale: string;
 };
 
 /**
  * 検証済みのプランで、カタログから解決した選択済みの候補と計算した合計を持つ
+ *
+ * `dining` と `leisure` は目的地で使う場で、合計と支払いに入る
  */
 export type TripPlan = {
   intent: TripIntent;
   outbound: TransportOffer;
   inbound: TransportOffer;
   lodging?: LodgingOffer;
+  dining?: PlaceOffer;
+  leisure?: PlaceOffer;
   total: Money;
   rationale: string;
 };
@@ -97,11 +104,11 @@ const transportById = (
   return ok(offer);
 };
 
-// 宿泊は選ばれていないこともあるので、未選択と実在しない id を分けて返す
-const lodgingById = (
-  offers: readonly LodgingOffer[],
+// 宿泊、飲食、レジャーは選ばれていないこともあるので、未選択と実在しない id を分けて返す
+const optionalOfferById = <T extends { id: OfferId }>(
+  offers: readonly T[],
   offerId: OfferId | undefined,
-): Result<LodgingOffer | undefined, PlanAssemblyError> => {
+): Result<T | undefined, PlanAssemblyError> => {
   if (offerId === undefined) {
     return ok(undefined);
   }
@@ -115,12 +122,14 @@ const lodgingById = (
   return ok(offer);
 };
 
-const lodgingPrices = (lodging: LodgingOffer | undefined): readonly Money[] => {
-  if (lodging === undefined) {
+const optionalPrice = (
+  offer: LodgingOffer | PlaceOffer | undefined,
+): readonly Money[] => {
+  if (offer === undefined) {
     return [];
   }
 
-  return [lodging.price];
+  return [offer.price];
 };
 
 /**
@@ -147,10 +156,22 @@ export const assemblePlan = (
     return inbound;
   }
 
-  const lodging = lodgingById(offers.lodging, choice.lodgingId);
+  const lodging = optionalOfferById(offers.lodging, choice.lodgingId);
 
   if (!lodging.ok) {
     return lodging;
+  }
+
+  const dining = optionalOfferById(offers.dining, choice.diningId);
+
+  if (!dining.ok) {
+    return dining;
+  }
+
+  const leisure = optionalOfferById(offers.leisure, choice.leisureId);
+
+  if (!leisure.ok) {
+    return leisure;
   }
 
   const nights = nightsBetween(intent.departOn, intent.returnOn);
@@ -166,7 +187,9 @@ export const assemblePlan = (
   const prices: readonly [Money, ...Money[]] = [
     outbound.value.price,
     inbound.value.price,
-    ...lodgingPrices(lodging.value),
+    ...optionalPrice(lodging.value),
+    ...optionalPrice(dining.value),
+    ...optionalPrice(leisure.value),
   ];
   const total = sumMoney(prices);
 
@@ -189,6 +212,8 @@ export const assemblePlan = (
     outbound: outbound.value,
     inbound: inbound.value,
     ...(lodging.value === undefined ? {} : { lodging: lodging.value }),
+    ...(dining.value === undefined ? {} : { dining: dining.value }),
+    ...(leisure.value === undefined ? {} : { leisure: leisure.value }),
     total: total.value,
     rationale: choice.rationale,
   });

@@ -3,7 +3,12 @@ import type {
   CalendarEvent,
   DateRange,
 } from "@/domain/calendar";
-import type { CatalogError, TransportOffer } from "@/domain/catalog";
+import type {
+  CatalogError,
+  LodgingOffer,
+  PlaceOffer,
+  TransportOffer,
+} from "@/domain/catalog";
 import type {
   CalendarEventId,
   IsoDateTime,
@@ -101,8 +106,11 @@ export type WriteBackInput = {
   now: IsoDateTime;
 };
 
-// 交通と宿泊のどちらも同じ形で支払うので、支払いに要る 3 つと、承認で選んだその候補の公開範囲だけを見る
-type Payable = Pick<TransportOffer, "id" | "price" | "payee"> & {
+// 交通、宿泊、飲食、レジャーのどれも同じ形で支払うので、支払いに要る 3 つと、承認で選んだその候補の公開範囲だけを見る
+type Payable = Pick<
+  TransportOffer | LodgingOffer | PlaceOffer,
+  "id" | "price" | "payee"
+> & {
   visibility: SettlementVisibility;
 };
 
@@ -224,7 +232,8 @@ const tripIdForEvent = async (
   return ok(existing.id);
 };
 
-// 宿の公開範囲は計画に宿があるときだけ選べるので、無い指定は公開に倒す
+// 支払いの順は往路、復路、あれば宿泊、あれば飲食、あればレジャー
+// 宿、飲食、レジャーの公開範囲は計画にその候補があるときだけ選べるので、無い指定は公開に倒す
 const payablesOf = (
   plan: TripPlan,
   visibility: PaymentVisibility,
@@ -234,23 +243,31 @@ const payablesOf = (
     visibility: visibility.outbound,
   };
   const inbound: Payable = { ...plan.inbound, visibility: visibility.inbound };
+  const lodging: readonly Payable[] =
+    plan.lodging === undefined
+      ? []
+      : [{ ...plan.lodging, visibility: visibility.lodging ?? "public" }];
+  const dining: readonly Payable[] =
+    plan.dining === undefined
+      ? []
+      : [{ ...plan.dining, visibility: visibility.dining ?? "public" }];
+  const leisure: readonly Payable[] =
+    plan.leisure === undefined
+      ? []
+      : [{ ...plan.leisure, visibility: visibility.leisure ?? "public" }];
 
-  if (plan.lodging === undefined) {
-    return [outbound, inbound];
-  }
-
-  return [
-    outbound,
-    inbound,
-    { ...plan.lodging, visibility: visibility.lodging ?? "public" },
-  ];
+  return [outbound, inbound, ...lodging, ...dining, ...leisure];
 };
 
 // capability の無い adapter に private を渡さないよう、承認の時点で調べる
 const hasPrivate = (visibility: PaymentVisibility): boolean => {
-  return [visibility.outbound, visibility.inbound, visibility.lodging].some(
-    (chosen) => chosen === "private",
-  );
+  return [
+    visibility.outbound,
+    visibility.inbound,
+    visibility.lodging,
+    visibility.dining,
+    visibility.leisure,
+  ].some((chosen) => chosen === "private");
 };
 
 // 証明の生成は直列が前提なので、前の候補の結果を待ってから次の候補を出す
@@ -503,7 +520,7 @@ export const proposeTrip = async (
  * 提案済みの trip を、候補ごとの公開範囲つきで承認する
  *
  * プランは store から取り、クライアントからは公開範囲だけを受け取る
- * 計画に無い候補 (日帰りの宿) の指定は捨て、指定の無い候補は公開にする
+ * 計画に無い候補 (日帰りの宿、飲食やレジャーの無い計画のその指定) は捨て、指定の無い候補は公開にする
  * adapter が非公開に対応していないのに非公開があれば `flow.privateSettlementUnsupported` で、trip は提案済みのまま
  */
 export const approveTrip = async (

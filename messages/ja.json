@@ -245,11 +245,19 @@
   },
   "WriteBack": {
     "title": "{destination} 出張",
-    "description": "{purpose}\n往路: {outbound}\n復路: {inbound}\n宿泊: {lodging}\n合計: {total}\n秘書が手配しました。",
+    "description": "{purpose}\n{lines}\n秘書が手配しました。",
     "transport": "{vendor} ({mode})",
     "mode": {
       "rail": "鉄道",
       "air": "航空"
+    },
+    "lines": {
+      "outbound": "往路: {value}",
+      "inbound": "復路: {value}",
+      "lodging": "宿泊: {value}",
+      "dining": "飲食: {value}",
+      "leisure": "レジャー: {value}",
+      "total": "合計: {value}"
     },
     "noLodging": "なし",
     "total": "{amount} {currency}"
@@ -315,6 +323,9 @@
         "public": "公開",
         "private": "非公開"
       },
+      "dining": "{name} ({genre})",
+      "leisure": "{name} ({genre})",
+      "ageLimit": "{age} 歳以上",
       "total": "合計",
       "rationale": "この計画の理由"
     },

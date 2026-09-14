@@ -10,7 +10,7 @@ import { createFakeMandate } from "@/adapters/mandate/fake";
 import { createFakePlanner } from "@/adapters/planner/fake";
 import { createFakeStore } from "@/adapters/store/fake";
 import type { CalendarPort } from "@/domain/calendar";
-import type { LodgingOffer } from "@/domain/catalog";
+import type { LodgingOffer, PlaceOffer } from "@/domain/catalog";
 import type {
   CalendarEventId,
   IsoDateTime,
@@ -85,7 +85,7 @@ const EXPIRES_AT = at("2026-12-31T23:59:59+09:00");
 
 const USER = userId("user-1");
 
-// 30 日の窓は seed の予定 4 件すべてを含む
+// 30 日の窓は seed の予定 7 件すべてを含む
 const RANGE = { from: NOW, to: at("2026-10-09T00:00:00Z") };
 
 // 取引先訪問は日帰り、展示会は 1 泊、チーム定例は出張ではない
@@ -95,10 +95,22 @@ const OVERNIGHT_EVENT = eventId("seed-3");
 
 const MEETING_EVENT = eventId("seed-1");
 
-// seedCatalog の価格から計算した合計 (鉄道優先なので ひかり505号 と のぞみ232号 の往復、1 泊は なんばホテルC)
+// 懇親会 (+6 日) と会食 (+9 日) は居酒屋つきの日帰り
+const GATHERING_EVENT = eventId("seed-5");
+
+const DINNER_EVENT = eventId("seed-6");
+
+// 工場視察と懇親会 (+16 日から 1 泊) は宿、居酒屋、レジャーがすべて付く
+const INSPECTION_EVENT = eventId("seed-7");
+
+// seedCatalog の価格から計算した合計 (鉄道優先なので ひかり505号 と のぞみ232号 の往復、1 泊は なんばホテルC、居酒屋は 天満 立ち飲み居酒屋 大和、レジャーは本人確認の要らない先頭の 海遊館)
 const OSAKA_TOTAL = 14400 + 14520;
 
 const OVERNIGHT_TOTAL = 14400 + 14520 + 12500;
+
+const GATHERING_TOTAL = 14400 + 14520 + 3000;
+
+const INSPECTION_TOTAL = 14400 + 14520 + 12500 + 3000 + 2700;
 
 const ENOUGH_CAP = 200000;
 
@@ -169,6 +181,22 @@ const lodgingOf = (plan: TripPlan): LodgingOffer => {
   }
 
   return plan.lodging;
+};
+
+const diningOf = (plan: TripPlan): PlaceOffer => {
+  if (plan.dining === undefined) {
+    throw new Error("test: expected a dining offer");
+  }
+
+  return plan.dining;
+};
+
+const leisureOf = (plan: TripPlan): PlaceOffer => {
+  if (plan.leisure === undefined) {
+    throw new Error("test: expected a leisure offer");
+  }
+
+  return plan.leisure;
 };
 
 const draftFor = (cap: number): MandateDraft => {
@@ -294,7 +322,7 @@ describe("loadDashboard", () => {
 
     const dashboard = mustOk(await loadDashboard(USER, RANGE, deps));
 
-    expect(dashboard.events).toHaveLength(4);
+    expect(dashboard.events).toHaveLength(7);
     expect(dashboard.trips).toStrictEqual([]);
     expect("mandate" in dashboard).toBe(false);
   });
@@ -417,6 +445,31 @@ describe("proposeTrip", () => {
     expect(lodgingOf(trip.plan).id).toBe("hotel-namba-c");
     expect(lodgingOf(trip.plan).price).toStrictEqual(mst(12500));
     expect(trip.plan.total).toStrictEqual(mst(OVERNIGHT_TOTAL));
+  });
+
+  test("懇親会の予定は居酒屋が付き、合計に 3,000 が入る", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const trip = await mustPropose(deps, GATHERING_EVENT);
+
+    expect(diningOf(trip.plan).id).toBe("restaurant-izakaya-tenma");
+    expect(diningOf(trip.plan).price).toStrictEqual(mst(3000));
+    expect(trip.plan.lodging).toBeUndefined();
+    expect(trip.plan.total).toStrictEqual(mst(GATHERING_TOTAL));
+  });
+
+  test("工場視察と懇親会の予定は宿、居酒屋、レジャーがすべて付き、合計に全部が入る", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const trip = await mustPropose(deps, INSPECTION_EVENT);
+
+    expect(lodgingOf(trip.plan).id).toBe("hotel-namba-c");
+    expect(diningOf(trip.plan).id).toBe("restaurant-izakaya-tenma");
+    expect(leisureOf(trip.plan).id).toBe("leisure-kaiyukan");
+    expect(leisureOf(trip.plan).price).toStrictEqual(mst(2700));
+    expect(trip.plan.total).toStrictEqual(mst(INSPECTION_TOTAL));
   });
 
   test("出張ではない予定は planner の notATrip になる", async () => {
@@ -545,6 +598,76 @@ describe("approveTrip", () => {
       outbound: "public",
       inbound: "public",
       lodging: "private",
+    });
+  });
+
+  test("飲食だけを非公開にすると、その候補だけ private になる", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, DINNER_EVENT);
+
+    const approved = await mustApprove(deps, proposed.id, {
+      dining: "private",
+    });
+
+    expect(approved.visibility).toStrictEqual({
+      outbound: "public",
+      inbound: "public",
+      dining: "private",
+    });
+  });
+
+  test("飲食の無い計画への飲食の指定は捨てる", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, OSAKA_EVENT);
+
+    const approved = await mustApprove(deps, proposed.id, {
+      dining: "private",
+    });
+
+    expect(approved.visibility).toStrictEqual({
+      outbound: "public",
+      inbound: "public",
+    });
+  });
+
+  test("飲食とレジャーを非公開にすると、5 候補のうちその 2 つだけ private になる", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, INSPECTION_EVENT);
+
+    const approved = await mustApprove(deps, proposed.id, {
+      dining: "private",
+      leisure: "private",
+    });
+
+    expect(approved.visibility).toStrictEqual({
+      outbound: "public",
+      inbound: "public",
+      lodging: "public",
+      dining: "private",
+      leisure: "private",
+    });
+  });
+
+  test("レジャーの無い計画へのレジャーの指定は捨てる", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, DINNER_EVENT);
+
+    const approved = await mustApprove(deps, proposed.id, {
+      leisure: "private",
+    });
+
+    expect(approved.visibility).toStrictEqual({
+      outbound: "public",
+      inbound: "public",
+      dining: "public",
     });
   });
 
@@ -708,6 +831,109 @@ describe("payForTrip", () => {
     expect(
       paid.authorizations.map((authorization) => authorization.settlement.kind),
     ).toStrictEqual(["tokenTransfer", "shieldedTransfer", "shieldedTransfer"]);
+  });
+
+  test("飲食を非公開にすると、3 件目の支払いだけが shielded になる", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, DINNER_EVENT);
+
+    await mustApprove(deps, proposed.id, { dining: "private" });
+
+    const seen: SeenPayments = { requests: [] };
+    const watched = { ...deps, mandate: recordsPayments(deps.mandate, seen) };
+
+    const paid = await mustPay(watched, proposed.id);
+
+    expect(seen.requests.map((request) => request.visibility)).toStrictEqual([
+      "public",
+      "public",
+      "private",
+    ]);
+    expect(
+      paid.authorizations.map((authorization) => authorization.settlement.kind),
+    ).toStrictEqual(["tokenTransfer", "tokenTransfer", "shieldedTransfer"]);
+  });
+
+  test("居酒屋つきの日帰りは往路、復路、飲食の順に 3 件支払う", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, DINNER_EVENT);
+
+    await mustApprove(deps, proposed.id);
+    const paid = await mustPay(deps, proposed.id);
+
+    expect(
+      paid.authorizations.map((authorization) => authorization.paymentRef),
+    ).toStrictEqual([
+      paymentRefFor(paid.id, paid.plan.outbound.id),
+      paymentRefFor(paid.id, paid.plan.inbound.id),
+      paymentRefFor(paid.id, diningOf(paid.plan).id),
+    ]);
+    expect(
+      paid.authorizations.map(
+        (authorization) => authorization.settlement.recipient,
+      ),
+    ).toStrictEqual([
+      "mn_shield-addr_test1demo-transport-seller",
+      "mn_shield-addr_test1demo-transport-seller",
+      "mn_shield-addr_test1demo-service-seller",
+    ]);
+    expect(paid.authorizations.at(2)?.amount).toStrictEqual(mst(3000));
+
+    const ledger = mustOk(await loadLedgerViews(USER, deps));
+
+    expect(ledger.privateMandate?.spent).toStrictEqual(mst(GATHERING_TOTAL));
+  });
+
+  test("全部つきの 1 泊は往路、復路、宿泊、飲食、レジャーの順に 5 件支払い、非公開の 4 件目と 5 件目だけが shielded になる", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, INSPECTION_EVENT);
+
+    await mustApprove(deps, proposed.id, {
+      dining: "private",
+      leisure: "private",
+    });
+
+    const seen: SeenPayments = { requests: [] };
+    const watched = { ...deps, mandate: recordsPayments(deps.mandate, seen) };
+
+    const paid = await mustPay(watched, proposed.id);
+
+    expect(
+      paid.authorizations.map((authorization) => authorization.paymentRef),
+    ).toStrictEqual([
+      paymentRefFor(paid.id, paid.plan.outbound.id),
+      paymentRefFor(paid.id, paid.plan.inbound.id),
+      paymentRefFor(paid.id, lodgingOf(paid.plan).id),
+      paymentRefFor(paid.id, diningOf(paid.plan).id),
+      paymentRefFor(paid.id, leisureOf(paid.plan).id),
+    ]);
+    expect(seen.requests.map((request) => request.visibility)).toStrictEqual([
+      "public",
+      "public",
+      "public",
+      "private",
+      "private",
+    ]);
+    expect(
+      paid.authorizations.map((authorization) => authorization.settlement.kind),
+    ).toStrictEqual([
+      "tokenTransfer",
+      "tokenTransfer",
+      "tokenTransfer",
+      "shieldedTransfer",
+      "shieldedTransfer",
+    ]);
+    expect(paid.authorizations.at(4)?.amount).toStrictEqual(mst(2700));
+
+    const ledger = mustOk(await loadLedgerViews(USER, deps));
+
+    expect(ledger.privateMandate?.spent).toStrictEqual(mst(INSPECTION_TOTAL));
   });
 
   test("提案済みのままでは wrongStatus になる", async () => {

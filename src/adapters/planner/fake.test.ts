@@ -72,12 +72,13 @@ const intentFor = (
   destination: string,
   departOn: string,
   returnOn: string,
+  purpose = `${destination}出張`,
 ): TripIntent => {
   return {
     destination,
     departOn: mustParse(parseIsoDate(departOn)),
     returnOn: mustParse(parseIsoDate(returnOn)),
-    purpose: `${destination}出張`,
+    purpose,
   };
 };
 
@@ -249,6 +250,223 @@ describe("choosePlan", () => {
     ).toStrictEqual({
       ok: false,
       error: { kind: "noViableChoice", reason: "no outbound or inbound offer" },
+    });
+  });
+
+  test("題名に懇親会があれば居酒屋を選び、理由にも書く", async () => {
+    const intent = intentFor(
+      "大阪",
+      "2026-09-15",
+      "2026-09-15",
+      "大阪出張 (取引先と懇親会)",
+    );
+    const offers = await offersFor(intent);
+
+    expect(
+      await planner.choosePlan(intent, offers, choiceContext("rail")),
+    ).toStrictEqual({
+      ok: true,
+      value: {
+        outboundId: "rail-hikari-505",
+        inboundId: "rail-nozomi-232",
+        diningId: "restaurant-izakaya-tenma",
+        rationale:
+          "Fake planner: first matching offers, with a dining place for the gathering",
+      },
+    });
+  });
+
+  test("会食、飲み会、居酒屋の題名でも居酒屋を選ぶ", async () => {
+    const titles = [
+      "大阪出張 (パートナー会食)",
+      "大阪 飲み会",
+      "大阪の居酒屋めぐり",
+    ];
+    const chosen = await Promise.all(
+      titles.map(async (title) => {
+        const intent = intentFor("大阪", "2026-09-18", "2026-09-18", title);
+
+        return planner.choosePlan(
+          intent,
+          await offersFor(intent),
+          choiceContext("rail"),
+        );
+      }),
+    );
+
+    expect(
+      chosen.map((result) => result.ok && result.value.diningId),
+    ).toStrictEqual([
+      "restaurant-izakaya-tenma",
+      "restaurant-izakaya-tenma",
+      "restaurant-izakaya-tenma",
+    ]);
+  });
+
+  test("取引先訪問の題名では飲食を選ばない", async () => {
+    const intent = intentFor(
+      "大阪",
+      "2026-09-14",
+      "2026-09-14",
+      "大阪出張 (取引先訪問)",
+    );
+    const offers = await offersFor(intent);
+
+    expect(
+      await planner.choosePlan(intent, offers, choiceContext("rail")),
+    ).toStrictEqual({
+      ok: true,
+      value: {
+        outboundId: "rail-hikari-505",
+        inboundId: "rail-nozomi-232",
+        rationale: "Fake planner: first matching offers",
+      },
+    });
+  });
+
+  test("居酒屋が無ければ飲食の先頭を選ぶ", async () => {
+    const intent = intentFor(
+      "大阪",
+      "2026-09-15",
+      "2026-09-15",
+      "大阪出張 (取引先と懇親会)",
+    );
+    const offers = await offersFor(intent);
+    const withoutIzakaya = {
+      ...offers,
+      dining: offers.dining.filter((offer) => offer.genre !== "居酒屋"),
+    };
+    const result = await planner.choosePlan(
+      intent,
+      withoutIzakaya,
+      choiceContext("rail"),
+    );
+
+    expect(result.ok && result.value.diningId).toBe("restaurant-bar-akari");
+  });
+
+  test("飲食の候補が無ければ懇親会でも飲食を付けない", async () => {
+    const intent = intentFor(
+      "大阪",
+      "2026-09-15",
+      "2026-09-15",
+      "大阪出張 (取引先と懇親会)",
+    );
+    const offers = await offersFor(intent);
+    const result = await planner.choosePlan(
+      intent,
+      { ...offers, dining: [] },
+      choiceContext("rail"),
+    );
+
+    expect(result.ok && result.value).toStrictEqual({
+      outboundId: "rail-hikari-505",
+      inboundId: "rail-nozomi-232",
+      rationale: "Fake planner: first matching offers",
+    });
+  });
+
+  test("題名に視察と懇親会があれば宿、居酒屋、本人確認の要らないレジャーを選び、理由に両方を書く", async () => {
+    const intent = intentFor(
+      "大阪",
+      "2026-09-25",
+      "2026-09-26",
+      "大阪出張 (工場視察と懇親会)",
+    );
+    const offers = await offersFor(intent);
+
+    expect(
+      await planner.choosePlan(intent, offers, choiceContext("rail")),
+    ).toStrictEqual({
+      ok: true,
+      value: {
+        outboundId: "rail-hikari-505",
+        inboundId: "rail-nozomi-232",
+        lodgingId: "hotel-namba-c",
+        diningId: "restaurant-izakaya-tenma",
+        leisureId: "leisure-kaiyukan",
+        rationale:
+          "Fake planner: first matching offers, with a dining place for the gathering, with a leisure place for the visit",
+      },
+    });
+  });
+
+  test("観光、見学の題名でも本人確認の要らないレジャーを選ぶ", async () => {
+    const titles = ["大阪 観光", "大阪の工場見学"];
+    const chosen = await Promise.all(
+      titles.map(async (title) => {
+        const intent = intentFor("大阪", "2026-09-25", "2026-09-25", title);
+
+        return planner.choosePlan(
+          intent,
+          await offersFor(intent),
+          choiceContext("rail"),
+        );
+      }),
+    );
+
+    expect(chosen.map((result) => result.ok && result.value)).toStrictEqual([
+      {
+        outboundId: "rail-hikari-505",
+        inboundId: "rail-nozomi-232",
+        leisureId: "leisure-kaiyukan",
+        rationale:
+          "Fake planner: first matching offers, with a leisure place for the visit",
+      },
+
+      {
+        outboundId: "rail-hikari-505",
+        inboundId: "rail-nozomi-232",
+        leisureId: "leisure-kaiyukan",
+        rationale:
+          "Fake planner: first matching offers, with a leisure place for the visit",
+      },
+    ]);
+  });
+
+  test("本人確認の要るレジャーだけなら先頭を選ぶ", async () => {
+    const intent = intentFor(
+      "大阪",
+      "2026-09-25",
+      "2026-09-25",
+      "大阪 工場視察",
+    );
+    const offers = await offersFor(intent);
+    const onlyVerified = {
+      ...offers,
+      leisure: offers.leisure.filter(
+        (offer) => offer.requiredVerifications.length > 0,
+      ),
+    };
+    const result = await planner.choosePlan(
+      intent,
+      onlyVerified,
+      choiceContext("rail"),
+    );
+
+    expect(result.ok && result.value.leisureId).toBe(
+      "leisure-inbound-guide-tour",
+    );
+  });
+
+  test("レジャーの候補が無ければ視察でもレジャーを付けない", async () => {
+    const intent = intentFor(
+      "大阪",
+      "2026-09-25",
+      "2026-09-25",
+      "大阪 工場視察",
+    );
+    const offers = await offersFor(intent);
+    const result = await planner.choosePlan(
+      intent,
+      { ...offers, leisure: [] },
+      choiceContext("rail"),
+    );
+
+    expect(result.ok && result.value).toStrictEqual({
+      outboundId: "rail-hikari-505",
+      inboundId: "rail-nozomi-232",
+      rationale: "Fake planner: first matching offers",
     });
   });
 });

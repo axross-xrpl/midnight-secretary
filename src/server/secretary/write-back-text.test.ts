@@ -1,5 +1,9 @@
 import { describe, expect, test } from "vitest";
-import type { LodgingOffer, TransportOffer } from "@/domain/catalog";
+import type {
+  LodgingOffer,
+  PlaceOffer,
+  TransportOffer,
+} from "@/domain/catalog";
 import {
   mustParse,
   parseAmount,
@@ -12,7 +16,8 @@ import {
 } from "@/domain/identifiers.parse";
 import type { Money } from "@/domain/money";
 import type { TripPlan } from "@/domain/plan";
-import type { PaidTrip } from "@/domain/trip";
+import type { PaidTrip, PaymentVisibility } from "@/domain/trip";
+import { allPublic } from "@/domain/trip";
 import type { WriteBackTranslate } from "./write-back-text";
 import { writeBackText } from "./write-back-text";
 
@@ -52,7 +57,42 @@ const LODGING: LodgingOffer = {
   price: mst(11000),
 };
 
-const planFor = (lodging: LodgingOffer | undefined): TripPlan => {
+const DINING: PlaceOffer = {
+  id: mustParse(parseOfferId("restaurant-izakaya-hakata")),
+  kind: "restaurant",
+  payee: mustParse(parseWalletAddress("demo-payee-service")),
+  name: "博多 居酒屋 大和",
+  city: "福岡",
+  genre: "居酒屋",
+  price: mst(3000),
+  requiredVerifications: ["age"],
+  ageLimit: 20,
+};
+
+const LEISURE: PlaceOffer = {
+  id: mustParse(parseOfferId("leisure-fukuoka-tower")),
+  kind: "leisure",
+  payee: mustParse(parseWalletAddress("demo-payee-service")),
+  name: "福岡タワー",
+  city: "福岡",
+  genre: "sightseeing",
+  price: mst(800),
+  requiredVerifications: [],
+};
+
+type PlanOptions = {
+  lodging?: LodgingOffer;
+  dining?: PlaceOffer;
+  leisure?: PlaceOffer;
+};
+
+const planFor = (options: PlanOptions): TripPlan => {
+  const { lodging, dining, leisure } = options;
+  const extra =
+    (lodging === undefined ? 0 : 11000) +
+    (dining === undefined ? 0 : 3000) +
+    (leisure === undefined ? 0 : 800);
+
   return {
     intent: {
       destination: "福岡",
@@ -63,13 +103,17 @@ const planFor = (lodging: LodgingOffer | undefined): TripPlan => {
     outbound: OUTBOUND,
     inbound: INBOUND,
     ...(lodging === undefined ? {} : { lodging }),
-    total: lodging === undefined ? mst(46000) : mst(57000),
+    ...(dining === undefined ? {} : { dining }),
+    ...(leisure === undefined ? {} : { leisure }),
+    total: mst(46000 + extra),
     rationale: "test",
   };
 };
 
-const tripFor = (lodging: LodgingOffer | undefined): PaidTrip => {
+const tripFor = (options: PlanOptions): PaidTrip => {
   const at = mustParse(parseIsoDateTime("2026-09-09T00:00:00Z"));
+  const plan = planFor(options);
+  const visibility: PaymentVisibility = allPublic(plan);
 
   return {
     status: "paid",
@@ -79,13 +123,10 @@ const tripFor = (lodging: LodgingOffer | undefined): PaidTrip => {
       title: "福岡出張",
       when: { kind: "timed", start: at, end: at },
     },
-    plan: planFor(lodging),
+    plan,
     proposedAt: at,
     approvedAt: at,
-    visibility:
-      lodging === undefined
-        ? { outbound: "public", inbound: "public" }
-        : { outbound: "public", inbound: "public", lodging: "public" },
+    visibility,
     authorizations: [],
     paidAt: at,
   };
@@ -106,18 +147,65 @@ const t: WriteBackTranslate = (key, values) => {
 
 const TRANSPORT_TEXT = "transport(vendor=JR,mode=mode.rail)";
 
+const TRANSPORT_LINES = [
+  `lines.outbound(value=${TRANSPORT_TEXT})`,
+  `lines.inbound(value=${TRANSPORT_TEXT})`,
+] as const satisfies readonly string[];
+
+const descriptionOf = (lines: readonly string[]): string => {
+  return `description(purpose=福岡出張,lines=${lines.join("\n")})`;
+};
+
 describe("writeBackText", () => {
   test("宿ありの出張は宿の名前を description に入れる", () => {
-    expect(writeBackText(tripFor(LODGING), t)).toStrictEqual({
+    expect(writeBackText(tripFor({ lodging: LODGING }), t)).toStrictEqual({
       title: "title(destination=福岡)",
-      description: `description(purpose=福岡出張,outbound=${TRANSPORT_TEXT},inbound=${TRANSPORT_TEXT},lodging=デモホテル福岡,total=total(amount=57000,currency=MST))`,
+      description: descriptionOf([
+        ...TRANSPORT_LINES,
+        "lines.lodging(value=デモホテル福岡)",
+        "lines.total(value=total(amount=57000,currency=MST))",
+      ]),
     });
   });
 
-  test("宿なしの出張は noLodging の文言を入れる", () => {
-    expect(writeBackText(tripFor(undefined), t)).toStrictEqual({
+  test("宿なしの出張は noLodging の文言を入れ、飲食とレジャーの行は省く", () => {
+    expect(writeBackText(tripFor({}), t)).toStrictEqual({
       title: "title(destination=福岡)",
-      description: `description(purpose=福岡出張,outbound=${TRANSPORT_TEXT},inbound=${TRANSPORT_TEXT},lodging=noLodging,total=total(amount=46000,currency=MST))`,
+      description: descriptionOf([
+        ...TRANSPORT_LINES,
+        "lines.lodging(value=noLodging)",
+        "lines.total(value=total(amount=46000,currency=MST))",
+      ]),
+    });
+  });
+
+  test("飲食とレジャーがあれば宿の次にその名前の行を足す", () => {
+    expect(
+      writeBackText(
+        tripFor({ lodging: LODGING, dining: DINING, leisure: LEISURE }),
+        t,
+      ),
+    ).toStrictEqual({
+      title: "title(destination=福岡)",
+      description: descriptionOf([
+        ...TRANSPORT_LINES,
+        "lines.lodging(value=デモホテル福岡)",
+        "lines.dining(value=博多 居酒屋 大和)",
+        "lines.leisure(value=福岡タワー)",
+        "lines.total(value=total(amount=60800,currency=MST))",
+      ]),
+    });
+  });
+
+  test("レジャーだけの日帰りは飲食の行を省いてレジャーの行だけを足す", () => {
+    expect(writeBackText(tripFor({ leisure: LEISURE }), t)).toStrictEqual({
+      title: "title(destination=福岡)",
+      description: descriptionOf([
+        ...TRANSPORT_LINES,
+        "lines.lodging(value=noLodging)",
+        "lines.leisure(value=福岡タワー)",
+        "lines.total(value=total(amount=46800,currency=MST))",
+      ]),
     });
   });
 });

@@ -6,12 +6,14 @@ import type { TripPlan } from "./plan";
 /**
  * 承認のときに選んだ、候補ごとの支払いの公開範囲
  *
- * `lodging` は計画に宿があるときだけ持つ (計画の形と揃える)
+ * `lodging` は計画に宿があるとき、`dining` と `leisure` は計画にその場があるときだけ持つ (計画の形と揃える)
  */
 export type PaymentVisibility = {
   outbound: SettlementVisibility;
   inbound: SettlementVisibility;
   lodging?: SettlementVisibility;
+  dining?: SettlementVisibility;
+  leisure?: SettlementVisibility;
 };
 
 /**
@@ -23,6 +25,8 @@ export type PaymentVisibilityInput = {
   outbound?: SettlementVisibility;
   inbound?: SettlementVisibility;
   lodging?: SettlementVisibility;
+  dining?: SettlementVisibility;
+  leisure?: SettlementVisibility;
 };
 
 /**
@@ -60,7 +64,7 @@ export type ApprovedTrip = {
 /**
  * ユーザの mandate のもとで候補ごとの支払いがすべて承認され、送金された出張
  *
- * `authorizations` は計画の候補 (往路、復路、あれば宿泊) と同じ数になる
+ * `authorizations` は計画の候補 (往路、復路、あれば宿泊、飲食、レジャー) と同じ数になる
  */
 export type PaidTrip = {
   status: "paid";
@@ -119,17 +123,21 @@ export type EventText = {
  * トグルの既定値で、非公開に対応していない adapter が唯一取れる形
  */
 export const allPublic = (plan: TripPlan): PaymentVisibility => {
-  if (plan.lodging === undefined) {
-    return { outbound: "public", inbound: "public" };
-  }
+  const chosen: SettlementVisibility = "public";
 
-  return { outbound: "public", inbound: "public", lodging: "public" };
+  return {
+    outbound: chosen,
+    inbound: chosen,
+    ...(plan.lodging === undefined ? {} : { lodging: chosen }),
+    ...(plan.dining === undefined ? {} : { dining: chosen }),
+    ...(plan.leisure === undefined ? {} : { leisure: chosen }),
+  };
 };
 
 /**
  * クライアントの指定を計画の形に合わせた公開範囲にする
  *
- * すべて公開を土台に指定で上書きし、計画に無い候補 (日帰りの宿) の指定は捨てる
+ * すべて公開を土台に指定で上書きし、計画に無い候補 (日帰りの宿、飲食やレジャーの無い計画のその指定) は捨てる
  */
 export const visibilityFor = (
   plan: TripPlan,
@@ -143,6 +151,12 @@ export const visibilityFor = (
     ...(base.lodging === undefined
       ? {}
       : { lodging: requested.lodging ?? base.lodging }),
+    ...(base.dining === undefined
+      ? {}
+      : { dining: requested.dining ?? base.dining }),
+    ...(base.leisure === undefined
+      ? {}
+      : { leisure: requested.leisure ?? base.leisure }),
   };
 };
 
@@ -166,7 +180,7 @@ export const markApproved = (
 /**
  * 候補ごとの支払いがすべて済んだことを記録する
  *
- * `authorizations` は計画の候補と同じ数で、順序は往路、復路、宿泊
+ * `authorizations` は計画の候補と同じ数で、順序は往路、復路、宿泊、飲食、レジャー
  */
 export const markPaid = (
   trip: ApprovedTrip,

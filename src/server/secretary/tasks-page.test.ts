@@ -65,8 +65,16 @@ const CAP = 200000;
 // 取引先訪問は日帰りの出張
 const OSAKA_EVENT = eventId("seed-2");
 
-// Fake のカレンダーが返す日時順 (歯医者が展示会より先)
-const SEED_IDS = ["seed-1", "seed-2", "seed-4", "seed-3"];
+// Fake のカレンダーが返す日時順 (懇親会が歯医者より先、会食が展示会より先、工場視察が最後)
+const SEED_IDS = [
+  "seed-1",
+  "seed-2",
+  "seed-5",
+  "seed-4",
+  "seed-6",
+  "seed-3",
+  "seed-7",
+];
 
 const DETECT: TasksQuery = { tab: "detect", scan: false };
 
@@ -240,7 +248,7 @@ describe("loadTasksData", () => {
     expect(data.scan).toStrictEqual(NOT_SCANNED);
   });
 
-  test("スキャン済みなら窓の予定 4 件を日時順に持つ", async () => {
+  test("スキャン済みなら窓の予定 7 件を日時順に持つ", async () => {
     const context = testContext();
 
     const data = mustOk(await loadTasksData(context, SCANNED));
@@ -295,18 +303,28 @@ describe("loadTasksData", () => {
     const data = mustOk(await loadTasksData(context, SCANNED));
     const events = scannedEventsOf(data.scan);
 
-    // 書き戻した予定は往路の出発 (09:00) から始まるので、10:00 開始の元の予定より前に並ぶ
+    // 書き戻した予定は往路の出発 (08:33) から始まるので、10:00 開始の元の予定より前に並ぶ
     expect(idsOf(events)).toStrictEqual([
       "seed-1",
       "written-1",
       "seed-2",
+      "seed-5",
       "seed-4",
+      "seed-6",
       "seed-3",
+      "seed-7",
     ]);
     expect(data.trips.map((trip) => trip.status)).toStrictEqual(["written"]);
     expect(
       candidateEventsOf(events, data.trips).map((event) => event.id),
-    ).toStrictEqual(["seed-1", "seed-4", "seed-3"]);
+    ).toStrictEqual([
+      "seed-1",
+      "seed-5",
+      "seed-4",
+      "seed-6",
+      "seed-3",
+      "seed-7",
+    ]);
     expect(activeTripsOf(data.trips)).toStrictEqual([]);
     expect(
       confirmedTripsOf(data.trips).map((trip) => trip.status),

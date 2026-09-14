@@ -12,7 +12,12 @@ import type { Activity, RequestFailure, Step } from "./types";
  *
  * `PaymentVisibilityInput` のキーと同じ集合
  */
-export type VisibilityCategory = "outbound" | "inbound" | "lodging";
+export type VisibilityCategory =
+  | "outbound"
+  | "inbound"
+  | "lodging"
+  | "dining"
+  | "leisure";
 
 /**
  * クライアントだけが持つ状態

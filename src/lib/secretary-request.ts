@@ -52,6 +52,8 @@ export const approveTripBodySchema = z
         outbound: visibilitySchema.optional(),
         inbound: visibilitySchema.optional(),
         lodging: visibilitySchema.optional(),
+        dining: visibilitySchema.optional(),
+        leisure: visibilitySchema.optional(),
       })
       .strict(),
   })

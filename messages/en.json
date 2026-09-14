@@ -245,11 +245,19 @@
   },
   "WriteBack": {
     "title": "Trip to {destination}",
-    "description": "{purpose}\nOutbound: {outbound}\nReturn: {inbound}\nLodging: {lodging}\nTotal: {total}\nArranged by Secretary.",
+    "description": "{purpose}\n{lines}\nArranged by Secretary.",
     "transport": "{vendor} ({mode})",
     "mode": {
       "rail": "Rail",
       "air": "Air"
+    },
+    "lines": {
+      "outbound": "Outbound: {value}",
+      "inbound": "Return: {value}",
+      "lodging": "Lodging: {value}",
+      "dining": "Dining: {value}",
+      "leisure": "Leisure: {value}",
+      "total": "Total: {value}"
     },
     "noLodging": "None",
     "total": "{amount} {currency}"
@@ -315,6 +323,9 @@
         "public": "Public",
         "private": "Private"
       },
+      "dining": "{name} ({genre})",
+      "leisure": "{name} ({genre})",
+      "ageLimit": "Age {age}+",
       "total": "Total",
       "rationale": "Why this plan"
     },
