@@ -1,7 +1,7 @@
 import { getFormatter, getTranslations } from "next-intl/server";
 import type { ReactElement } from "react";
 import type { FormatNumber } from "@/components/chat/format";
-import { moneyText, planRows } from "@/components/chat/format";
+import { DATE_OPTIONS, moneyText, plainSpaces } from "@/components/chat/format";
 import {
   cardClass,
   emptyStateClass,
@@ -9,13 +9,48 @@ import {
   okPillClass,
   smallGhostButtonClass,
 } from "@/components/chat/styles";
+import type { ConfirmedTrip } from "@/domain/store";
 import { Link } from "@/i18n/navigation";
-import type { TripResponse } from "@/lib/secretary-response";
-import { EventWhen } from "./event-when";
 import { chatHref } from "./query";
 
 type ItemProps = {
-  trip: TripResponse;
+  trip: ConfirmedTrip;
+};
+
+// 確定旅程は元の予定に戻れるときだけ「会話を見る」を出す (`source_event_id` が無い行は会話が無い)
+const OpenLink = async ({
+  trip,
+}: ItemProps): Promise<ReactElement | undefined> => {
+  const sourceEventId = trip.sourceEventId;
+
+  if (sourceEventId === undefined) {
+    return undefined;
+  }
+
+  const t = await getTranslations("TasksPage");
+
+  return (
+    <Link
+      href={chatHref(sourceEventId, "trips")}
+      className={smallGhostButtonClass}
+    >
+      {t("open")}
+    </Link>
+  );
+};
+
+// 旅程の期間 (日帰りは出発日と同じ日付が両端に来る)
+const TripDates = async ({ trip }: ItemProps): Promise<ReactElement> => {
+  const format = await getFormatter();
+  const text = plainSpaces(
+    format.dateTimeRange(
+      new Date(trip.startDate),
+      new Date(trip.endDate ?? trip.startDate),
+      DATE_OPTIONS,
+    ),
+  );
+
+  return <span>{text}</span>;
 };
 
 // 参考実装の trip header に寄せた行 (左に題名と経路、右に合計)
@@ -34,42 +69,37 @@ const ConfirmedTripItem = async ({
     <li className={`${cardClass} flex flex-wrap items-center gap-5`}>
       <div className="min-w-0 flex-1">
         <div className="text-[17px] font-bold">
-          {trip.event.title === "" ? t("noTitle") : trip.event.title}
+          {trip.title === "" ? t("noTitle") : trip.title}
         </div>
         <div className="mt-[3px] text-[12.5px] text-muted">
           {t("route", {
-            from: trip.plan.outbound.origin,
-            to: trip.plan.outbound.destination,
-            count: planRows(trip.plan).length,
+            from: trip.originCity,
+            to: trip.destinationCity,
+            count: trip.items.length,
           })}{" "}
-          · <EventWhen when={trip.event.when} />
+          · <TripDates trip={trip} />
         </div>
       </div>
       <div className="text-right">
         <div className={labelClass}>{t("total")}</div>
         <div className="text-[19px] font-bold tabular-nums">
-          {moneyText(trip.plan.total, formatNumber)}
+          {moneyText(trip.total, formatNumber)}
         </div>
       </div>
       <span className={okPillClass}>{t("status.written")}</span>
-      <Link
-        href={chatHref(trip.event.id, "trips")}
-        className={smallGhostButtonClass}
-      >
-        {t("open")}
-      </Link>
+      <OpenLink trip={trip} />
     </li>
   );
 };
 
 type Props = {
-  trips: readonly TripResponse[];
+  trips: readonly ConfirmedTrip[];
 };
 
 /**
  * 確定旅程の一覧 (題名、経路と件数、期間、合計、「登録済み」、「会話を見る」)
  *
- * 行は `confirmedTripsOf` が絞ったものをその順序で出す
+ * 行は `confirmedTripsOf` が並べたものをその順序で出す
  * 0 件なら空の箱
  */
 export const ConfirmedTripList = async ({

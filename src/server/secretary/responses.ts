@@ -2,6 +2,8 @@ import "server-only";
 
 import { match, P } from "ts-pattern";
 import type { SecretaryError } from "@/application/errors";
+import type { WriteBackResult } from "@/application/secretary";
+import type { StoreError } from "@/domain/store";
 import { fromThrowable } from "@/lib/result";
 
 // 循環参照を持つ原因は JSON にできないので、その場合だけ toString に落とす
@@ -81,6 +83,40 @@ export const serializableSecretaryError = (
       error: { ...inner, cause: describeCause(inner.cause) },
     }))
     .otherwise(() => error);
+};
+
+/**
+ * store の失敗の中の `cause: unknown` を文字列に置き換える
+ *
+ * `serializableSecretaryError` と同じ考えで、JSON に Error インスタンスや循環参照を残さない
+ */
+export const serializableStoreError = (error: StoreError): StoreError => {
+  if (error.kind === "schema") {
+    return error;
+  }
+
+  return { ...error, cause: describeCause(error.cause) };
+};
+
+/**
+ * 書き戻しの結果を JSON にする
+ *
+ * 出張の形は他の手と同じで、確定旅程の保存に失敗したときだけ `confirmedStoreError` が付く
+ * カレンダーには書けているので、これは成功の応答の中の補足
+ */
+export const writeBackResponseOf = (
+  result: WriteBackResult,
+): Readonly<Record<string, unknown>> => {
+  const failure = result.confirmedStoreError;
+
+  if (failure === undefined) {
+    return { ...result.trip };
+  }
+
+  return {
+    ...result.trip,
+    confirmedStoreError: serializableStoreError(failure),
+  };
 };
 
 /**

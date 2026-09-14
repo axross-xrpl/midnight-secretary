@@ -319,6 +319,7 @@
       "paid": "{count} 件の支払いを承認し、支払い枠から送金しました。",
       "askWriteBack": "出張をカレンダーに登録しますか?",
       "written": "出張をカレンダーに登録しました。",
+      "confirmedStoreFailed": "確定旅程の保存に失敗しました。カレンダーへの登録は済んでいます。",
       "working": {
         "propose": "「{title}」の計画を下書き中...",
         "approve": "承認を記録中...",

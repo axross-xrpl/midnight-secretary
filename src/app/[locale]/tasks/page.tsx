@@ -68,7 +68,9 @@ const DetectTab = async ({ data }: TabProps): Promise<ReactElement> => {
             <p className={emptyStateClass}>{t("notScanned")}</p>
           ))
           .with({ kind: "scanned" }, ({ events }) => (
-            <CandidateList events={candidateEventsOf(events, data.trips)} />
+            <CandidateList
+              events={candidateEventsOf(events, data.trips, data.confirmed)}
+            />
           ))
           .exhaustive()}
       </section>
@@ -82,7 +84,7 @@ const DetectTab = async ({ data }: TabProps): Promise<ReactElement> => {
 
 // 確定旅程タブ (登録済みの trip を予定の開始順に)
 const TripsTab = ({ data }: TabProps): ReactElement => {
-  return <ConfirmedTripList trips={confirmedTripsOf(data.trips)} />;
+  return <ConfirmedTripList trips={confirmedTripsOf(data.confirmed)} />;
 };
 
 type TasksPageProps = {

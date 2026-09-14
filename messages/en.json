@@ -319,6 +319,7 @@
       "paid": "{count, plural, one {# payment} other {# payments}} authorized and settled from the allowance.",
       "askWriteBack": "Shall I add the trip to your calendar?",
       "written": "The trip is on your calendar.",
+      "confirmedStoreFailed": "Saving the confirmed itinerary failed. The calendar entry is already in place.",
       "working": {
         "propose": "Drafting a plan for {title}...",
         "approve": "Recording your approval...",

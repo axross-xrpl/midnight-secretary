@@ -49,7 +49,7 @@ import {
 import type { MandateDraft } from "@/domain/mandate";
 import type { SecretaryStore } from "@/domain/store";
 import type { Result } from "@/lib/result";
-import { err } from "@/lib/result";
+import { err, ok } from "@/lib/result";
 import type { ScanState } from "./tasks-page";
 import { loadTasksData } from "./tasks-page";
 
@@ -169,6 +169,22 @@ const withFailingStore = (context: SecretaryContext): SecretaryContext => {
   };
 };
 
+// listTrips だけを空にする (サーバの再起動でメモリの trip が消えた状態)
+// 確定旅程は DB に残るので Fake に委譲する
+const forgottenTrips = (store: SecretaryStore): SecretaryStore => {
+  return {
+    ...store,
+    listTrips: async () => ok([]),
+  };
+};
+
+const withForgottenTrips = (context: SecretaryContext): SecretaryContext => {
+  return {
+    ...context,
+    deps: { ...context.deps, store: forgottenTrips(context.deps.store) },
+  };
+};
+
 // listEvents だけを失敗させ、他は Fake に委譲する
 const failingEvents = (calendar: CalendarPort): CalendarPort => {
   return {
@@ -264,6 +280,7 @@ describe("loadTasksData", () => {
 
     expect(data.now).toBe(NOW);
     expect(data.trips).toStrictEqual([]);
+    expect(data.confirmed).toStrictEqual([]);
     expect(data.scan).toStrictEqual(NOT_SCANNED);
   });
 
@@ -343,7 +360,9 @@ describe("loadTasksData", () => {
     ]);
     expect(data.trips.map((trip) => trip.status)).toStrictEqual(["written"]);
     expect(
-      candidateEventsOf(events, data.trips).map((event) => event.id),
+      candidateEventsOf(events, data.trips, data.confirmed).map(
+        (event) => event.id,
+      ),
     ).toStrictEqual([
       "seed-1",
       "seed-5",
@@ -354,7 +373,35 @@ describe("loadTasksData", () => {
     ]);
     expect(activeTripsOf(data.trips)).toStrictEqual([]);
     expect(
-      confirmedTripsOf(data.trips).map((trip) => trip.status),
-    ).toStrictEqual(["written"]);
+      confirmedTripsOf(data.confirmed).map((trip) => trip.title),
+    ).toStrictEqual(["大阪出張 (取引先訪問)"]);
+  });
+
+  test("メモリの trip が消えても、確定旅程の予定は手配できる予定に戻らない", async () => {
+    const context = testContext();
+    await arrange(context, OSAKA_EVENT);
+    await finish(context);
+
+    const data = mustOk(
+      await loadTasksData(withForgottenTrips(context), SCANNED),
+    );
+    const events = scannedEventsOf(data.scan);
+
+    expect(data.trips).toStrictEqual([]);
+    expect(data.confirmed.map((trip) => trip.sourceEventId)).toStrictEqual([
+      "seed-2",
+    ]);
+    expect(
+      candidateEventsOf(events, data.trips, data.confirmed).map(
+        (event) => event.id,
+      ),
+    ).toStrictEqual([
+      "seed-1",
+      "seed-5",
+      "seed-4",
+      "seed-6",
+      "seed-3",
+      "seed-7",
+    ]);
   });
 });

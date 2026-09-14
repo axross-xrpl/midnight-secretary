@@ -538,11 +538,34 @@ describe("conversationOf (休止状態)", () => {
 
         {
           speaker: "secretary",
-          line: { kind: "written", writtenEventId: "written-1" },
+          line: {
+            kind: "written",
+            writtenEventId: "written-1",
+            confirmedStoreFailed: false,
+          },
           at: "2026-09-10T00:03:00Z",
         },
       ],
       replies: [],
+    });
+  });
+
+  test("確定旅程の保存に失敗した書き戻しは written に印が付く", () => {
+    const conversation = conversationOf(
+      stateOf({
+        ...WRITTEN,
+        confirmedStoreError: { kind: "unavailable", cause: "stub" },
+      }),
+    );
+
+    expect(conversation.bubbles.at(-1)).toStrictEqual({
+      speaker: "secretary",
+      line: {
+        kind: "written",
+        writtenEventId: "written-1",
+        confirmedStoreFailed: true,
+      },
+      at: "2026-09-10T00:03:00Z",
     });
   });
 

@@ -116,6 +116,13 @@ not stop the server but makes that port's calls fail:
 `SECRETARY_IDENTITY=real` still runs the in-process fake until the contract server exposes the age
 verification endpoints.
 
+`SECRETARY_STORE=real` writes the confirmed itinerary to NeonDB (`trips` and `trip_items`) once the trip
+is on the calendar, and reads the Confirmed tab from there, so it needs `DATABASE_URL`. Trips in progress
+(proposed, approved, paid) still live in memory and are lost on restart. Writing needs
+`SECRETARY_CATALOG=real` as well, because each line item points at the service row it was booked from and
+only the real catalog can look those ids up; with the fake catalog the calendar entry still succeeds and
+the conversation says the itinerary could not be saved.
+
 ## Getting Started
 
 First, run the development server:

@@ -48,6 +48,7 @@ import type {
   PaymentVisibilityInput,
   ProposedTrip,
   Trip,
+  WrittenTrip,
 } from "@/domain/trip";
 import type { Result } from "@/lib/result";
 import { err } from "@/lib/result";
@@ -61,6 +62,7 @@ import type {
 } from "./secretary";
 import {
   approveTrip,
+  loadConfirmedTrips,
   loadDashboard,
   loadLedgerViews,
   loadTrips,
@@ -328,6 +330,24 @@ const mustPay = async (deps: SecretaryDeps, id: TripId): Promise<PaidTrip> => {
   return mustOk(await payForTrip(USER, id, NOW, deps));
 };
 
+// 提案から書き戻しまでを一気に進める (支払い枠は呼び出し側が先に作る)
+const mustWriteBack = async (
+  deps: SecretaryDeps,
+  event: CalendarEventId,
+): Promise<WrittenTrip> => {
+  const proposed = await mustPropose(deps, event);
+
+  await mustApprove(deps, proposed.id);
+  await mustPay(deps, proposed.id);
+
+  return mustOk(
+    await writeBackTrip(
+      { userId: USER, tripId: proposed.id, renderText, now: NOW },
+      deps,
+    ),
+  ).trip;
+};
+
 const storedTrip = async (deps: SecretaryDeps, id: TripId): Promise<Trip> => {
   const trip = mustOk(await deps.store.getTrip(USER, id));
 
@@ -395,6 +415,14 @@ const failsToListTrips = (store: SecretaryStore): SecretaryStore => {
   return {
     ...store,
     listTrips: async () => err({ kind: "unavailable", cause: "stub" }),
+  };
+};
+
+// 確定旅程の保存だけを失敗させ、他は Fake に委譲する
+const failsToPutConfirmed = (store: SecretaryStore): SecretaryStore => {
+  return {
+    ...store,
+    putConfirmedTrip: async () => err({ kind: "unavailable", cause: "stub" }),
   };
 };
 
@@ -1356,15 +1384,17 @@ describe("writeBackTrip", () => {
     await mustApprove(deps, proposed.id);
     const paid = await mustPay(deps, proposed.id);
 
-    const written = mustOk(
+    const result = mustOk(
       await writeBackTrip(
         { userId: USER, tripId: paid.id, renderText, now: NOW },
         deps,
       ),
     );
+    const written = result.trip;
 
     expect(written.status).toBe("written");
     expect(written.writtenAt).toBe(NOW);
+    expect("confirmedStoreError" in result).toBe(false);
     expect(await deps.calendar.getEvent(written.writtenEventId)).toStrictEqual({
       ok: true,
       value: {
@@ -1405,6 +1435,120 @@ describe("writeBackTrip", () => {
           actual: "approved",
         },
       },
+    });
+  });
+
+  test("書き戻すと確定旅程に明細つきで載る", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const written = await mustWriteBack(deps, INSPECTION_EVENT);
+    const confirmed = mustOk(await loadConfirmedTrips(USER, deps));
+
+    expect(confirmed).toHaveLength(1);
+    expect(confirmed[0]?.id).toBe(written.id);
+    expect(confirmed[0]?.originCity).toBe("東京");
+    expect(confirmed[0]?.destinationCity).toBe("大阪");
+    expect(confirmed[0]?.total).toStrictEqual(mst(INSPECTION_TOTAL));
+    expect(confirmed[0]?.confirmedAt).toBe(NOW);
+    // 明細は支払いの順 (往路、復路、宿、飲食、レジャー)
+    expect(confirmed[0]?.items.map((item) => item.category)).toStrictEqual([
+      "rail",
+      "rail",
+      "hotel",
+      "restaurant",
+      "leisure",
+    ]);
+    expect(confirmed[0]?.items.map((item) => item.seq)).toStrictEqual([
+      1, 2, 3, 4, 5,
+    ]);
+  });
+
+  test("同じ出張を 2 回書き戻しても確定旅程は 1 件のまま", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const written = await mustWriteBack(deps, OSAKA_EVENT);
+
+    // written のままなので 2 回目は wrongStatus になり、確定旅程は増えない
+    await writeBackTrip(
+      { userId: USER, tripId: written.id, renderText, now: NOW },
+      deps,
+    );
+
+    expect(mustOk(await loadConfirmedTrips(USER, deps))).toHaveLength(1);
+  });
+
+  test("確定旅程の保存が失敗しても書き戻しは成功し、失敗が結果に付く", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, OSAKA_EVENT);
+
+    await mustApprove(deps, proposed.id);
+    await mustPay(deps, proposed.id);
+
+    const result = mustOk(
+      await writeBackTrip(
+        { userId: USER, tripId: proposed.id, renderText, now: NOW },
+        { ...deps, store: failsToPutConfirmed(deps.store) },
+      ),
+    );
+
+    expect(result.trip.status).toBe("written");
+    expect(result.confirmedStoreError).toStrictEqual({
+      kind: "unavailable",
+      cause: "stub",
+    });
+    // 書き戻しは済んでいるので trip は written で残る
+    expect((await storedTrip(deps, proposed.id)).status).toBe("written");
+  });
+});
+
+describe("loadConfirmedTrips", () => {
+  test("書き戻していなければ空で、進行中の出張は載らない", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, OSAKA_EVENT);
+
+    expect(mustOk(await loadConfirmedTrips(USER, deps))).toStrictEqual([]);
+    expect(mustOk(await loadTrips(USER, deps))).toStrictEqual([proposed]);
+  });
+
+  test("進行中と確定が分かれて返る", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const written = await mustWriteBack(deps, OSAKA_EVENT);
+
+    await mustPropose(deps, OVERNIGHT_EVENT);
+
+    const active = mustOk(await loadTrips(USER, deps));
+    const confirmed = mustOk(await loadConfirmedTrips(USER, deps));
+
+    expect(active.map((trip) => trip.status).toSorted()).toStrictEqual([
+      "proposed",
+      "written",
+    ]);
+    expect(confirmed.map((trip) => trip.id)).toStrictEqual([written.id]);
+  });
+
+  test("store の読み取りが失敗したらその失敗を返す", async () => {
+    const deps = testDeps();
+
+    expect(
+      await loadConfirmedTrips(USER, {
+        ...deps,
+        store: {
+          ...deps.store,
+          listConfirmedTrips: async () =>
+            err({ kind: "unavailable", cause: "stub" }),
+        },
+      }),
+    ).toStrictEqual({
+      ok: false,
+      error: { source: "store", error: { kind: "unavailable", cause: "stub" } },
     });
   });
 });

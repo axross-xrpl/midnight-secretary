@@ -27,7 +27,11 @@ import {
   parseTripIdParam,
   parseWriteBackInput,
 } from "./inputs";
-import { dataResponse, secretaryErrorResponse } from "./responses";
+import {
+  dataResponse,
+  secretaryErrorResponse,
+  writeBackResponseOf,
+} from "./responses";
 import type { WriteBackTranslate } from "./write-back-text";
 import { writeBackText } from "./write-back-text";
 
@@ -332,5 +336,5 @@ export const handleWriteBackTrip = async (
     return secretaryErrorResponse(written.error);
   }
 
-  return dataResponse(written.value, 200);
+  return dataResponse(writeBackResponseOf(written.value), 200);
 };

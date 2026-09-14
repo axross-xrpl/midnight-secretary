@@ -48,7 +48,7 @@ import type {
 import { adultRequirementOf, assemblePlan, offerQueryFor } from "@/domain/plan";
 import type { ChoiceContext, PlannerError } from "@/domain/planner";
 import type { ProfileError } from "@/domain/profile";
-import type { StoreError } from "@/domain/store";
+import type { ConfirmedTrip, StoreError } from "@/domain/store";
 import type {
   ApprovedTrip,
   EventText,
@@ -152,6 +152,17 @@ export type WriteBackInput = {
   tripId: TripId;
   renderText: RenderEventText;
   now: IsoDateTime;
+};
+
+/**
+ * 書き戻しの結果
+ *
+ * `confirmedStoreError` は確定旅程を DB に写すのに失敗したときだけ入る
+ * カレンダーには書けているので書き戻し自体は成功で、画面はこの失敗を補足として出す
+ */
+export type WriteBackResult = {
+  trip: WrittenTrip;
+  confirmedStoreError?: StoreError;
 };
 
 // 交通、宿泊、飲食、レジャーのどれも同じ形で支払うので、支払いに要る 3 つと、承認で選んだその候補の公開範囲だけを見る
@@ -658,6 +669,25 @@ export const loadTrips = async (
 };
 
 /**
+ * ユーザの確定旅程を読み込む
+ *
+ * 進行中の出張とは別の読み取りで、確定旅程タブが使う
+ * 並びは store が返す出発日の新しい順
+ */
+export const loadConfirmedTrips = async (
+  userId: UserId,
+  deps: SecretaryDeps,
+): Promise<Result<readonly ConfirmedTrip[], SecretaryError>> => {
+  const confirmed = await deps.store.listConfirmedTrips(userId);
+
+  if (!confirmed.ok) {
+    return err(fromStore(confirmed.error));
+  }
+
+  return ok(confirmed.value);
+};
+
+/**
  * ユーザの mandate を作ってリンクする
  *
  * ユーザがすでに mandate を持っていれば失敗する
@@ -983,11 +1013,14 @@ export const payForTrip = async (
 
 /**
  * 支払い済みの trip を予定 1 件としてカレンダーに書き戻し、written として保存する
+ *
+ * 最後に確定旅程を DB に写す
+ * 写すのに失敗しても書き戻し自体は成功として返す (カレンダーの登録は冪等でないので、やり直させると予定が二重になる)
  */
 export const writeBackTrip = async (
   input: WriteBackInput,
   deps: SecretaryDeps,
-): Promise<Result<WrittenTrip, SecretaryError>> => {
+): Promise<Result<WriteBackResult, SecretaryError>> => {
   const trip = await loadTrip(input.userId, input.tripId, deps);
 
   if (!trip.ok) {
@@ -1021,7 +1054,17 @@ export const writeBackTrip = async (
     return err(fromStore(saved.error));
   }
 
-  return ok(written);
+  const confirmed = await deps.store.putConfirmedTrip(
+    input.userId,
+    written,
+    deps.catalog.resolveServiceIds,
+  );
+
+  if (!confirmed.ok) {
+    return ok({ trip: written, confirmedStoreError: confirmed.error });
+  }
+
+  return ok({ trip: written });
 };
 
 /**
