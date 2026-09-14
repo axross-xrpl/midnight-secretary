@@ -429,7 +429,19 @@
       "eventAlreadyArranged": "この予定の出張はすでに提案より先に進んでいます。",
       "tripNotFound": "その出張が見つかりません。",
       "wrongStatus": "出張の状態がこの操作と合いません。ページを読み直してください。",
-      "privateSettlementUnsupported": "この支払い枠では非公開の支払いを扱えません。すべて公開で承認してください。"
+      "privateSettlementUnsupported": "この支払い枠では非公開の支払いを扱えません。すべて公開で承認してください。",
+      "birthDateMissing": "年齢を証明するには、プロフィールに生年月日の登録が必要です。",
+      "ageNotVerified": "{date} 時点でまだ {age} 歳ではないため、年齢制限のある候補を含む計画は承認できません。"
+    },
+    "identity": {
+      "notRegistered": "年齢確認の登録がまだありません。",
+      "alreadyRegistered": "年齢確認の登録はすでにあります。",
+      "proofFailed": "年齢の証明の生成に失敗しました。もう一度お試しください。",
+      "unavailable": "年齢確認のコントラクトにいま接続できません。"
+    },
+    "profile": {
+      "unavailable": "プロフィールにいま接続できません。",
+      "schema": "プロフィールの形が想定と違います。"
     },
     "unauthorized": "セッションが切れました。サインインし直してください。",
     "invalid_request": "リクエストが不正として拒否されました。",

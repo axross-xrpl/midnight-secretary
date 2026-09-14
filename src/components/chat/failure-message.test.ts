@@ -120,6 +120,60 @@ describe("failureMessageOf", () => {
     ).toStrictEqual({ kind: "plain", key: "schema" });
   });
 
+  test("flow.ageNotVerified は年齢の下限と cutoff を持つ variant になる", () => {
+    expect(
+      failureMessageOf({
+        code: "secretary",
+        error: {
+          source: "flow",
+          error: {
+            kind: "ageNotVerified",
+            tripId: "trip-1",
+            ageLimit: 20,
+            cutoffDate: "2006-09-15",
+          },
+        },
+      }),
+    ).toStrictEqual({
+      kind: "ageNotVerified",
+      ageLimit: 20,
+      cutoffDate: "2006-09-15",
+    });
+  });
+
+  test("ageNotVerified なのに cutoff が読めなければ schema になる", () => {
+    expect(
+      failureMessageOf({
+        code: "secretary",
+        error: { source: "flow", error: { kind: "ageNotVerified" } },
+      }),
+    ).toStrictEqual({ kind: "plain", key: "schema" });
+  });
+
+  test("生年月日の不足と identity / profile の失敗は plain キーになる", () => {
+    expect(
+      failureMessageOf({
+        code: "secretary",
+        error: {
+          source: "flow",
+          error: { kind: "birthDateMissing", tripId: "trip-1" },
+        },
+      }),
+    ).toStrictEqual({ kind: "plain", key: "flow.birthDateMissing" });
+    expect(
+      failureMessageOf({
+        code: "secretary",
+        error: { source: "identity", error: { kind: "notRegistered" } },
+      }),
+    ).toStrictEqual({ kind: "plain", key: "identity.notRegistered" });
+    expect(
+      failureMessageOf({
+        code: "secretary",
+        error: { source: "profile", error: { kind: "unavailable" } },
+      }),
+    ).toStrictEqual({ kind: "plain", key: "profile.unavailable" });
+  });
+
   test("知らない source と kind は unknown になる", () => {
     expect(
       failureMessageOf({
@@ -131,9 +185,12 @@ describe("failureMessageOf", () => {
 });
 
 describe("メッセージのキー", () => {
-  test("plain キーと 2 つの overBudget で SecretaryError と封筒の失敗をすべて覆う", () => {
+  test("plain キーと 2 つの overBudget と ageNotVerified で SecretaryError と封筒の失敗をすべて覆う", () => {
     expectTypeOf<
-      PlainFailureKey | "plan.overBudget" | "mandate.overBudget"
+      | PlainFailureKey
+      | "plan.overBudget"
+      | "mandate.overBudget"
+      | "flow.ageNotVerified"
     >().toEqualTypeOf<ExpectedFailureKey>();
   });
 });

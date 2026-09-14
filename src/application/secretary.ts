@@ -1,3 +1,4 @@
+import { match } from "ts-pattern";
 import type {
   CalendarError,
   CalendarEvent,
@@ -9,6 +10,7 @@ import type {
   PlaceOffer,
   TransportOffer,
 } from "@/domain/catalog";
+import { yearsBefore } from "@/domain/dates";
 import type {
   CalendarEventId,
   IsoDateTime,
@@ -16,6 +18,11 @@ import type {
   TripId,
   UserId,
 } from "@/domain/identifiers";
+import type {
+  AgeProof,
+  AgeRegistration,
+  IdentityError,
+} from "@/domain/identity";
 import type { Locale } from "@/domain/locale";
 import type {
   Mandate,
@@ -28,12 +35,14 @@ import { remainingAllowance } from "@/domain/mandate";
 import { paymentRefFor } from "@/domain/mandate.parse";
 import type { MoneyError } from "@/domain/money";
 import type {
+  AdultRequirement,
   PlanAssemblyError,
   TravelerPreferences,
   TripPlan,
 } from "@/domain/plan";
-import { assemblePlan, offerQueryFor } from "@/domain/plan";
+import { adultRequirementOf, assemblePlan, offerQueryFor } from "@/domain/plan";
 import type { PlannerError } from "@/domain/planner";
+import type { ProfileError } from "@/domain/profile";
 import type { StoreError } from "@/domain/store";
 import type {
   ApprovedTrip,
@@ -154,6 +163,14 @@ const fromFlow = (error: FlowError): SecretaryError => {
   return { source: "flow", error };
 };
 
+const fromIdentity = (error: IdentityError): SecretaryError => {
+  return { source: "identity", error };
+};
+
+const fromProfile = (error: ProfileError): SecretaryError => {
+  return { source: "profile", error };
+};
+
 /**
  * ユーザにリンクされた mandate を port から読む
  *
@@ -268,6 +285,107 @@ const hasPrivate = (visibility: PaymentVisibility): boolean => {
     visibility.dining,
     visibility.leisure,
   ].some((chosen) => chosen === "private");
+};
+
+// 登録済みならそれを、無ければプロフィールの生年月日で登録してから返す (登録は identity ごとに 1 回)
+// プロフィールに生年月日が無ければ undefined で、登録できないことをどう扱うかは呼び出し側が決める
+const ensureRegistered = async (
+  userId: UserId,
+  now: IsoDateTime,
+  deps: SecretaryDeps,
+): Promise<Result<AgeRegistration | undefined, SecretaryError>> => {
+  const registered = await deps.identity.readRegistration(userId);
+
+  if (!registered.ok) {
+    return err(fromIdentity(registered.error));
+  }
+
+  if (registered.value !== undefined) {
+    return ok(registered.value);
+  }
+
+  const birthDate = await deps.profile.readBirthDate(userId);
+
+  if (!birthDate.ok) {
+    return err(fromProfile(birthDate.error));
+  }
+
+  if (birthDate.value === undefined) {
+    return ok(undefined);
+  }
+
+  const registration = await deps.identity.registerBirthDate(
+    userId,
+    birthDate.value,
+    now,
+  );
+
+  if (!registration.ok) {
+    return err(fromIdentity(registration.error));
+  }
+
+  return ok(registration.value);
+};
+
+// 出発日の `ageLimit` 年前を cutoff にして、成人であることを証明する
+// 結果が「成人ではない」のは port の失敗ではなく flow の失敗で、trip は提案済みのまま
+const proveForTrip = async (
+  userId: UserId,
+  trip: ProposedTrip,
+  requirement: AdultRequirement,
+  now: IsoDateTime,
+  deps: SecretaryDeps,
+): Promise<Result<AgeProof, SecretaryError>> => {
+  const registered = await ensureRegistered(userId, now, deps);
+
+  if (!registered.ok) {
+    return registered;
+  }
+
+  if (registered.value === undefined) {
+    return err(fromFlow({ kind: "birthDateMissing", tripId: trip.id }));
+  }
+
+  const outcome = await deps.identity.proveAdult(
+    userId,
+    yearsBefore(trip.plan.intent.departOn, requirement.ageLimit),
+    now,
+  );
+
+  if (!outcome.ok) {
+    return err(fromIdentity(outcome.error));
+  }
+
+  return match(outcome.value)
+    .returnType<Result<AgeProof, SecretaryError>>()
+    .with({ kind: "adult" }, ({ proof }) => ok(proof))
+    .with({ kind: "notAdult" }, ({ cutoffDate }) =>
+      err(
+        fromFlow({
+          kind: "ageNotVerified",
+          tripId: trip.id,
+          ageLimit: requirement.ageLimit,
+          cutoffDate,
+        }),
+      ),
+    )
+    .exhaustive();
+};
+
+// 計画が成人を要しなければ証明は要らない (undefined)
+const ageProofFor = async (
+  userId: UserId,
+  trip: ProposedTrip,
+  now: IsoDateTime,
+  deps: SecretaryDeps,
+): Promise<Result<AgeProof | undefined, SecretaryError>> => {
+  const requirement = adultRequirementOf(trip.plan);
+
+  if (requirement === undefined) {
+    return ok(undefined);
+  }
+
+  return proveForTrip(userId, trip, requirement, now, deps);
 };
 
 // 証明の生成は直列が前提なので、前の候補の結果を待ってから次の候補を出す
@@ -522,6 +640,11 @@ export const proposeTrip = async (
  * プランは store から取り、クライアントからは公開範囲だけを受け取る
  * 計画に無い候補 (日帰りの宿、飲食やレジャーの無い計画のその指定) は捨て、指定の無い候補は公開にする
  * adapter が非公開に対応していないのに非公開があれば `flow.privateSettlementUnsupported` で、trip は提案済みのまま
+ * 計画が成人を要する候補を含むなら、出発日の `ageLimit` 年前を cutoff にした証明が通ることを前提にする
+ * 未登録なら profile の生年月日で登録してから証明する (登録は 1 回だけ)
+ * 通れば証明を trip に残す
+ * 落ちれば `flow.ageNotVerified`、生年月日が無ければ `flow.birthDateMissing` で、trip は提案済みのまま
+ * 公開範囲の検査は I/O を伴わないので、identity に問い合わせる証明より先に行う
  */
 export const approveTrip = async (
   userId: UserId,
@@ -553,7 +676,13 @@ export const approveTrip = async (
     return err(fromFlow({ kind: "privateSettlementUnsupported", tripId }));
   }
 
-  const approved = markApproved(trip.value, now, visibility);
+  const ageProof = await ageProofFor(userId, trip.value, now, deps);
+
+  if (!ageProof.ok) {
+    return ageProof;
+  }
+
+  const approved = markApproved(trip.value, now, visibility, ageProof.value);
   const saved = await deps.store.putTrip(userId, approved);
 
   if (!saved.ok) {

@@ -12,6 +12,7 @@ import {
   parseTripId,
   parseWalletAddress,
 } from "./identifiers.parse";
+import type { AgeProof } from "./identity";
 import type { Authorization } from "./mandate";
 import type { Money } from "./money";
 import type { TripPlan } from "./plan";
@@ -154,6 +155,13 @@ const AUTHORIZATION: Authorization = {
   },
 };
 
+const AGE_PROOF: AgeProof = {
+  identity: "identity:user-1",
+  cutoffDate: mustParse(parseIsoDate("2006-09-14")),
+  proofRef: "proof-1",
+  provedAt: at,
+};
+
 describe("allPublic", () => {
   test("宿のある計画は 3 候補すべてが公開になる", () => {
     expect(allPublic(ONE_NIGHT)).toStrictEqual({
@@ -276,5 +284,70 @@ describe("markApproved", () => {
     );
 
     expect(written.visibility).toStrictEqual(approved.visibility);
+  });
+
+  test("証明が無ければ ageProof を持たずに承認する", () => {
+    const proposed = proposedWith(ONE_NIGHT);
+    const visibility = allPublic(ONE_NIGHT);
+
+    expect(markApproved(proposed, at, visibility)).toStrictEqual({
+      ...proposed,
+      status: "approved",
+      approvedAt: at,
+      visibility,
+      authorizations: [],
+    });
+  });
+
+  test("証明があれば ageProof として残す", () => {
+    const proposed = proposedWith(WITH_DINING);
+    const visibility = allPublic(WITH_DINING);
+
+    expect(markApproved(proposed, at, visibility, AGE_PROOF)).toStrictEqual({
+      ...proposed,
+      status: "approved",
+      approvedAt: at,
+      visibility,
+      authorizations: [],
+      ageProof: AGE_PROOF,
+    });
+  });
+});
+
+describe("承認以降の状態", () => {
+  test("支払いと書き戻しは ageProof を引き継ぐ", () => {
+    const approved = markApproved(
+      proposedWith(WITH_DINING),
+      at,
+      allPublic(WITH_DINING),
+      AGE_PROOF,
+    );
+    const paid = markPaid(approved, [AUTHORIZATION], at);
+    const written = markWritten(
+      paid,
+      mustParse(parseCalendarEventId("written-1")),
+      at,
+    );
+
+    expect(paid.ageProof).toStrictEqual(AGE_PROOF);
+    expect(written.ageProof).toStrictEqual(AGE_PROOF);
+    expect(written).toStrictEqual({
+      ...approved,
+      status: "written",
+      authorizations: [AUTHORIZATION],
+      paidAt: at,
+      writtenEventId: mustParse(parseCalendarEventId("written-1")),
+      writtenAt: at,
+    });
+  });
+
+  test("証明の無い承認からは ageProof が生えない", () => {
+    const paid = markPaid(
+      markApproved(proposedWith(SAME_DAY), at, allPublic(SAME_DAY)),
+      [],
+      at,
+    );
+
+    expect("ageProof" in paid).toBe(false);
   });
 });

@@ -4,6 +4,7 @@ import type { Mandate } from "@/domain/mandate";
 import type { ApprovedTrip, Trip } from "@/domain/trip";
 import type { MandateResponse, TripResponse } from "./secretary-response";
 import {
+  parseAgeNotVerified,
   parseMandateOverBudget,
   parsePlanOverBudget,
   parseSecretaryFailure,
@@ -149,8 +150,8 @@ describe("parseSecretaryFailure", () => {
   });
 });
 
-// 居酒屋つきの計画
-const APPROVED_WITH_DINING_PAYLOAD = {
+// 居酒屋つきの計画と、承認のときに通った成人の証明
+const APPROVED_WITH_PROOF_PAYLOAD = {
   data: {
     ...APPROVED_PAYLOAD.data,
     plan: {
@@ -169,15 +170,21 @@ const APPROVED_WITH_DINING_PAYLOAD = {
       total: { amount: 32440, currency: "MST" },
     },
     visibility: { outbound: "public", inbound: "private", dining: "private" },
+    ageProof: {
+      identity: "identity:user-1",
+      cutoffDate: "2006-09-15",
+      proofRef: "proof-1",
+      provedAt: "2026-09-10T00:01:00Z",
+    },
   },
 };
 
-// 居酒屋とレジャーつきの計画
+// 居酒屋とレジャーつきの計画 (成人の証明も持つ)
 const APPROVED_WITH_LEISURE_PAYLOAD = {
   data: {
-    ...APPROVED_WITH_DINING_PAYLOAD.data,
+    ...APPROVED_WITH_PROOF_PAYLOAD.data,
     plan: {
-      ...APPROVED_WITH_DINING_PAYLOAD.data.plan,
+      ...APPROVED_WITH_PROOF_PAYLOAD.data.plan,
       leisure: {
         id: "leisure-inbound-guide-tour",
         kind: "leisure",
@@ -224,12 +231,12 @@ describe("parseTripResponse", () => {
     expect(parsed.ok).toBe(false);
   });
 
-  test("飲食を持つ承認済みの応答を通す", () => {
-    const parsed = parseTripResponse(APPROVED_WITH_DINING_PAYLOAD);
+  test("飲食と成人の証明を持つ承認済みの応答を通す", () => {
+    const parsed = parseTripResponse(APPROVED_WITH_PROOF_PAYLOAD);
 
     expect(parsed).toStrictEqual({
       ok: true,
-      value: APPROVED_WITH_DINING_PAYLOAD.data,
+      value: APPROVED_WITH_PROOF_PAYLOAD.data,
     });
   });
 
@@ -245,11 +252,11 @@ describe("parseTripResponse", () => {
   test("知らない本人確認の種類を持つ飲食は拒否する", () => {
     const parsed = parseTripResponse({
       data: {
-        ...APPROVED_WITH_DINING_PAYLOAD.data,
+        ...APPROVED_WITH_PROOF_PAYLOAD.data,
         plan: {
-          ...APPROVED_WITH_DINING_PAYLOAD.data.plan,
+          ...APPROVED_WITH_PROOF_PAYLOAD.data.plan,
           dining: {
-            ...APPROVED_WITH_DINING_PAYLOAD.data.plan.dining,
+            ...APPROVED_WITH_PROOF_PAYLOAD.data.plan.dining,
             requiredVerifications: ["passport"],
           },
         },
@@ -257,6 +264,43 @@ describe("parseTripResponse", () => {
     });
 
     expect(parsed.ok).toBe(false);
+  });
+});
+
+describe("parseAgeNotVerified", () => {
+  test("flow.ageNotVerified からは年齢の下限と cutoff を返す", () => {
+    expect(
+      parseAgeNotVerified({
+        source: "flow",
+        error: {
+          kind: "ageNotVerified",
+          tripId: tripIdAt(1),
+          ageLimit: 20,
+          cutoffDate: "2006-09-15",
+        },
+      }),
+    ).toStrictEqual({
+      ok: true,
+      value: { ageLimit: 20, cutoffDate: "2006-09-15" },
+    });
+  });
+
+  test("kind が違えばスキーマの失敗", () => {
+    expect(
+      parseAgeNotVerified({
+        source: "flow",
+        error: { kind: "birthDateMissing", tripId: tripIdAt(1) },
+      }).ok,
+    ).toBe(false);
+  });
+
+  test("cutoff が無ければスキーマの失敗", () => {
+    expect(
+      parseAgeNotVerified({
+        source: "flow",
+        error: { kind: "ageNotVerified", tripId: tripIdAt(1), ageLimit: 20 },
+      }).ok,
+    ).toBe(false);
   });
 });
 

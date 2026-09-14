@@ -1,5 +1,6 @@
 import type { CalendarEvent, CalendarEventDraft } from "./calendar";
 import type { CalendarEventId, IsoDateTime, TripId } from "./identifiers";
+import type { AgeProof } from "./identity";
 import type { Authorization, SettlementVisibility } from "./mandate";
 import type { TripPlan } from "./plan";
 
@@ -59,6 +60,9 @@ export type ApprovedTrip = {
   approvedAt: IsoDateTime;
   visibility: PaymentVisibility;
   authorizations: readonly Authorization[];
+
+  /** 成人の証明 (計画が年齢制限つきの候補を含むときだけ) */
+  ageProof?: AgeProof;
 };
 
 /**
@@ -75,6 +79,9 @@ export type PaidTrip = {
   approvedAt: IsoDateTime;
   visibility: PaymentVisibility;
   authorizations: readonly Authorization[];
+
+  /** 成人の証明 (承認のときのものを引き継ぐ) */
+  ageProof?: AgeProof;
   paidAt: IsoDateTime;
 };
 
@@ -90,6 +97,9 @@ export type WrittenTrip = {
   approvedAt: IsoDateTime;
   visibility: PaymentVisibility;
   authorizations: readonly Authorization[];
+
+  /** 成人の証明 (承認のときのものを引き継ぐ) */
+  ageProof?: AgeProof;
   paidAt: IsoDateTime;
   writtenEventId: CalendarEventId;
   writtenAt: IsoDateTime;
@@ -162,11 +172,14 @@ export const visibilityFor = (
 
 /**
  * ユーザの承認と、そのとき選んだ候補ごとの公開範囲を記録する
+ *
+ * 計画が年齢制限つきの候補を含むときは、通った成人の証明を `ageProof` として残す
  */
 export const markApproved = (
   trip: ProposedTrip,
   approvedAt: IsoDateTime,
   visibility: PaymentVisibility,
+  ageProof?: AgeProof,
 ): ApprovedTrip => {
   return {
     ...trip,
@@ -174,6 +187,7 @@ export const markApproved = (
     approvedAt,
     visibility,
     authorizations: [],
+    ...(ageProof === undefined ? {} : { ageProof }),
   };
 };
 

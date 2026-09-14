@@ -1,7 +1,11 @@
 import { describe, expect, test } from "vitest";
 import type { SecretaryError } from "@/application/errors";
 import type { TripId } from "@/domain/identifiers";
-import { mustParse, parseTripId } from "@/domain/identifiers.parse";
+import {
+  mustParse,
+  parseIsoDate,
+  parseTripId,
+} from "@/domain/identifiers.parse";
 import {
   describeCause,
   serializableSecretaryError,
@@ -48,6 +52,27 @@ describe("serializableSecretaryError", () => {
     };
 
     expect(serializableSecretaryError(error)).toStrictEqual(error);
+  });
+
+  test("identity と profile の cause も文字列にする", () => {
+    expect(
+      serializableSecretaryError({
+        source: "identity",
+        error: { kind: "proofFailed", cause: new Error("circuit") },
+      }),
+    ).toStrictEqual({
+      source: "identity",
+      error: { kind: "proofFailed", cause: "Error: circuit" },
+    });
+    expect(
+      serializableSecretaryError({
+        source: "profile",
+        error: { kind: "unavailable", cause: { code: "ECONNREFUSED" } },
+      }),
+    ).toStrictEqual({
+      source: "profile",
+      error: { kind: "unavailable", cause: '{"code":"ECONNREFUSED"}' },
+    });
   });
 });
 
@@ -105,6 +130,62 @@ describe("statusOf", () => {
         source: "mandate",
         error: { kind: "unavailable", cause: "node down" },
       }),
+    ).toBe(502);
+  });
+
+  test("年齢の証明が通らないことと生年月日が無いことは 422 になる", () => {
+    expect(
+      statusOf({
+        source: "flow",
+        error: {
+          kind: "ageNotVerified",
+          tripId: TRIP_ID,
+          ageLimit: 20,
+          cutoffDate: mustParse(parseIsoDate("2006-09-15")),
+        },
+      }),
+    ).toBe(422);
+    expect(
+      statusOf({
+        source: "flow",
+        error: { kind: "birthDateMissing", tripId: TRIP_ID },
+      }),
+    ).toBe(422);
+  });
+
+  test("identity の登録の食い違いは 409、不調は 502 になる", () => {
+    expect(
+      statusOf({ source: "identity", error: { kind: "notRegistered" } }),
+    ).toBe(409);
+    expect(
+      statusOf({
+        source: "identity",
+        error: { kind: "alreadyRegistered", identity: "identity-1" },
+      }),
+    ).toBe(409);
+    expect(
+      statusOf({
+        source: "identity",
+        error: { kind: "proofFailed", cause: "stub" },
+      }),
+    ).toBe(502);
+    expect(
+      statusOf({
+        source: "identity",
+        error: { kind: "unavailable", cause: "stub" },
+      }),
+    ).toBe(502);
+  });
+
+  test("profile の失敗は 502 になる", () => {
+    expect(
+      statusOf({
+        source: "profile",
+        error: { kind: "unavailable", cause: "stub" },
+      }),
+    ).toBe(502);
+    expect(
+      statusOf({ source: "profile", error: { kind: "schema", issues: [] } }),
     ).toBe(502);
   });
 });

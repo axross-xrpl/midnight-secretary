@@ -149,6 +149,18 @@ export const tripPlanSchema = z.object({
   rationale: z.string(),
 });
 
+/**
+ * 成人の証明 (承認のときに通ったもの)
+ *
+ * `cutoffDate` は出発日の `ageLimit` 年前で、生年月日は載らない
+ */
+export const ageProofSchema = z.object({
+  identity: z.string(),
+  cutoffDate: z.string(),
+  proofRef: z.string(),
+  provedAt: z.string(),
+});
+
 // 4 状態に共通するフィールドで、予定は scan の応答と同じ形なので流用する
 const tripBase = {
   id: z.string(),
@@ -158,11 +170,13 @@ const tripBase = {
 };
 
 // readonly にしておくと domain の Trip をそのまま props に渡せる (domain の配列は readonly)
+// 成人の証明は計画が年齢制限つきの候補を含むときだけある
 const approvedFields = {
   ...tripBase,
   approvedAt: z.string(),
   visibility: paymentVisibilitySchema,
   authorizations: z.array(authorizationSchema).readonly(),
+  ageProof: ageProofSchema.optional(),
 };
 
 const paidFields = { ...approvedFields, paidAt: z.string() };
@@ -233,6 +247,11 @@ export type LodgingOfferResponse = z.infer<typeof lodgingOfferSchema>;
  * 現地のサービス 1 件 (飲食・レジャー)
  */
 export type PlaceOfferResponse = z.infer<typeof placeOfferSchema>;
+
+/**
+ * 成人の証明
+ */
+export type AgeProofResponse = z.infer<typeof ageProofSchema>;
 
 /**
  * 検証済みのプラン
@@ -397,5 +416,36 @@ export const parseMandateOverBudget = (
     cap: parsed.error.cap,
     spent: parsed.error.spent,
     requested: parsed.error.requested,
+  }));
+};
+
+/**
+ * `flow.ageNotVerified` の detail のうち画面が出すもの (年齢の下限と cutoff の日付)
+ */
+export type AgeNotVerifiedDetail = {
+  ageLimit: number;
+  cutoffDate: string;
+};
+
+const ageNotVerifiedSchema = z.object({
+  source: z.literal("flow"),
+  error: z.object({
+    kind: z.literal("ageNotVerified"),
+    ageLimit: z.number(),
+    cutoffDate: z.string(),
+  }),
+});
+
+/**
+ * `flow.ageNotVerified` の失敗から年齢の下限と cutoff を取り出す
+ *
+ * `source` / `kind` が違うか、形が合わなければスキーマの失敗
+ */
+export const parseAgeNotVerified = (
+  error: SecretaryErrorJson,
+): Result<AgeNotVerifiedDetail, SchemaError> => {
+  return map(fromZod(ageNotVerifiedSchema.safeParse(error)), (parsed) => ({
+    ageLimit: parsed.error.ageLimit,
+    cutoffDate: parsed.error.cutoffDate,
   }));
 };

@@ -63,6 +63,20 @@ export type TripPlan = {
 };
 
 /**
+ * 計画が成人であることを要する候補を含むなら、その候補と年齢の下限
+ *
+ * `requiredVerifications` に `age` を含む `dining` が対象
+ * `ageLimit` が無ければ 20
+ */
+export type AdultRequirement = {
+  offer: PlaceOffer;
+  ageLimit: number;
+};
+
+// 年齢制限つきの候補が下限を持たないときの既定 (飲酒の下限)
+const DEFAULT_AGE_LIMIT = 20;
+
+/**
  * 選択をプランに組み立てるときに起こりうる失敗
  */
 export type PlanAssemblyError =
@@ -217,4 +231,22 @@ export const assemblePlan = (
     total: total.value,
     rationale: choice.rationale,
   });
+};
+
+/**
+ * 計画が成人であることを要する候補を含むなら、その候補と年齢の下限
+ *
+ * 純粋関数
+ * Wave 1 で年齢制限を持ちうるのは飲食だけなので `dining` だけを見る
+ */
+export const adultRequirementOf = (
+  plan: TripPlan,
+): AdultRequirement | undefined => {
+  const dining = plan.dining;
+
+  if (dining === undefined || !dining.requiredVerifications.includes("age")) {
+    return undefined;
+  }
+
+  return { offer: dining, ageLimit: dining.ageLimit ?? DEFAULT_AGE_LIMIT };
 };

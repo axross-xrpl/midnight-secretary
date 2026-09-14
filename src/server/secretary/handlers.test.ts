@@ -27,6 +27,7 @@ import {
   parseCalendarEventId,
   parseIsoDateTime,
   parseMandateId,
+  parseTripId,
   parseUserId,
 } from "@/domain/identifiers.parse";
 import {
@@ -539,6 +540,88 @@ describe("承認から書き戻しまで", () => {
         source: "flow",
         error: { kind: "tripNotFound", tripId: UNKNOWN_TRIP_ID },
       },
+    });
+  });
+});
+
+describe("年齢確認つきの承認", () => {
+  test("出発日にまだ 20 歳でない出張の承認は 422 で ageNotVerified を返し、trip は提案済みのまま", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-5");
+
+    const response = await approveRequest(id);
+
+    expect(response.status).toBe(422);
+    expect(parseSecretaryFailure(await response.json())).toStrictEqual({
+      code: "secretary",
+      error: {
+        source: "flow",
+        error: {
+          kind: "ageNotVerified",
+          tripId: id,
+          ageLimit: 20,
+          cutoffDate: "2006-09-15",
+        },
+      },
+    });
+
+    const stored = await state.context.deps.store.getTrip(
+      USER,
+      mustParse(parseTripId(id)),
+    );
+
+    expect(stored.ok && stored.value?.status).toBe("proposed");
+  });
+
+  test("生年月日の無いプロフィールでは 422 で birthDateMissing を返す", async () => {
+    // このテストだけ生年月日の無いプロフィールに差し替えるので、beforeEach の入れ物へ再代入する
+    state.context = {
+      ...state.context,
+      deps: { ...state.context.deps, profile: createFakeProfile({}) },
+    };
+    state.deps = handlerDepsFor(state.context);
+
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-5");
+
+    const response = await approveRequest(id);
+
+    expect(response.status).toBe(422);
+    expect(parseSecretaryFailure(await response.json())).toStrictEqual({
+      code: "secretary",
+      error: {
+        source: "flow",
+        error: { kind: "birthDateMissing", tripId: id },
+      },
+    });
+  });
+
+  test("出発日に 20 歳以上の出張の承認は 200 で ageProof を載せる", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-6");
+
+    const response = await approveRequest(id);
+
+    expect(response.status).toBe(200);
+    expect(parseTripResponse(await response.json())).toMatchObject({
+      ok: true,
+      value: {
+        status: "approved",
+        ageProof: {
+          identity: "identity:user-1",
+          cutoffDate: "2006-09-18",
+          proofRef: "proof-1",
+          provedAt: NOW,
+        },
+      },
+    });
+
+    const paid = await payRequest(id);
+
+    expect(paid.status).toBe(200);
+    expect(parseTripResponse(await paid.json())).toMatchObject({
+      ok: true,
+      value: { status: "paid", authorizations: [{}, {}, {}] },
     });
   });
 });

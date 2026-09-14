@@ -31,6 +31,7 @@ import {
   parseMandateId,
   parseUserId,
 } from "@/domain/identifiers.parse";
+import type { IdentityPort } from "@/domain/identity";
 import type {
   Mandate,
   MandateDraft,
@@ -108,7 +109,8 @@ const DINNER_EVENT = eventId("seed-6");
 // 工場視察と懇親会 (+16 日から 1 泊) は宿、居酒屋、レジャーがすべて付く
 const INSPECTION_EVENT = eventId("seed-7");
 
-// demo と同じ式 (NOW の 7 日後の 20 年前)
+// demo と同じ式で、予約者は NOW の 7 日後 (2026-09-16) に 20 歳になる
+// 懇親会の出発日 2026-09-15 はまだ 20 歳前、会食の出発日 2026-09-18 は 20 歳以上
 const BIRTH_DATE = yearsBefore(addDays(jstDateOf(NOW), 7), 20);
 
 // seedCatalog の価格から計算した合計 (鉄道優先なので ひかり505号 と のぞみ232号 の往復、1 泊は なんばホテルC、居酒屋は 天満 立ち飲み居酒屋 大和、レジャーは本人確認の要らない先頭の 海遊館)
@@ -337,6 +339,24 @@ const failsToListTrips = (store: SecretaryStore): SecretaryStore => {
   return {
     ...store,
     listTrips: async () => err({ kind: "unavailable", cause: "stub" }),
+  };
+};
+
+// 2 回目の登録だけ失敗させ、他は Fake に委譲する (登録が 1 回で済むことを値で確かめる)
+const failsAtSecondRegistration = (identity: IdentityPort): IdentityPort => {
+  const state = { calls: 0 };
+
+  return {
+    ...identity,
+    registerBirthDate: async (userId, birthDate, now) => {
+      state.calls = state.calls + 1;
+
+      if (state.calls === 2) {
+        return err({ kind: "unavailable", cause: "stub" });
+      }
+
+      return identity.registerBirthDate(userId, birthDate, now);
+    },
   };
 };
 
@@ -747,6 +767,120 @@ describe("approveTrip", () => {
     });
   });
 
+  test("成人を要しない計画は証明なしで承認し、identity には登録しない", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, OSAKA_EVENT);
+
+    const approved = await mustApprove(deps, proposed.id);
+
+    expect("ageProof" in approved).toBe(false);
+    expect(await deps.identity.readRegistration(USER)).toStrictEqual({
+      ok: true,
+      value: undefined,
+    });
+  });
+
+  test("生年月日が無ければ birthDateMissing で、trip は提案済みのまま", async () => {
+    const deps = { ...testDeps(), profile: createFakeProfile({}) };
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, GATHERING_EVENT);
+
+    expect(await approveTrip(USER, proposed.id, {}, NOW, deps)).toStrictEqual({
+      ok: false,
+      error: {
+        source: "flow",
+        error: { kind: "birthDateMissing", tripId: proposed.id },
+      },
+    });
+    expect(await storedTrip(deps, proposed.id)).toStrictEqual(proposed);
+    expect(await deps.identity.readRegistration(USER)).toStrictEqual({
+      ok: true,
+      value: undefined,
+    });
+  });
+
+  test("出発日にまだ 20 歳でなければ ageNotVerified で、trip は提案済みのまま", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, GATHERING_EVENT);
+
+    expect(await approveTrip(USER, proposed.id, {}, NOW, deps)).toStrictEqual({
+      ok: false,
+      error: {
+        source: "flow",
+        error: {
+          kind: "ageNotVerified",
+          tripId: proposed.id,
+          ageLimit: 20,
+          cutoffDate: "2006-09-15",
+        },
+      },
+    });
+    expect(await storedTrip(deps, proposed.id)).toStrictEqual(proposed);
+  });
+
+  test("出発日に 20 歳以上なら ageProof 付きで承認し、identity に登録が 1 件できる", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, DINNER_EVENT);
+
+    const approved = await mustApprove(deps, proposed.id);
+
+    expect(approved.ageProof).toStrictEqual({
+      identity: "identity:user-1",
+      cutoffDate: "2006-09-18",
+      proofRef: "proof-1",
+      provedAt: NOW,
+    });
+    expect(approved.authorizations).toStrictEqual([]);
+    expect(await storedTrip(deps, proposed.id)).toStrictEqual(approved);
+    expect(await deps.identity.readRegistration(USER)).toStrictEqual({
+      ok: true,
+      value: { userId: USER, identity: "identity:user-1", registeredAt: NOW },
+    });
+  });
+
+  test("2 つ目の出張の承認は登録を増やさず、最初の登録の identity のまま", async () => {
+    const base = testDeps();
+    const deps = {
+      ...base,
+      identity: failsAtSecondRegistration(base.identity),
+    };
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const dinner = await mustPropose(deps, DINNER_EVENT);
+    const gathering = await mustPropose(deps, GATHERING_EVENT);
+
+    const approved = await mustApprove(deps, dinner.id);
+
+    // 2 回目の登録なら unavailable になるので、ageNotVerified まで進むのは登録を飛ばした証
+    expect(await approveTrip(USER, gathering.id, {}, NOW, deps)).toStrictEqual({
+      ok: false,
+      error: {
+        source: "flow",
+        error: {
+          kind: "ageNotVerified",
+          tripId: gathering.id,
+          ageLimit: 20,
+          cutoffDate: "2006-09-15",
+        },
+      },
+    });
+    expect(await deps.identity.readRegistration(USER)).toStrictEqual({
+      ok: true,
+      value: {
+        userId: USER,
+        identity: approved.ageProof?.identity,
+        registeredAt: NOW,
+      },
+    });
+  });
+
   test("知らない trip id は tripNotFound になる", async () => {
     const deps = testDeps();
     const unknown = UNKNOWN_TRIP_ID;
@@ -880,13 +1014,13 @@ describe("payForTrip", () => {
     ).toStrictEqual(["tokenTransfer", "tokenTransfer", "shieldedTransfer"]);
   });
 
-  test("居酒屋つきの日帰りは往路、復路、飲食の順に 3 件支払う", async () => {
+  test("居酒屋つきの日帰りは往路、復路、飲食の順に 3 件支払い、証明は引き継ぐ", async () => {
     const deps = testDeps();
 
     await mustSetUpMandate(deps, ENOUGH_CAP);
     const proposed = await mustPropose(deps, DINNER_EVENT);
 
-    await mustApprove(deps, proposed.id);
+    const approved = await mustApprove(deps, proposed.id);
     const paid = await mustPay(deps, proposed.id);
 
     expect(
@@ -906,6 +1040,7 @@ describe("payForTrip", () => {
       "mn_shield-addr_test1demo-service-seller",
     ]);
     expect(paid.authorizations.at(2)?.amount).toStrictEqual(mst(3000));
+    expect(paid.ageProof).toStrictEqual(approved.ageProof);
 
     const ledger = mustOk(await loadLedgerViews(USER, deps));
 

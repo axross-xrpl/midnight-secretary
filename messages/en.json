@@ -429,7 +429,19 @@
       "eventAlreadyArranged": "A trip for this event is already past the proposal stage.",
       "tripNotFound": "That trip was not found.",
       "wrongStatus": "The trip is not at the step this action needs; reload the page.",
-      "privateSettlementUnsupported": "This allowance cannot settle payments privately. Approve with every payment public."
+      "privateSettlementUnsupported": "This allowance cannot settle payments privately. Approve with every payment public.",
+      "birthDateMissing": "To prove your age, register your date of birth in your profile.",
+      "ageNotVerified": "You are not yet {age} as of {date}, so a plan that includes an age-restricted place cannot be approved."
+    },
+    "identity": {
+      "notRegistered": "Your date of birth is not registered for age verification yet.",
+      "alreadyRegistered": "Your date of birth is already registered for age verification.",
+      "proofFailed": "Generating the age proof failed; try again.",
+      "unavailable": "The age verification contract is not reachable right now."
+    },
+    "profile": {
+      "unavailable": "The profile is not reachable right now.",
+      "schema": "The profile had an unexpected shape."
     },
     "unauthorized": "Your session ended. Sign in again.",
     "invalid_request": "The request was rejected as invalid.",

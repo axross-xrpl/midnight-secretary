@@ -81,7 +81,7 @@ const byStart = (a: CalendarEvent, b: CalendarEvent): number => {
  *
  * 共有の demo 用 Google アカウントのカレンダーと同じ内容なので、real と fake の見た目が揃う
  * demo preset に限らず、カレンダーの port が fake のときは常に使う
- * seed-5 (+6 日) と seed-6 (+9 日) は居酒屋つきの日帰り
+ * seed-5 (+6 日) と seed-6 (+9 日) は居酒屋つきの日帰りで、demo の予約者が 20 歳になる日 (+7 日) をまたぐ
  * seed-7 (+16 日から 1 泊) は宿、居酒屋、レジャーがすべて付く
  */
 export const seedCalendarEvents = (now: IsoDateTime): CalendarEvent[] => {
