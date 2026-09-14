@@ -3,6 +3,7 @@ import type { EnvLike } from "@/application/sources";
 import type { RequestContext, SecretaryFactories } from "@/application/wiring";
 import type { CalendarPort } from "@/domain/calendar";
 import type { CalendarEventId, IsoDateTime } from "@/domain/identifiers";
+import { payToken } from "@/lib/dev-contracts/token";
 import { err } from "@/lib/result";
 import { createFakeCalendar, seedCalendarEvents } from "./calendar/fake";
 import { createGoogleCalendar } from "./calendar/google";
@@ -10,6 +11,7 @@ import { createFakeCatalog, seedCatalog } from "./catalog/fake";
 import { createNeonCatalog } from "./catalog/neon";
 import type { FakeMandateIds } from "./mandate/fake";
 import { createFakeMandate } from "./mandate/fake";
+import { createRealMandate } from "./mandate/real";
 import { createFakePlanner } from "./planner/fake";
 import { createFakeStore } from "./store/fake";
 
@@ -63,13 +65,21 @@ export const createSecretaryFactories = (
     mandates: [],
     ids: resources.mandateIds,
   });
+  const realMandate = createRealMandate({
+    mandates: [],
+    ids: resources.mandateIds,
+    deps: {
+      payToken,
+      settlementRecipient: () => resources.env.MANDATE_SETTLEMENT_RECIPIENT,
+    },
+  });
   const fakeStore = createFakeStore();
 
   return {
     calendar: { real: googleCalendarFor, fake: () => fakeCalendar },
     catalog: { real: () => neonCatalog, fake: () => fakeCatalog },
     planner: { real: () => fakePlanner, fake: () => fakePlanner },
-    mandate: { real: () => fakeMandate, fake: () => fakeMandate },
+    mandate: { real: () => realMandate, fake: () => fakeMandate },
     store: { real: () => fakeStore, fake: () => fakeStore },
     newTripId: resources.newTripId,
   };

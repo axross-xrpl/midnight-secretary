@@ -1,0 +1,57 @@
+{
+  "name": "@midnight-secretary/contract",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "compile": "bash scripts/compile.sh --skip-zk",
+    "compile:full": "bash scripts/compile.sh",
+    "clean": "rimraf src/managed",
+    "typecheck": "tsc --noEmit",
+    "deploy": "node --env-file=.env --import tsx src/token/deploy.ts",
+    "interact": "node --env-file=.env --import tsx src/token/interact.ts",
+    "get-token-state": "node --env-file=.env --import tsx src/token/get-state.ts",
+    "set-allowance": "node --env-file=.env --import tsx src/token/set-allowance.ts",
+    "deploy-shielded-token": "node --env-file=.env --import tsx src/shielded-token/deploy.ts",
+    "interact-shielded-token": "node --env-file=.env --import tsx src/shielded-token/interact.ts",
+    "get-shielded-token-state": "node --env-file=.env --import tsx src/shielded-token/get-state.ts",
+    "set-allowance-shielded-token": "node --env-file=.env --import tsx src/shielded-token/set-allowance.ts",
+    "fund": "node --env-file=.env --import tsx src/shared/fund.ts",
+    "fund-shielded": "node --env-file=.env --import tsx src/shared/fund-shielded.ts",
+    "address": "node --env-file=.env --import tsx src/shared/get-address.ts",
+    "register-dust": "node --env-file=.env --import tsx src/shared/register-dust.ts",
+    "server": "node --env-file=.env --import tsx src/server.ts"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/compact-js": "2.5.1",
+    "@midnight-ntwrk/compact-runtime": "0.16.0",
+    "@midnight-ntwrk/ledger-v8": "8.1.0",
+    "@midnight-ntwrk/midnight-js-contracts": "4.1.1",
+    "@midnight-ntwrk/wallet-sdk-address-format": "3.1.2",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-network-id": "4.1.1",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-types": "4.1.1",
+    "@midnight-ntwrk/wallet-sdk-abstractions": "2.1.0",
+    "@midnight-ntwrk/wallet-sdk-dust-wallet": "4.1.0",
+    "@midnight-ntwrk/wallet-sdk-facade": "4.0.1",
+    "@midnight-ntwrk/wallet-sdk-hd": "3.0.2",
+    "@midnight-ntwrk/wallet-sdk-shielded": "3.0.1",
+    "@midnight-ntwrk/wallet-sdk-unshielded-wallet": "3.1.0",
+    "effect": "3.22.1",
+    "rxjs": "^7.8.2",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "@types/ws": "^8.18.1",
+    "rimraf": "^6.0.0",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  },
+  "overrides": {
+    "@midnight-ntwrk/onchain-runtime-v3": "3.0.0"
+  }
+}

@@ -6,7 +6,9 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "concurrently -n next,contract -c blue,green \"npm:dev:next\" \"npm:dev:contract-server\"",
+    "dev:next": "next dev",
+    "dev:contract-server": "node scripts/start-contract-server.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "biome check .",
@@ -38,6 +40,7 @@
     "@types/node": "^26",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^10.0.5",
     "drizzle-kit": "^0.31.10",
     "lefthook": "^2.1.12",
     "tailwindcss": "^4",
