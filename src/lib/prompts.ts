@@ -51,7 +51,7 @@ requiredVerifications が空でない候補は、満たせるか確かめられ�
     居住都道府県: profile.residencePref,
     食事の好み: profile.diningGenres,
     趣味: profile.leisureGenres,
-    "1旅程の上限(JPYC)": profile.budgetJpyc,
+    "1旅程の上限(MST)": profile.budget,
     優先度:
       profile.priority === null ? null : PRIORITY_LABELS[profile.priority],
   };

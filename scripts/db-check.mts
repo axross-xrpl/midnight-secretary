@@ -40,12 +40,12 @@ const [transportSample] = await db
     code: transportServices.code,
     name: transportServices.name,
     durationMin: transportServices.durationMin,
-    priceJpyc: transportServices.priceJpyc,
+    price: transportServices.price,
     originAccessMin: transportServices.originAccessMin,
     boardingBufferMin: transportServices.boardingBufferMin,
     arrivalBufferMin: transportServices.arrivalBufferMin,
     destinationAccessMin: transportServices.destinationAccessMin,
-    accessFareJpyc: transportServices.accessFareJpyc,
+    accessFare: transportServices.accessFare,
   })
   .from(transportServices)
   .where(eq(transportServices.active, true))
@@ -57,7 +57,7 @@ const [placeSample] = await db
     kind: placeServices.kind,
     name: placeServices.name,
     city: placeServices.city,
-    priceJpyc: placeServices.priceJpyc,
+    price: placeServices.price,
   })
   .from(placeServices)
   .where(eq(placeServices.active, true))
@@ -72,8 +72,7 @@ const transportDoorToDoor = transportSample
         transportSample.durationMin +
         (transportSample.arrivalBufferMin ?? 0) +
         transportSample.destinationAccessMin,
-      priceJpyc:
-        transportSample.priceJpyc + (transportSample.accessFareJpyc ?? 0),
+      price: transportSample.price + (transportSample.accessFare ?? 0),
     }
   : null;
 

@@ -41,12 +41,12 @@ export type TransportTemplate = {
   departTime: string;
   arriveTime: string;
   durationMin: number;
-  priceJpyc: number;
+  price: number;
   originAccessMin: number;
   boardingBufferMin: number;
   arrivalBufferMin: number;
   destinationAccessMin: number;
-  accessFareJpyc: number;
+  accessFare: number;
 };
 
 /**
@@ -58,7 +58,7 @@ export type LodgingTemplate = {
   code: string;
   name: string;
   city: string;
-  pricePerNightJpyc: number;
+  pricePerNight: number;
   rating: number;
   requiredVerifications: readonly VerificationKind[];
 };
@@ -74,7 +74,7 @@ export type PlaceTemplate = {
   name: string;
   city: string;
   genre: string;
-  priceJpyc: number;
+  price: number;
   requiredVerifications: readonly VerificationKind[];
   ageLimit?: number;
 };
@@ -107,7 +107,7 @@ const payeeOf = (raw: string): WalletAddress => {
 /**
  * 金額の通貨
  *
- * DB は円単位の JPYC 整数を持つが、`Money` の通貨はデモ用の 2 つしか無い
+ * DB は円単位の整数を持つが、`Money` の通貨はデモ用の 2 つしか無い
  * real と揃えて MST 建てとして扱う
  */
 const mst = (amount: number): Money => {
@@ -122,7 +122,7 @@ const doorToDoorOf = (template: TransportTemplate): DoorToDoor => {
       template.durationMin +
       template.arrivalBufferMin +
       template.destinationAccessMin,
-    totalPrice: mst(template.priceJpyc + template.accessFareJpyc),
+    totalPrice: mst(template.price + template.accessFare),
   };
 };
 
@@ -140,7 +140,7 @@ const transportOfferOn = (
     destination: template.toSpot,
     departAt: jstDateTimeOf(date, template.departTime),
     arriveAt: jstDateTimeOf(date, template.arriveTime),
-    price: mst(template.priceJpyc),
+    price: mst(template.price),
     doorToDoor: doorToDoorOf(template),
   };
 };
@@ -158,7 +158,7 @@ const lodgingOfferFor = (
     city: template.city,
     checkIn: query.departOn,
     checkOut: query.returnOn,
-    price: mst(template.pricePerNightJpyc * nights),
+    price: mst(template.pricePerNight * nights),
     rating: template.rating,
     requiredVerifications: template.requiredVerifications,
   };
@@ -172,7 +172,7 @@ const placeOfferOf = (template: PlaceTemplate): PlaceOffer => {
     name: template.name,
     city: template.city,
     genre: template.genre,
-    price: mst(template.priceJpyc),
+    price: mst(template.price),
     requiredVerifications: template.requiredVerifications,
     ...(template.ageLimit === undefined ? {} : { ageLimit: template.ageLimit }),
   };
@@ -282,12 +282,12 @@ export const seedCatalog = (): FakeCatalogSeed => {
         departTime: "07:00",
         arriveTime: "08:15",
         durationMin: 75,
-        priceJpyc: 13000,
+        price: 13000,
         originAccessMin: 50,
         boardingBufferMin: 60,
         arrivalBufferMin: 20,
         destinationAccessMin: 30,
-        accessFareJpyc: 1350,
+        accessFare: 1350,
       },
       {
         code: "air-ana-038",
@@ -300,12 +300,12 @@ export const seedCatalog = (): FakeCatalogSeed => {
         departTime: "18:00",
         arriveTime: "19:15",
         durationMin: 75,
-        priceJpyc: 13000,
+        price: 13000,
         originAccessMin: 30,
         boardingBufferMin: 60,
         arrivalBufferMin: 20,
         destinationAccessMin: 50,
-        accessFareJpyc: 1350,
+        accessFare: 1350,
       },
       {
         code: "air-jal-105",
@@ -318,12 +318,12 @@ export const seedCatalog = (): FakeCatalogSeed => {
         departTime: "08:00",
         arriveTime: "09:15",
         durationMin: 75,
-        priceJpyc: 12600,
+        price: 12600,
         originAccessMin: 50,
         boardingBufferMin: 60,
         arrivalBufferMin: 20,
         destinationAccessMin: 30,
-        accessFareJpyc: 1350,
+        accessFare: 1350,
       },
       {
         code: "air-jjp-201",
@@ -336,12 +336,12 @@ export const seedCatalog = (): FakeCatalogSeed => {
         departTime: "09:30",
         arriveTime: "11:00",
         durationMin: 90,
-        priceJpyc: 7800,
+        price: 7800,
         originAccessMin: 95,
         boardingBufferMin: 60,
         arrivalBufferMin: 20,
         destinationAccessMin: 55,
-        accessFareJpyc: 4460,
+        accessFare: 4460,
       },
       {
         code: "rail-hikari-505",
@@ -354,12 +354,12 @@ export const seedCatalog = (): FakeCatalogSeed => {
         departTime: "08:33",
         arriveTime: "11:30",
         durationMin: 177,
-        priceJpyc: 14400,
+        price: 14400,
         originAccessMin: 25,
         boardingBufferMin: 10,
         arrivalBufferMin: 0,
         destinationAccessMin: 15,
-        accessFareJpyc: 660,
+        accessFare: 660,
       },
       {
         code: "rail-nozomi-215",
@@ -372,12 +372,12 @@ export const seedCatalog = (): FakeCatalogSeed => {
         departTime: "09:00",
         arriveTime: "11:30",
         durationMin: 150,
-        priceJpyc: 14720,
+        price: 14720,
         originAccessMin: 25,
         boardingBufferMin: 10,
         arrivalBufferMin: 0,
         destinationAccessMin: 15,
-        accessFareJpyc: 660,
+        accessFare: 660,
       },
       {
         code: "rail-nozomi-221",
@@ -390,12 +390,12 @@ export const seedCatalog = (): FakeCatalogSeed => {
         departTime: "10:00",
         arriveTime: "12:27",
         durationMin: 147,
-        priceJpyc: 14520,
+        price: 14520,
         originAccessMin: 15,
         boardingBufferMin: 10,
         arrivalBufferMin: 0,
         destinationAccessMin: 15,
-        accessFareJpyc: 490,
+        accessFare: 490,
       },
       {
         code: "rail-nozomi-221-green",
@@ -408,12 +408,12 @@ export const seedCatalog = (): FakeCatalogSeed => {
         departTime: "10:00",
         arriveTime: "12:27",
         durationMin: 147,
-        priceJpyc: 19590,
+        price: 19590,
         originAccessMin: 15,
         boardingBufferMin: 10,
         arrivalBufferMin: 0,
         destinationAccessMin: 15,
-        accessFareJpyc: 490,
+        accessFare: 490,
       },
       {
         code: "rail-nozomi-232",
@@ -426,12 +426,12 @@ export const seedCatalog = (): FakeCatalogSeed => {
         departTime: "15:00",
         arriveTime: "17:27",
         durationMin: 147,
-        priceJpyc: 14520,
+        price: 14520,
         originAccessMin: 15,
         boardingBufferMin: 10,
         arrivalBufferMin: 0,
         destinationAccessMin: 15,
-        accessFareJpyc: 490,
+        accessFare: 490,
       },
       {
         code: "rail-nozomi-246",
@@ -444,12 +444,12 @@ export const seedCatalog = (): FakeCatalogSeed => {
         departTime: "18:00",
         arriveTime: "20:33",
         durationMin: 153,
-        priceJpyc: 14720,
+        price: 14720,
         originAccessMin: 15,
         boardingBufferMin: 10,
         arrivalBufferMin: 0,
         destinationAccessMin: 25,
-        accessFareJpyc: 660,
+        accessFare: 660,
       },
     ],
 
@@ -458,7 +458,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         code: "hotel-namba-c",
         name: "なんばホテルC",
         city: "大阪",
-        pricePerNightJpyc: 12500,
+        pricePerNight: 12500,
         rating: 4,
         requiredVerifications: [],
       },
@@ -466,7 +466,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         code: "hotel-osaka-a",
         name: "ホテルA 大阪梅田",
         city: "大阪",
-        pricePerNightJpyc: 8000,
+        pricePerNight: 8000,
         rating: 3.5,
         requiredVerifications: [],
       },
@@ -474,7 +474,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         code: "hotel-osaka-b",
         name: "ホテルB 大阪梅田",
         city: "大阪",
-        pricePerNightJpyc: 16000,
+        pricePerNight: 16000,
         rating: 4.3,
         requiredVerifications: [],
       },
@@ -482,7 +482,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         code: "hotel-osakabay-inbound",
         name: "ホテル大阪ベイF",
         city: "大阪",
-        pricePerNightJpyc: 9800,
+        pricePerNight: 9800,
         rating: 4.5,
         requiredVerifications: ["nationality"],
       },
@@ -490,7 +490,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         code: "hotel-shinsaibashi-d",
         name: "心斎橋ビジネスホテルD",
         city: "大阪",
-        pricePerNightJpyc: 6800,
+        pricePerNight: 6800,
         rating: 3.2,
         requiredVerifications: [],
       },
@@ -498,7 +498,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         code: "hotel-tennoji-resident",
         name: "天王寺ホテルE",
         city: "大阪",
-        pricePerNightJpyc: 5500,
+        pricePerNight: 5500,
         rating: 3.8,
         requiredVerifications: ["residence"],
       },
@@ -506,7 +506,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         code: "hotel-universalport-g",
         name: "ユニバーサルポートホテルG",
         city: "大阪",
-        pricePerNightJpyc: 22000,
+        pricePerNight: 22000,
         rating: 4.1,
         requiredVerifications: [],
       },
@@ -519,7 +519,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         name: "なんば オーセンティックバー 燈",
         city: "大阪",
         genre: "バー",
-        priceJpyc: 6000,
+        price: 6000,
         requiredVerifications: ["age"],
         ageLimit: 20,
       },
@@ -529,7 +529,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         name: "中之島カフェ",
         city: "大阪",
         genre: "カフェ",
-        priceJpyc: 1200,
+        price: 1200,
         requiredVerifications: [],
       },
       {
@@ -538,7 +538,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         name: "中華料理 陳家",
         city: "大阪",
         genre: "中華",
-        priceJpyc: 8000,
+        price: 8000,
         requiredVerifications: [],
       },
       {
@@ -547,7 +547,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         name: "中華 天心",
         city: "大阪",
         genre: "中華",
-        priceJpyc: 2200,
+        price: 2200,
         requiredVerifications: [],
       },
       {
@@ -556,7 +556,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         name: "中崎町クラフトビール醸造所",
         city: "大阪",
         genre: "ビール",
-        priceJpyc: 4500,
+        price: 4500,
         requiredVerifications: ["age"],
         ageLimit: 20,
       },
@@ -566,7 +566,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         name: "天満 立ち飲み居酒屋 大和",
         city: "大阪",
         genre: "居酒屋",
-        priceJpyc: 3000,
+        price: 3000,
         requiredVerifications: ["age"],
         ageLimit: 20,
       },
@@ -576,7 +576,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         name: "難波 会席 松風（免税対応）",
         city: "大阪",
         genre: "和食",
-        priceJpyc: 12000,
+        price: 12000,
         requiredVerifications: ["nationality"],
       },
       {
@@ -585,7 +585,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         name: "お好み焼き 福",
         city: "大阪",
         genre: "粉もん",
-        priceJpyc: 1800,
+        price: 1800,
         requiredVerifications: [],
       },
       {
@@ -594,7 +594,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         name: "北新地 寿司 匠",
         city: "大阪",
         genre: "和食",
-        priceJpyc: 15000,
+        price: 15000,
         requiredVerifications: [],
       },
       {
@@ -603,7 +603,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         name: "道頓堀 たこ焼き本舗",
         city: "大阪",
         genre: "粉もん",
-        priceJpyc: 800,
+        price: 800,
         requiredVerifications: [],
       },
       {
@@ -612,7 +612,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         name: "訪日外国人限定 大阪ガイドツアー",
         city: "大阪",
         genre: "tour",
-        priceJpyc: 3500,
+        price: 3500,
         requiredVerifications: ["nationality"],
       },
       {
@@ -621,7 +621,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         name: "海遊館",
         city: "大阪",
         genre: "aquarium",
-        priceJpyc: 2700,
+        price: 2700,
         requiredVerifications: [],
       },
       {
@@ -630,7 +630,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         name: "京セラドーム大阪 野球観戦",
         city: "大阪",
         genre: "baseball",
-        priceJpyc: 5500,
+        price: 5500,
         requiredVerifications: [],
       },
       {
@@ -639,7 +639,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         name: "大阪中之島美術館",
         city: "大阪",
         genre: "art",
-        priceJpyc: 1800,
+        price: 1800,
         requiredVerifications: [],
       },
       {
@@ -648,7 +648,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         name: "ミナミ ナイトシアター 深夜公演（18歳以上）",
         city: "大阪",
         genre: "show",
-        priceJpyc: 6500,
+        price: 6500,
         requiredVerifications: ["age"],
         ageLimit: 18,
       },
@@ -658,7 +658,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         name: "大阪城天守閣",
         city: "大阪",
         genre: "history",
-        priceJpyc: 600,
+        price: 600,
         requiredVerifications: [],
       },
       {
@@ -667,7 +667,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         name: "大阪市立美術館",
         city: "大阪",
         genre: "art",
-        priceJpyc: 1400,
+        price: 1400,
         requiredVerifications: [],
       },
       {
@@ -676,7 +676,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         name: "大阪周遊パス（大阪府民割引）",
         city: "大阪",
         genre: "sightseeing",
-        priceJpyc: 2000,
+        price: 2000,
         requiredVerifications: ["residence"],
       },
       {
@@ -685,7 +685,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         name: "大阪バーレスクショー（20歳以上・ドリンク付）",
         city: "大阪",
         genre: "show",
-        priceJpyc: 8800,
+        price: 8800,
         requiredVerifications: ["age"],
         ageLimit: 20,
       },
@@ -695,7 +695,7 @@ export const seedCatalog = (): FakeCatalogSeed => {
         name: "ヨドコウ桜スタジアム サッカー観戦",
         city: "大阪",
         genre: "soccer",
-        priceJpyc: 4200,
+        price: 4200,
         requiredVerifications: [],
       },
     ],

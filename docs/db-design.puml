@@ -37,7 +37,7 @@ entity "user_profiles\nユーザーと設定" as profiles {
   .. 提案の重み付け ..
   dining_genres : text[]
   leisure_genres : text[]
-  budget_jpyc : integer
+  budget : integer
   priority : text
   ..
   wallet_address : text
@@ -73,9 +73,9 @@ entity "trip_items\n旅程明細＝確定した予約" as items {
   service_id : uuid
   .. 確定時点のスナップショット ..
   name_snapshot : text
-  unit_price_jpyc : integer
+  unit_price : integer
   quantity : integer
-  price_jpyc : integer
+  price : integer
   payee_snapshot : text
   ..
   start_at : timestamptz
@@ -92,7 +92,7 @@ entity "payments\n決済台帳（エスクロー）" as payments {
   --
   trip_item_id : uuid <<FK>>
   payee : text
-  amount_jpyc : integer
+  amount : integer
   expiry : timestamptz
   status : text
   deposit_tx : text
@@ -118,13 +118,13 @@ entity "transport_services\n交通手段（鉄道・航空）" as transport {
   depart_time : time
   arrive_time : time
   duration_min : integer
-  price_jpyc : integer
+  price : integer
   .. door-to-door の内訳 ..
   origin_access_min : integer
   boarding_buffer_min : integer
   arrival_buffer_min : integer
   destination_access_min : integer
-  access_fare_jpyc : integer
+  access_fare : integer
   ..
   seat_class : text
   wallet_address : text
@@ -144,7 +144,7 @@ entity "place_services\n場所で消費するサービス\n（宿泊・飲食・
   address : text
   nearest_station : text
   station_access_min : integer
-  price_jpyc : integer
+  price : integer
   required_verifications : text[]
   .. 飲食・レジャー ..
   item_name : text
@@ -175,7 +175,7 @@ entity "service_catalog\n横断一覧（VIEW）" as catalog <<view>> #F5F6F8 {
   category : text
   code : text
   name : text
-  price_jpyc : integer
+  price : integer
   location : text
   wallet_address : text
   active : boolean
@@ -232,7 +232,7 @@ note right of items
   → **履歴の表示はサービス行を参照しなくても成立する**
     （共通ヘッダ案を却下した根拠・§4.3）
 
-  price_jpyc = unit_price_jpyc × quantity
+  price = unit_price × quantity
   （泊数・人数・枚数）。決済と合計はこの列だけを見る
 
   タスクリストの1行・決済の1単位・
@@ -260,7 +260,7 @@ note top of transport
   所要 = origin_access_min + boarding_buffer_min
        + duration_min + arrival_buffer_min
        + destination_access_min
-  総額 = price_jpyc + access_fare_jpyc
+  総額 = price + access_fare
 
   検算: 鉄道 187分/15,010 ・ 航空 235分/14,350
 
@@ -282,7 +282,7 @@ note bottom of place
 
   共通6列は3種別すべてで必須 → NOT NULL を維持
   name / city / address / nearest_station
-  / station_access_min / price_jpyc
+  / station_access_min / price
 
   種別で**使わない列は CHECK で NULL に固定**する
   （種別ごとに1本ずつ・§8）
@@ -364,7 +364,7 @@ note as N_wallet
 end note
 
 note as N_money
-  **金額はすべて円単位の整数**（*_jpyc）
+  **金額はすべて円単位の整数**（MST 建て・1 MST = 1 円相当）
   オンチェーンの最小単位への変換は決済層だけで行い
   DBには持ち込まない（integer が溢れるため）
 end note

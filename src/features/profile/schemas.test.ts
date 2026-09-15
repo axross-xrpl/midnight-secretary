@@ -10,7 +10,7 @@ const valid = {
   homeSpot: "品川",
   diningGenres: ["中華"],
   leisureGenres: ["art"],
-  budgetJpyc: 50000,
+  budget: 50000,
   priority: "time",
   walletAddress: "addr1q9demo0000",
 };
@@ -37,7 +37,7 @@ describe("profileSaveSchema", () => {
       birthDate: "",
       residencePref: "",
       priority: "",
-      budgetJpyc: null,
+      budget: null,
       walletAddress: "",
     });
 
@@ -48,7 +48,7 @@ describe("profileSaveSchema", () => {
       birthDate: null,
       residencePref: null,
       priority: null,
-      budgetJpyc: null,
+      budget: null,
       walletAddress: null,
     });
   });
@@ -86,9 +86,7 @@ describe("profileSaveSchema", () => {
   });
 
   it("rejects a negative budget", () => {
-    expect(fieldErrors({ ...valid, budgetJpyc: -1 })).toHaveProperty(
-      "budgetJpyc",
-    );
+    expect(fieldErrors({ ...valid, budget: -1 })).toHaveProperty("budget");
   });
 
   it("rejects duplicate genres", () => {

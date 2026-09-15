@@ -28,9 +28,9 @@ const ITEM_COLUMNS = {
   seq: tripItems.seq,
   category: tripItems.category,
   nameSnapshot: tripItems.nameSnapshot,
-  unitPriceJpyc: tripItems.unitPriceJpyc,
+  unitPrice: tripItems.unitPrice,
   quantity: tripItems.quantity,
-  priceJpyc: tripItems.priceJpyc,
+  price: tripItems.price,
   startAt: tripItems.startAt,
   endAt: tripItems.endAt,
   status: tripItems.status,
@@ -43,9 +43,9 @@ type ItemRow = {
   seq: number;
   category: string;
   nameSnapshot: string;
-  unitPriceJpyc: number;
+  unitPrice: number;
   quantity: number;
-  priceJpyc: number;
+  price: number;
   startAt: Date | null;
   endAt: Date | null;
   status: string;
@@ -59,9 +59,9 @@ const itemOf = (row: ItemRow): ConfirmedTripItem => {
     seq: row.seq,
     category: row.category as ServiceCategory,
     name: row.nameSnapshot,
-    unitPriceJpyc: row.unitPriceJpyc,
+    unitPrice: row.unitPrice,
     quantity: row.quantity,
-    priceJpyc: row.priceJpyc,
+    price: row.price,
     startAt: row.startAt === null ? null : row.startAt.toISOString(),
     endAt: row.endAt === null ? null : row.endAt.toISOString(),
     status: row.status as ConfirmedTripItemStatus,

@@ -26,7 +26,7 @@ import type {
   ConfirmedTripItem,
   ConfirmedTripItemStatus,
 } from "@/features/trips/confirmed-trip";
-import { totalJpycOf } from "@/features/trips/confirmed-trip";
+import { totalPriceOf } from "@/features/trips/confirmed-trip";
 
 // 明細の状態ごとのバッジ (会話画面と同じ色の使い分け)
 const itemPillClasses = {
@@ -111,11 +111,11 @@ const DetailItem = ({ item }: ItemProps): ReactElement => {
       </div>
       <div className="text-right">
         <div className="text-[13px] font-bold tabular-nums">
-          <Money amount={item.priceJpyc} />
+          <Money amount={item.price} />
         </div>
         <div className={labelClass}>
           {t("trips.detail.unitPrice", {
-            price: item.unitPriceJpyc,
+            price: item.unitPrice,
             count: item.quantity,
           })}
         </div>
@@ -194,7 +194,7 @@ const TripDialog = ({ trip, onClose }: DialogProps): ReactElement => {
         <footer className="flex items-center justify-between border-t border-border pt-3">
           <span className={labelClass}>{t("trips.total")}</span>
           <span className="text-[19px] font-bold tabular-nums">
-            <Money amount={totalJpycOf(trip.items)} />
+            <Money amount={totalPriceOf(trip.items)} />
           </span>
         </footer>
       </div>
@@ -231,7 +231,7 @@ const TripRow = ({ trip, onOpen }: RowProps): ReactElement => {
         <span className="text-right">
           <span className={`block ${labelClass}`}>{t("trips.total")}</span>
           <span className="block text-[17px] font-bold tabular-nums">
-            <Money amount={totalJpycOf(trip.items)} />
+            <Money amount={totalPriceOf(trip.items)} />
           </span>
         </span>
       </button>

@@ -24,9 +24,9 @@ export type ConfirmedTripItem = {
   seq: number;
   category: ServiceCategory;
   name: string;
-  unitPriceJpyc: number;
+  unitPrice: number;
   quantity: number;
-  priceJpyc: number;
+  price: number;
   startAt: string | null;
   endAt: string | null;
   status: ConfirmedTripItemStatus;
@@ -55,8 +55,8 @@ export type ConfirmedTrip = {
  * 一覧の合計もここで計算する
  * 取り消した明細は合計に数えない
  */
-export const totalJpycOf = (items: readonly ConfirmedTripItem[]): number => {
+export const totalPriceOf = (items: readonly ConfirmedTripItem[]): number => {
   return items
     .filter((item) => item.status !== "cancelled")
-    .reduce((total, item) => total + item.priceJpyc, 0);
+    .reduce((total, item) => total + item.price, 0);
 };

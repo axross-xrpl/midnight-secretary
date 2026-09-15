@@ -243,7 +243,7 @@ export function ServiceManager({
                                 {service.name}
                               </span>
                               <span className="shrink-0 text-sm font-semibold tabular-nums">
-                                {priceFormatter.format(service.priceJpyc)}
+                                {priceFormatter.format(service.price)}
                                 <span className="ml-0.5 text-xs font-normal text-slate-500">
                                   /
                                   {t(

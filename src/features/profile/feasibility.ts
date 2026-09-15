@@ -16,7 +16,7 @@ export type PlanningProfile = {
   homeSpot: string | null;
   diningGenres: string[];
   leisureGenres: string[];
-  budgetJpyc: number | null;
+  budget: number | null;
   priority: Priority | null;
 };
 
