@@ -1,12 +1,12 @@
-import type { CalendarEvent, EventTime } from "@/domain/calendar";
+import type { CalendarEvent } from "@/domain/calendar";
 import type {
   OfferSet,
   PlaceOffer,
   TransportMode,
   TransportOffer,
 } from "@/domain/catalog";
-import { addDays, nightsBetween } from "@/domain/dates";
-import type { IsoDate, OfferId } from "@/domain/identifiers";
+import { nightsBetween } from "@/domain/dates";
+import type { OfferId } from "@/domain/identifiers";
 import type { PlanChoice, TripIntent } from "@/domain/plan";
 import type {
   ChoiceContext,
@@ -17,7 +17,7 @@ import type {
 import { isDefined } from "@/lib/array";
 import type { Result } from "@/lib/result";
 import { err, ok } from "@/lib/result";
-import { jstDateOf } from "../jst";
+import { datesOf } from "./event-dates";
 
 const RATIONALE = "Fake planner: first matching offers";
 
@@ -50,30 +50,6 @@ const mentions = (event: CalendarEvent, destination: string): boolean => {
     event.title.includes(destination) ||
     (event.location ?? "").includes(destination)
   );
-};
-
-// 終日の予定は `endDate` の始まりで終わるので、旅行者はその前日に戻る
-const lastDayOf = (startDate: IsoDate, endDate: IsoDate): IsoDate => {
-  const lastDay = addDays(endDate, -1);
-
-  if (lastDay < startDate) {
-    return startDate;
-  }
-
-  return lastDay;
-};
-
-const datesOf = (
-  when: EventTime,
-): Pick<TripIntent, "departOn" | "returnOn"> => {
-  if (when.kind === "allDay") {
-    return {
-      departOn: when.startDate,
-      returnOn: lastDayOf(when.startDate, when.endDate),
-    };
-  }
-
-  return { departOn: jstDateOf(when.start), returnOn: jstDateOf(when.end) };
 };
 
 const interpret = (
