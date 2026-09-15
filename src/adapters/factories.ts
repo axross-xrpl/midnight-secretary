@@ -4,6 +4,7 @@ import type { RequestContext, SecretaryFactories } from "@/application/wiring";
 import type { CalendarPort } from "@/domain/calendar";
 import type { CalendarEventId, IsoDateTime } from "@/domain/identifiers";
 import { payToken } from "@/lib/dev-contracts/token";
+import { payShieldedToken } from "@/lib/dev-contracts/shielded-token";
 import { err } from "@/lib/result";
 import { createFakeCalendar, seedCalendarEvents } from "./calendar/fake";
 import { createGoogleCalendar } from "./calendar/google";
@@ -71,6 +72,9 @@ export const createSecretaryFactories = (
     deps: {
       payToken,
       settlementRecipient: () => resources.env.MANDATE_SETTLEMENT_RECIPIENT,
+      payShieldedToken,
+      shieldedSettlementRecipient: () =>
+        resources.env.MANDATE_SETTLEMENT_RECIPIENT_SHIELDED,
     },
   });
   const fakeStore = createFakeStore();

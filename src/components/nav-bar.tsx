@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { Link } from "@/i18n/navigation";
 import LocaleSwitcher from "@/components/locale-switcher";
 import AuthStatus from "@/components/auth-status";
+import ContractServerStatus from "@/components/contract-server-status";
 
 const links = [
   { href: "/", label: "home", protected: false },
@@ -35,6 +36,7 @@ export default function NavBar({ signInProvider }: NavBarProps) {
           ))}
       </nav>
       <div className="flex items-center gap-4">
+        <ContractServerStatus />
         <LocaleSwitcher />
         <AuthStatus signInProvider={signInProvider} />
       </div>

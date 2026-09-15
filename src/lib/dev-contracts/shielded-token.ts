@@ -19,3 +19,10 @@ export function requestShieldedTokens(
   // Bech32m shielded address (getShieldedAddresses().shieldedAddress) as-is.
   return contractServerPost("/shielded-token/request", { recipient });
 }
+
+export function payShieldedToken(
+  recipient: string,
+  amount: string,
+): Promise<{ blockHeight: number; txId: string; amount: string }> {
+  return contractServerPost("/shielded-token/pay", { recipient, amount });
+}
