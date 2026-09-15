@@ -13,7 +13,8 @@ import type { TripStatus } from "@/domain/trip";
 /**
  * use case 自身が検出する失敗 (状態の順序、見つからないもの、承認の前提)
  *
- * `birthDateMissing` はプロフィールに生年月日が無くて年齢を証明できないとき
+ * `ageCredentialMissing` は年齢確認証明書を発行しないまま年齢制限つきの計画を承認しようとしたとき
+ * `birthDateMissing` はその証明書を発行しようとしたのにプロフィールに生年月日が無いとき
  * 証明の結果が「成人ではない」ことは失敗ではなく、trip に記録して組み直しを待つ
  * `replanNotNeeded` はその記録の無い提案済みの trip を組み直そうとしたとき
  */
@@ -30,7 +31,8 @@ export type FlowError =
       actual: TripStatus;
     }
   | { kind: "privateSettlementUnsupported"; tripId: TripId }
-  | { kind: "birthDateMissing"; tripId: TripId }
+  | { kind: "ageCredentialMissing"; tripId: TripId }
+  | { kind: "birthDateMissing" }
   | { kind: "replanNotNeeded"; tripId: TripId };
 
 /**

@@ -400,47 +400,8 @@ const hasPrivate = (visibility: PaymentVisibility): boolean => {
   ].some((chosen) => chosen === "private");
 };
 
-// 登録済みならそれを、無ければプロフィールの生年月日で登録してから返す (登録は identity ごとに 1 回)
-// プロフィールに生年月日が無ければ undefined で、登録できないことをどう扱うかは呼び出し側が決める
-const ensureRegistered = async (
-  userId: UserId,
-  now: IsoDateTime,
-  deps: SecretaryDeps,
-): Promise<Result<AgeRegistration | undefined, SecretaryError>> => {
-  const registered = await deps.identity.readRegistration(userId);
-
-  if (!registered.ok) {
-    return err(fromIdentity(registered.error));
-  }
-
-  if (registered.value !== undefined) {
-    return ok(registered.value);
-  }
-
-  const birthDate = await deps.profile.readBirthDate(userId);
-
-  if (!birthDate.ok) {
-    return err(fromProfile(birthDate.error));
-  }
-
-  if (birthDate.value === undefined) {
-    return ok(undefined);
-  }
-
-  const registration = await deps.identity.registerBirthDate(
-    userId,
-    birthDate.value,
-    now,
-  );
-
-  if (!registration.ok) {
-    return err(fromIdentity(registration.error));
-  }
-
-  return ok(registration.value);
-};
-
 // 出発日の `ageLimit` 年前を cutoff にして、成人であることを証明する
+// 証明書の発行は設定画面の 1 手なので、ここでは発行済みかを見るだけにする
 // 「成人ではない」も証明としては成功なので、結果をそのまま呼び出し側に渡す
 const proveForTrip = async (
   userId: UserId,
@@ -449,14 +410,14 @@ const proveForTrip = async (
   now: IsoDateTime,
   deps: SecretaryDeps,
 ): Promise<Result<AdultProofOutcome, SecretaryError>> => {
-  const registered = await ensureRegistered(userId, now, deps);
+  const registered = await deps.identity.readRegistration(userId);
 
   if (!registered.ok) {
-    return registered;
+    return err(fromIdentity(registered.error));
   }
 
   if (registered.value === undefined) {
-    return err(fromFlow({ kind: "birthDateMissing", tripId: trip.id }));
+    return err(fromFlow({ kind: "ageCredentialMissing", tripId: trip.id }));
   }
 
   const outcome = await deps.identity.proveAdult(
@@ -865,6 +826,68 @@ export const proposeTrip = async (
 };
 
 /**
+ * 年齢確認証明書が発行済みかを見る
+ *
+ * 未発行なら undefined
+ */
+export const readAgeCredential = async (
+  userId: UserId,
+  deps: SecretaryDeps,
+): Promise<Result<AgeRegistration | undefined, SecretaryError>> => {
+  const registered = await deps.identity.readRegistration(userId);
+
+  if (!registered.ok) {
+    return err(fromIdentity(registered.error));
+  }
+
+  return ok(registered.value);
+};
+
+/**
+ * プロフィールの生年月日で年齢確認証明書を発行する
+ *
+ * 発行済みならそれをそのまま返す (二重に押されても壊れない)
+ * プロフィールに生年月日が無ければ `flow.birthDateMissing`
+ */
+export const issueAgeCredential = async (
+  userId: UserId,
+  now: IsoDateTime,
+  deps: SecretaryDeps,
+): Promise<Result<AgeRegistration, SecretaryError>> => {
+  const registered = await deps.identity.readRegistration(userId);
+
+  if (!registered.ok) {
+    return err(fromIdentity(registered.error));
+  }
+
+  if (registered.value !== undefined) {
+    return ok(registered.value);
+  }
+
+  const birthDate = await deps.profile.readBirthDate(userId);
+
+  if (!birthDate.ok) {
+    return err(fromProfile(birthDate.error));
+  }
+
+  if (birthDate.value === undefined) {
+    return err(fromFlow({ kind: "birthDateMissing" }));
+  }
+
+  const registration = await deps.identity.registerBirthDate(
+    userId,
+    birthDate.value,
+    now,
+  );
+
+  if (!registration.ok) {
+    return err(fromIdentity(registration.error));
+  }
+
+  return ok(registration.value);
+};
+
+/**
  * 提案済みの trip を、候補ごとの公開範囲つきで承認する
  *
  * プランは store から取り、クライアントからは公開範囲だけを受け取る
@@ -873,7 +896,7 @@ export const proposeTrip = async (
  * 計画が成人を要する候補を含むなら、出発日の `ageLimit` 年前を cutoff にした証明を取る
  * 通れば証明を trip に残して承認する
  * 通らなければ計画は変えず、`failedAgeCheck` に記録して提案済みのまま保存する (組み直しは `replanTrip`)
- * 生年月日が無ければ `flow.birthDateMissing` で、trip は提案済みのまま
+ * 証明書が未発行なら `flow.ageCredentialMissing` で、trip は提案済みのまま (発行は `issueAgeCredential` の 1 手)
  * 公開範囲の検査は I/O を伴わないので、identity に問い合わせる証明より先に行う
  */
 export const approveTrip = async (

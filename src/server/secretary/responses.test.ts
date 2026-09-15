@@ -1,8 +1,14 @@
 import { describe, expect, test } from "vitest";
 import type { SecretaryError } from "@/application/errors";
 import type { TripId } from "@/domain/identifiers";
-import { mustParse, parseTripId } from "@/domain/identifiers.parse";
 import {
+  mustParse,
+  parseIsoDateTime,
+  parseTripId,
+  parseUserId,
+} from "@/domain/identifiers.parse";
+import {
+  ageCredentialResponseOf,
   describeCause,
   serializableSecretaryError,
   statusOf,
@@ -129,11 +135,20 @@ describe("statusOf", () => {
     ).toBe(502);
   });
 
+  test("証明書が未発行のままの承認は 422 になる", () => {
+    expect(
+      statusOf({
+        source: "flow",
+        error: { kind: "ageCredentialMissing", tripId: TRIP_ID },
+      }),
+    ).toBe(422);
+  });
+
   test("生年月日が無いことは 422 になる", () => {
     expect(
       statusOf({
         source: "flow",
-        error: { kind: "birthDateMissing", tripId: TRIP_ID },
+        error: { kind: "birthDateMissing" },
       }),
     ).toBe(422);
   });
@@ -181,5 +196,28 @@ describe("statusOf", () => {
     expect(
       statusOf({ source: "profile", error: { kind: "schema", issues: [] } }),
     ).toBe(502);
+  });
+});
+
+describe("ageCredentialResponseOf", () => {
+  test("未発行は credential を null にする", () => {
+    expect(ageCredentialResponseOf(undefined)).toStrictEqual({
+      credential: null,
+    });
+  });
+
+  test("発行済みは userId を出さず identity と発行時刻だけを載せる", () => {
+    expect(
+      ageCredentialResponseOf({
+        userId: mustParse(parseUserId("user-1")),
+        identity: "identity:user-1",
+        registeredAt: mustParse(parseIsoDateTime("2026-09-09T00:00:00Z")),
+      }),
+    ).toStrictEqual({
+      credential: {
+        identity: "identity:user-1",
+        registeredAt: "2026-09-09T00:00:00Z",
+      },
+    });
   });
 });

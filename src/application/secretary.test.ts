@@ -65,12 +65,14 @@ import type {
 import {
   approveTrip,
   deleteConfirmedTrip,
+  issueAgeCredential,
   loadConfirmedTrips,
   loadDashboard,
   loadLedgerViews,
   loadTrips,
   payForTrip,
   proposeTrip,
+  readAgeCredential,
   replanTrip,
   setUpMandate,
   writeBackTrip,
@@ -97,6 +99,9 @@ const userId = (raw: string): UserId => {
 };
 
 const NOW = at("2026-09-09T00:00:00Z");
+
+// 2 度目の発行が最初の証明書をそのまま返すことを、時点を変えて確かめるのに使う
+const LATER = at("2026-09-10T00:00:00Z");
 
 const EXPIRES_AT = at("2026-12-31T23:59:59+09:00");
 
@@ -237,6 +242,12 @@ const brokenPreferences: ProfilePort = {
   readPreferences: async () => err(PROFILE_UNAVAILABLE),
 };
 
+// 生年月日の読み取りだけが失敗するプロフィール (好みは読める)
+const brokenBirthDate: ProfilePort = {
+  readBirthDate: async () => err(PROFILE_UNAVAILABLE),
+  readPreferences: async () => ok(undefined),
+};
+
 // 期待どおり成功したことを前提に値を取り出す (失敗はテストの失敗なので throw)
 const mustOk = <T, E>(result: Result<T, E>): T => {
   if (!result.ok) {
@@ -328,11 +339,18 @@ const replanInput = (id: TripId): ReplanTripInput => {
   };
 };
 
+// 年齢確認証明書の発行は設定画面の 1 手なので、承認まで進めるテストはここで先に発行しておく
+// 発行済みなら同じ証明書が返るだけで、登録は増えない
+const mustIssueCredential = async (deps: SecretaryDeps): Promise<void> => {
+  mustOk(await issueAgeCredential(USER, NOW, deps));
+};
+
 const mustApprove = async (
   deps: SecretaryDeps,
   id: TripId,
   requested: PaymentVisibilityInput = {},
 ): Promise<ApprovedTrip> => {
+  await mustIssueCredential(deps);
   const outcome = mustOk(await approveTrip(approveInput(id, requested), deps));
 
   if (outcome.kind !== "approved") {
@@ -348,6 +366,7 @@ const mustFailAgeCheck = async (
   id: TripId,
   requested: PaymentVisibilityInput = {},
 ): Promise<ProposedTrip> => {
+  await mustIssueCredential(deps);
   const outcome = mustOk(await approveTrip(approveInput(id, requested), deps));
 
   if (outcome.kind !== "ageNotVerified") {
@@ -733,6 +752,76 @@ describe("proposeTrip", () => {
   });
 });
 
+describe("readAgeCredential", () => {
+  test("発行していなければ undefined", async () => {
+    const deps = testDeps();
+
+    expect(await readAgeCredential(USER, deps)).toStrictEqual({
+      ok: true,
+      value: undefined,
+    });
+  });
+
+  test("発行済みならその証明書を返す", async () => {
+    const deps = testDeps();
+    const issued = mustOk(await issueAgeCredential(USER, NOW, deps));
+
+    expect(await readAgeCredential(USER, deps)).toStrictEqual({
+      ok: true,
+      value: issued,
+    });
+  });
+});
+
+describe("issueAgeCredential", () => {
+  test("プロフィールの生年月日で証明書を発行する", async () => {
+    const deps = testDeps();
+
+    expect(await issueAgeCredential(USER, NOW, deps)).toStrictEqual({
+      ok: true,
+      value: { userId: USER, identity: "identity:user-1", registeredAt: NOW },
+    });
+  });
+
+  test("2 度目の発行は登録を増やさず、最初の証明書をそのまま返す", async () => {
+    const base = testDeps();
+    const deps = {
+      ...base,
+      identity: failsAtSecondRegistration(base.identity),
+    };
+
+    const first = mustOk(await issueAgeCredential(USER, NOW, deps));
+
+    // 2 回目の登録なら unavailable になるので、成功するのは登録を飛ばした証
+    expect(await issueAgeCredential(USER, LATER, deps)).toStrictEqual({
+      ok: true,
+      value: first,
+    });
+  });
+
+  test("プロフィールに生年月日が無ければ birthDateMissing で、登録もしない", async () => {
+    const deps = { ...testDeps(), profile: createFakeProfile({}) };
+
+    expect(await issueAgeCredential(USER, NOW, deps)).toStrictEqual({
+      ok: false,
+      error: { source: "flow", error: { kind: "birthDateMissing" } },
+    });
+    expect(await deps.identity.readRegistration(USER)).toStrictEqual({
+      ok: true,
+      value: undefined,
+    });
+  });
+
+  test("プロフィールが不調ならその失敗を返す", async () => {
+    const deps = { ...testDeps(), profile: brokenBirthDate };
+
+    expect(await issueAgeCredential(USER, NOW, deps)).toStrictEqual({
+      ok: false,
+      error: { source: "profile", error: PROFILE_UNAVAILABLE },
+    });
+  });
+});
+
 describe("approveTrip", () => {
   test("指定なしで承認すると、すべて公開で authorizations が空で始まる", async () => {
     const deps = testDeps();
@@ -888,23 +977,24 @@ describe("approveTrip", () => {
     });
   });
 
-  test("成人を要しない計画は証明なしで承認し、identity には登録しない", async () => {
+  test("成人を要しない計画は証明書が未発行でも承認でき、identity には登録しない", async () => {
     const deps = testDeps();
 
     await mustSetUpMandate(deps, ENOUGH_CAP);
     const proposed = await mustPropose(deps, OSAKA_EVENT);
 
-    const approved = await mustApprove(deps, proposed.id);
+    const outcome = mustOk(await approveTrip(approveInput(proposed.id), deps));
 
-    expect("ageProof" in approved).toBe(false);
+    expect(outcome.kind).toBe("approved");
+    expect("ageProof" in outcome.trip).toBe(false);
     expect(await deps.identity.readRegistration(USER)).toStrictEqual({
       ok: true,
       value: undefined,
     });
   });
 
-  test("生年月日が無ければ birthDateMissing で、trip は提案済みのまま", async () => {
-    const deps = { ...testDeps(), profile: createFakeProfile({}) };
+  test("証明書が未発行なら ageCredentialMissing で、trip は提案済みのまま", async () => {
+    const deps = testDeps();
 
     await mustSetUpMandate(deps, ENOUGH_CAP);
     const proposed = await mustPropose(deps, GATHERING_EVENT);
@@ -913,7 +1003,7 @@ describe("approveTrip", () => {
       ok: false,
       error: {
         source: "flow",
-        error: { kind: "birthDateMissing", tripId: proposed.id },
+        error: { kind: "ageCredentialMissing", tripId: proposed.id },
       },
     });
     expect(await storedTrip(deps, proposed.id)).toStrictEqual(proposed);
@@ -921,6 +1011,22 @@ describe("approveTrip", () => {
       ok: true,
       value: undefined,
     });
+  });
+
+  test("承認はプロフィールの生年月日を読まないので、生年月日が無くても発行済みなら通る", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, DINNER_EVENT);
+
+    await mustIssueCredential(deps);
+
+    const withoutProfile = { ...deps, profile: createFakeProfile({}) };
+    const approved = mustOk(
+      await approveTrip(approveInput(proposed.id), withoutProfile),
+    );
+
+    expect(approved.kind).toBe("approved");
   });
 
   test("出発日にまだ 20 歳でなければ計画を変えず、証明が通らなかった記録を付けて提案済みのまま残す", async () => {
@@ -967,7 +1073,7 @@ describe("approveTrip", () => {
     expect(approved.revision).toStrictEqual(revised.revision);
   });
 
-  test("出発日に 20 歳以上なら ageProof 付きで承認し、identity に登録が 1 件できる", async () => {
+  test("証明書を発行してあれば、出発日に 20 歳以上の計画を ageProof 付きで承認する", async () => {
     const deps = testDeps();
 
     await mustSetUpMandate(deps, ENOUGH_CAP);
@@ -986,32 +1092,6 @@ describe("approveTrip", () => {
     expect(await deps.identity.readRegistration(USER)).toStrictEqual({
       ok: true,
       value: { userId: USER, identity: "identity:user-1", registeredAt: NOW },
-    });
-  });
-
-  test("2 つ目の出張の承認は登録を増やさず、最初の登録の identity のまま", async () => {
-    const base = testDeps();
-    const deps = {
-      ...base,
-      identity: failsAtSecondRegistration(base.identity),
-    };
-
-    await mustSetUpMandate(deps, ENOUGH_CAP);
-    const dinner = await mustPropose(deps, DINNER_EVENT);
-    const gathering = await mustPropose(deps, GATHERING_EVENT);
-
-    const approved = await mustApprove(deps, dinner.id);
-    const rejected = await mustFailAgeCheck(deps, gathering.id);
-
-    // 2 回目の登録なら unavailable になるので、証明の結果まで進むのは登録を飛ばした証
-    expect(rejected.failedAgeCheck?.ageLimit).toBe(20);
-    expect(await deps.identity.readRegistration(USER)).toStrictEqual({
-      ok: true,
-      value: {
-        userId: USER,
-        identity: approved.ageProof?.identity,
-        registeredAt: NOW,
-      },
     });
   });
 

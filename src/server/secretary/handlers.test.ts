@@ -39,8 +39,10 @@ import type { SecretaryHandlerDeps } from "./handlers";
 import {
   handleApproveTrip,
   handleDeleteConfirmedTrip,
+  handleIssueAgeCredential,
   handlePayForTrip,
   handleProposeTrip,
+  handleReadAgeCredential,
   handleReplanTrip,
   handleSetUpMandate,
   handleWriteBackTrip,
@@ -171,6 +173,10 @@ const postRequest = (path: string, body?: unknown): NextRequest => {
   });
 };
 
+const getRequest = (path: string): NextRequest => {
+  return new NextRequest(`http://localhost${path}`, { method: "GET" });
+};
+
 const deleteRequest = (path: string): NextRequest => {
   return new NextRequest(`http://localhost${path}`, { method: "DELETE" });
 };
@@ -197,6 +203,20 @@ beforeEach(() => {
 const setUpMandateRequest = async (): Promise<Response> => {
   return handleSetUpMandate(
     postRequest("/api/secretary/mandate", MANDATE_BODY),
+    state.deps,
+  );
+};
+
+const readAgeCredentialRequest = async (): Promise<Response> => {
+  return handleReadAgeCredential(
+    getRequest("/api/secretary/age-credential"),
+    state.deps,
+  );
+};
+
+const issueAgeCredentialRequest = async (): Promise<Response> => {
+  return handleIssueAgeCredential(
+    postRequest("/api/secretary/age-credential"),
     state.deps,
   );
 };
@@ -305,10 +325,18 @@ const proposedTripId = async (event: string): Promise<string> => {
 };
 
 describe("サインインしていないとき", () => {
-  test("7 つの handler すべてが 401 を返す", async () => {
+  test("9 つの handler すべてが 401 を返す", async () => {
     const deps = signedOutDeps();
     const responses = await Promise.all([
       handleSetUpMandate(postRequest("/api/secretary/mandate", {}), deps),
+      handleReadAgeCredential(
+        getRequest("/api/secretary/age-credential"),
+        deps,
+      ),
+      handleIssueAgeCredential(
+        postRequest("/api/secretary/age-credential"),
+        deps,
+      ),
       handleProposeTrip(postRequest("/api/secretary/trips", {}), deps),
       handleApproveTrip(postRequest("/approve"), UNKNOWN_TRIP_ID, deps),
       handleReplanTrip(postRequest("/replan", {}), UNKNOWN_TRIP_ID, deps),
@@ -326,10 +354,66 @@ describe("サインインしていないとき", () => {
     ]);
 
     expect(responses.map((response) => response.status)).toStrictEqual([
-      401, 401, 401, 401, 401, 401, 401,
+      401, 401, 401, 401, 401, 401, 401, 401, 401,
     ]);
     expect(parseSecretaryFailure(await responses[0].json())).toStrictEqual({
       code: "unauthorized",
+    });
+  });
+});
+
+describe("年齢確認証明書", () => {
+  test("発行前の GET は credential が null になる", async () => {
+    const response = await readAgeCredentialRequest();
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toStrictEqual({
+      data: { credential: null },
+    });
+  });
+
+  test("POST で発行すると証明書を返し、その後の GET でも返る", async () => {
+    const issued = await issueAgeCredentialRequest();
+
+    expect(issued.status).toBe(200);
+    expect(await issued.json()).toStrictEqual({
+      data: {
+        credential: { identity: "identity:user-1", registeredAt: NOW },
+      },
+    });
+
+    const read = await readAgeCredentialRequest();
+
+    expect(read.status).toBe(200);
+    expect(await read.json()).toStrictEqual({
+      data: {
+        credential: { identity: "identity:user-1", registeredAt: NOW },
+      },
+    });
+  });
+
+  test("2 度目の POST も同じ証明書を返す", async () => {
+    const first = await (await issueAgeCredentialRequest()).json();
+    const second = await issueAgeCredentialRequest();
+
+    expect(second.status).toBe(200);
+    expect(await second.json()).toStrictEqual(first);
+  });
+
+  test("生年月日の無いプロフィールでは 422 で birthDateMissing を返す", async () => {
+    // このテストだけ生年月日の無いプロフィールに差し替えるので、beforeEach の入れ物へ再代入する
+    state.context = {
+      ...state.context,
+      deps: { ...state.context.deps, profile: createFakeProfile({}) },
+    };
+    state.deps = handlerDepsFor(state.context);
+
+    const response = await issueAgeCredentialRequest();
+
+    expect(response.status).toBe(422);
+    expect(parseSecretaryFailure(await response.json())).toStrictEqual({
+      code: "secretary",
+      error: { source: "flow", error: { kind: "birthDateMissing" } },
     });
   });
 });
@@ -606,6 +690,7 @@ describe("承認から書き戻しまで", () => {
 describe("年齢確認つきの承認", () => {
   test("出発日にまだ 20 歳でない出張の承認は 200 で記録つきの提案を返し、store も同じ", async () => {
     await setUpMandateRequest();
+    await issueAgeCredentialRequest();
     const id = await proposedTripId("seed-5");
 
     const response = await approveRequest(id);
@@ -646,6 +731,7 @@ describe("年齢確認つきの承認", () => {
 
   test("記録つきの提案の組み直しは 200 で作り直した提案を返し、もう一度は 422 になる", async () => {
     await setUpMandateRequest();
+    await issueAgeCredentialRequest();
     const id = await proposedTripId("seed-5");
 
     await approveRequest(id);
@@ -684,6 +770,7 @@ describe("年齢確認つきの承認", () => {
 
   test("組み直した提案の承認は 200 で approved を返し、証明の記録は残らない", async () => {
     await setUpMandateRequest();
+    await issueAgeCredentialRequest();
     const id = await proposedTripId("seed-5");
 
     await approveRequest(id);
@@ -703,6 +790,7 @@ describe("年齢確認つきの承認", () => {
 
   test("locale の無い組み直しは 422 で issues を返す", async () => {
     await setUpMandateRequest();
+    await issueAgeCredentialRequest();
     const id = await proposedTripId("seed-5");
 
     await approveRequest(id);
@@ -717,14 +805,7 @@ describe("年齢確認つきの承認", () => {
     expect(failure).toHaveProperty("issues");
   });
 
-  test("生年月日の無いプロフィールでは 422 で birthDateMissing を返す", async () => {
-    // このテストだけ生年月日の無いプロフィールに差し替えるので、beforeEach の入れ物へ再代入する
-    state.context = {
-      ...state.context,
-      deps: { ...state.context.deps, profile: createFakeProfile({}) },
-    };
-    state.deps = handlerDepsFor(state.context);
-
+  test("証明書が未発行のままの承認は 422 で ageCredentialMissing を返す", async () => {
     await setUpMandateRequest();
     const id = await proposedTripId("seed-5");
 
@@ -735,13 +816,14 @@ describe("年齢確認つきの承認", () => {
       code: "secretary",
       error: {
         source: "flow",
-        error: { kind: "birthDateMissing", tripId: id },
+        error: { kind: "ageCredentialMissing", tripId: id },
       },
     });
   });
 
   test("出発日に 20 歳以上の出張の承認は 200 で ageProof を載せる", async () => {
     await setUpMandateRequest();
+    await issueAgeCredentialRequest();
     const id = await proposedTripId("seed-6");
 
     const response = await approveRequest(id);
