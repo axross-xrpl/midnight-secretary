@@ -779,7 +779,11 @@ describe("issueAgeCredential", () => {
 
     expect(await issueAgeCredential(USER, NOW, deps)).toStrictEqual({
       ok: true,
-      value: { userId: USER, identity: "identity:user-1", registeredAt: NOW },
+      value: {
+        userId: USER,
+        identity: "identity:user-1",
+        origin: { kind: "memory", registeredAt: NOW },
+      },
     });
   });
 
@@ -1091,7 +1095,11 @@ describe("approveTrip", () => {
     expect(await storedTrip(deps, proposed.id)).toStrictEqual(approved);
     expect(await deps.identity.readRegistration(USER)).toStrictEqual({
       ok: true,
-      value: { userId: USER, identity: "identity:user-1", registeredAt: NOW },
+      value: {
+        userId: USER,
+        identity: "identity:user-1",
+        origin: { kind: "memory", registeredAt: NOW },
+      },
     });
   });
 

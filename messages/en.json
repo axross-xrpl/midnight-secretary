@@ -160,7 +160,16 @@
       "description": "Issue a credential that proves only that you meet an age requirement, computed from your date of birth. The date of birth itself never reaches the other party.",
       "issue": "Issue the credential",
       "issued": "Credential issued",
-      "needsBirthDate": "Register your date of birth first"
+      "needsBirthDate": "Register your date of birth first",
+      "unavailable": "The credential's status could not be read.",
+      "recheck": "Check again",
+      "details": {
+        "toggle": "Details",
+        "identity": "Public ID",
+        "dobCommitment": "Date-of-birth commitment",
+        "contractAddress": "Contract address",
+        "memory": "This credential lives in memory and is not on Midnight"
+      }
     },
     "readiness": {
       "title": "What these settings unlock",

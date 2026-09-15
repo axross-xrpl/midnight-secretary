@@ -10,6 +10,11 @@ import type {
 import type { TravelerPreferences } from "@/domain/plan";
 import { payToken } from "@/lib/dev-contracts/token";
 import { payShieldedToken } from "@/lib/dev-contracts/shielded-token";
+import {
+  proveAge,
+  readAgeRegistration,
+  registerAge,
+} from "@/lib/dev-contracts/age-verification";
 import { err } from "@/lib/result";
 import { createFakeCalendar, seedCalendarEvents } from "./calendar/fake";
 import { createGoogleCalendar } from "./calendar/google";
@@ -17,6 +22,7 @@ import { createFakeCatalog, seedCatalog } from "./catalog/fake";
 import { createNeonCatalog } from "./catalog/neon";
 import type { FakeIdentityIds } from "./identity/fake";
 import { createFakeIdentity } from "./identity/fake";
+import { createRealIdentity } from "./identity/real";
 import type { FakeMandateIds } from "./mandate/fake";
 import { createFakeMandate } from "./mandate/fake";
 import { createRealMandate } from "./mandate/real";
@@ -121,6 +127,13 @@ export const createSecretaryFactories = (
   // 進行中の出張はメモリのまま、確定旅程だけ Neon に写す (接続は listConfirmedTrips / putConfirmedTrip の getDb() が持つ)
   const neonStore = createNeonStore({ memory: fakeStore });
   const fakeIdentity = createFakeIdentity({ ids: resources.identityIds });
+  // contract server への接続は各呼び出しが持つので、ここでは port だけ作る (`newProofRef` は Fake だけが使い、real は tx id を証明の参照にする)
+  const realIdentity = createRealIdentity({
+    readRegistration: readAgeRegistration,
+    register: registerAge,
+    prove: proveAge,
+    accountRefOf: resources.identityIds.identityOf,
+  });
   const fakeProfile = createFakeProfile({
     birthDate: resources.demoBirthDate,
     preferences: DEMO_PREFERENCES,
@@ -134,7 +147,7 @@ export const createSecretaryFactories = (
     planner: { real: () => geminiPlanner, fake: () => fakePlanner },
     mandate: { real: () => realMandate, fake: () => fakeMandate },
     store: { real: () => neonStore, fake: () => fakeStore },
-    identity: { real: () => fakeIdentity, fake: () => fakeIdentity },
+    identity: { real: () => realIdentity, fake: () => fakeIdentity },
     profile: { real: () => neonProfile, fake: () => fakeProfile },
     newTripId: resources.newTripId,
   };

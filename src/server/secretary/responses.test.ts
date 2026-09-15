@@ -206,17 +206,43 @@ describe("ageCredentialResponseOf", () => {
     });
   });
 
-  test("発行済みは userId を出さず identity と発行時刻だけを載せる", () => {
+  test("発行済みは userId を出さず identity と載っている場所だけを載せる", () => {
     expect(
       ageCredentialResponseOf({
         userId: mustParse(parseUserId("user-1")),
         identity: "identity:user-1",
-        registeredAt: mustParse(parseIsoDateTime("2026-09-09T00:00:00Z")),
+        origin: {
+          kind: "memory",
+          registeredAt: mustParse(parseIsoDateTime("2026-09-09T00:00:00Z")),
+        },
       }),
     ).toStrictEqual({
       credential: {
         identity: "identity:user-1",
-        registeredAt: "2026-09-09T00:00:00Z",
+        origin: { kind: "memory", registeredAt: "2026-09-09T00:00:00Z" },
+      },
+    });
+  });
+
+  test("Midnight に載った証明書はコミットメントとアドレスをそのまま載せる", () => {
+    expect(
+      ageCredentialResponseOf({
+        userId: mustParse(parseUserId("user-1")),
+        identity: "identity:user-1",
+        origin: {
+          kind: "midnight",
+          dobCommitment: "commitment-1",
+          contractAddress: "contract-1",
+        },
+      }),
+    ).toStrictEqual({
+      credential: {
+        identity: "identity:user-1",
+        origin: {
+          kind: "midnight",
+          dobCommitment: "commitment-1",
+          contractAddress: "contract-1",
+        },
       },
     });
   });
