@@ -15,7 +15,6 @@ import { createFakePlanner } from "@/adapters/planner/fake";
 import { createFakeProfile } from "@/adapters/profile/fake";
 import { createFakeStore } from "@/adapters/store/fake";
 import type { SecretaryDeps } from "@/application/deps";
-import { WAVE1_PREFERENCES } from "@/application/preferences";
 import { proposeTrip, setUpMandate } from "@/application/secretary";
 import { addDays, yearsBefore } from "@/domain/dates";
 import type {
@@ -166,7 +165,6 @@ const arrange = async (
         userId: context.userId,
         eventId: event,
         locale: "ja",
-        preferences: WAVE1_PREFERENCES,
         now: context.now,
       },
       context.deps,

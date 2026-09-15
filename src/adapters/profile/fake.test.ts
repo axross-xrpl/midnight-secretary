@@ -5,6 +5,7 @@ import {
   parseIsoDate,
   parseUserId,
 } from "@/domain/identifiers.parse";
+import type { TravelerPreferences } from "@/domain/plan";
 import { createFakeProfile } from "./fake";
 
 const date = (raw: string): IsoDate => {
@@ -33,6 +34,34 @@ describe("createFakeProfile", () => {
     const profile = createFakeProfile({});
 
     expect(await profile.readBirthDate(userId("user-1"))).toStrictEqual({
+      ok: true,
+      value: undefined,
+    });
+  });
+
+  test("どのユーザにも同じ好みを返す", async () => {
+    const preferences: TravelerPreferences = {
+      homeStation: "東京",
+      preferredTransport: "rail",
+      diningGenres: ["居酒屋"],
+      leisureGenres: ["history"],
+    };
+    const profile = createFakeProfile({ preferences });
+
+    expect(await profile.readPreferences(userId("user-1"))).toStrictEqual({
+      ok: true,
+      value: preferences,
+    });
+    expect(await profile.readPreferences(userId("user-2"))).toStrictEqual({
+      ok: true,
+      value: preferences,
+    });
+  });
+
+  test("seed に好みが無ければ未登録になる", async () => {
+    const profile = createFakeProfile({});
+
+    expect(await profile.readPreferences(userId("user-1"))).toStrictEqual({
       ok: true,
       value: undefined,
     });

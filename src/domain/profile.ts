@@ -1,6 +1,7 @@
 import type { Result } from "@/lib/result";
 import type { SchemaError } from "@/lib/schema";
 import type { IsoDate, UserId } from "./identifiers";
+import type { TravelerPreferences } from "./plan";
 
 /**
  * プロフィールの読み取りで起こりうる失敗
@@ -19,12 +20,19 @@ export type ReadBirthDate = (
 ) => Promise<Result<IsoDate | undefined, ProfileError>>;
 
 /**
+ * 出張者の好み (プロフィールが無ければ undefined)
+ */
+export type ReadPreferences = (
+  userId: UserId,
+) => Promise<Result<TravelerPreferences | undefined, ProfileError>>;
+
+/**
  * プロフィールの port
  *
- * Wave 1 で秘書が要るのは生年月日だけ
- * 好み (T4-2) は後から足す
+ * 秘書が要るのは年齢確認のための生年月日と、候補を選ぶための好み
  * real は #16 の Neon のプロフィール、Fake は固定値
  */
 export type ProfilePort = {
   readBirthDate: ReadBirthDate;
+  readPreferences: ReadPreferences;
 };

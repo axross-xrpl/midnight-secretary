@@ -40,7 +40,9 @@ import type {
 } from "@/domain/mandate";
 import { paymentRefFor } from "@/domain/mandate.parse";
 import type { Money } from "@/domain/money";
-import type { TripPlan } from "@/domain/plan";
+import type { TravelerPreferences, TripPlan } from "@/domain/plan";
+import type { PlannerPort } from "@/domain/planner";
+import type { ProfileError, ProfilePort } from "@/domain/profile";
 import type { SecretaryStore } from "@/domain/store";
 import type {
   ApprovedTrip,
@@ -51,9 +53,9 @@ import type {
   WrittenTrip,
 } from "@/domain/trip";
 import type { Result } from "@/lib/result";
-import { err } from "@/lib/result";
+import { err, ok } from "@/lib/result";
 import type { SecretaryDeps } from "./deps";
-import { WAVE1_PREFERENCES } from "./preferences";
+import { DEFAULT_PREFERENCES } from "./preferences";
 import type {
   ApproveTripInput,
   ProposeTripInput,
@@ -196,6 +198,45 @@ const testDeps = (): SecretaryDeps => {
   };
 };
 
+/**
+ * planner が受け取った好みを覚える Stub
+ *
+ * 選択そのものは Fake の planner に任せ、`seen` で最後に渡された好みを見る
+ */
+type PreferenceRecorder = {
+  planner: PlannerPort;
+  seen: () => TravelerPreferences | undefined;
+};
+
+const recordingPlanner = (): PreferenceRecorder => {
+  const inner = createFakePlanner();
+  // 記録はこの関数に閉じた局所ミューテーションで、テストからは seen() 越しにしか見えない
+  const state: { preferences?: TravelerPreferences } = {};
+
+  return {
+    planner: {
+      interpretEvent: inner.interpretEvent,
+      choosePlan: async (intent, offers, context) => {
+        state.preferences = context.preferences;
+
+        return inner.choosePlan(intent, offers, context);
+      },
+    },
+    seen: () => state.preferences,
+  };
+};
+
+const PROFILE_UNAVAILABLE: ProfileError = {
+  kind: "unavailable",
+  cause: "test: profile is down",
+};
+
+// 好みの読み取りだけが失敗するプロフィール (生年月日は読める)
+const brokenPreferences: ProfilePort = {
+  readBirthDate: async () => ok(BIRTH_DATE),
+  readPreferences: async () => err(PROFILE_UNAVAILABLE),
+};
+
 // 期待どおり成功したことを前提に値を取り出す (失敗はテストの失敗なので throw)
 const mustOk = <T, E>(result: Result<T, E>): T => {
   if (!result.ok) {
@@ -246,7 +287,6 @@ const proposeInput = (event: CalendarEventId): ProposeTripInput => {
     userId: USER,
     eventId: event,
     locale: "ja",
-    preferences: WAVE1_PREFERENCES,
     now: NOW,
   };
 };
@@ -284,7 +324,6 @@ const replanInput = (id: TripId): ReplanTripInput => {
     userId: USER,
     tripId: id,
     locale: "ja",
-    preferences: WAVE1_PREFERENCES,
     now: NOW,
   };
 };
@@ -1613,5 +1652,98 @@ describe("loadLedgerViews", () => {
 
     expect(ledger.publicLedger.authorizedCount).toBe(0);
     expect("privateMandate" in ledger).toBe(false);
+  });
+});
+
+describe("planner に渡す好み", () => {
+  const PROFILE_PREFERENCES: TravelerPreferences = {
+    homeStation: "東京",
+    preferredTransport: "rail",
+    diningGenres: ["粉もん"],
+    leisureGenres: ["history"],
+  };
+
+  test("プロフィールの好みがそのまま planner に渡る", async () => {
+    const recorder = recordingPlanner();
+    const deps = {
+      ...testDeps(),
+      planner: recorder.planner,
+      profile: createFakeProfile({
+        birthDate: BIRTH_DATE,
+        preferences: PROFILE_PREFERENCES,
+      }),
+    };
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, GATHERING_EVENT);
+
+    expect(recorder.seen()).toStrictEqual(PROFILE_PREFERENCES);
+    expect(diningOf(proposed.plan).genre).toBe("粉もん");
+  });
+
+  test("プロフィールに好みが無ければ既定値が planner に渡る", async () => {
+    const recorder = recordingPlanner();
+    const deps = { ...testDeps(), planner: recorder.planner };
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    await mustPropose(deps, GATHERING_EVENT);
+
+    expect(recorder.seen()).toStrictEqual(DEFAULT_PREFERENCES);
+  });
+
+  test("好みの読み取りに失敗したら提案は profile の失敗になる", async () => {
+    const deps = { ...testDeps(), profile: brokenPreferences };
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+
+    expect(
+      await proposeTrip(proposeInput(GATHERING_EVENT), deps),
+    ).toStrictEqual({
+      ok: false,
+      error: { source: "profile", error: PROFILE_UNAVAILABLE },
+    });
+  });
+
+  // 組み直しは年齢確認が通らなかった提案が要るので、好みは年齢制限のある居酒屋に寄せる
+  test("組み直しでもプロフィールの好みが planner に渡る", async () => {
+    const recorder = recordingPlanner();
+    const preferences: TravelerPreferences = {
+      homeStation: "東京",
+      preferredTransport: "rail",
+      diningGenres: ["居酒屋"],
+      leisureGenres: ["history"],
+    };
+    const deps = {
+      ...testDeps(),
+      planner: recorder.planner,
+      profile: createFakeProfile({ birthDate: BIRTH_DATE, preferences }),
+    };
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, GATHERING_EVENT);
+
+    await mustFailAgeCheck(deps, proposed.id);
+    await mustReplan(deps, proposed.id);
+
+    expect(recorder.seen()).toStrictEqual(preferences);
+  });
+
+  test("好みの読み取りに失敗したら組み直しも profile の失敗になる", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, GATHERING_EVENT);
+
+    await mustFailAgeCheck(deps, proposed.id);
+
+    expect(
+      await replanTrip(replanInput(proposed.id), {
+        ...deps,
+        profile: brokenPreferences,
+      }),
+    ).toStrictEqual({
+      ok: false,
+      error: { source: "profile", error: PROFILE_UNAVAILABLE },
+    });
   });
 });

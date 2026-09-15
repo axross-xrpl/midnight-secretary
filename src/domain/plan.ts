@@ -24,11 +24,15 @@ export type TripIntent = {
 };
 
 /**
- * プランを提案するときに使う、出張者の変わらない好み
+ * 出張者の好み
+ *
+ * `diningGenres` / `leisureGenres` は空配列なら好みなし
  */
 export type TravelerPreferences = {
   homeStation: string;
   preferredTransport?: TransportMode;
+  diningGenres: readonly string[];
+  leisureGenres: readonly string[];
   notes?: string;
 };
 

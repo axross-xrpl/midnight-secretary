@@ -23,12 +23,23 @@ const interpretContext: InterpretContext = {
   knownDestinations: ["大阪", "福岡"],
 };
 
-const choiceContext = (preferredTransport?: TransportMode): ChoiceContext => {
+// 好みの genre を省略すると空になる (= 好みなし)
+type SeededGenres = {
+  diningGenres?: readonly string[];
+  leisureGenres?: readonly string[];
+};
+
+const choiceContext = (
+  preferredTransport?: TransportMode,
+  genres: SeededGenres = {},
+): ChoiceContext => {
   return {
     locale: "ja",
     preferences: {
       homeStation: "東京",
       ...(preferredTransport === undefined ? {} : { preferredTransport }),
+      diningGenres: genres.diningGenres ?? [],
+      leisureGenres: genres.leisureGenres ?? [],
     },
     budget: { amount: mustParse(parseAmount(100000)), currency: "MST" },
   };
@@ -345,6 +356,42 @@ describe("choosePlan", () => {
     expect(result.ok && result.value.diningId).toBe("restaurant-bar-akari");
   });
 
+  test("好みの genre に合う飲食があれば居酒屋より先に選ぶ", async () => {
+    const intent = intentFor(
+      "大阪",
+      "2026-09-15",
+      "2026-09-15",
+      "大阪出張 (取引先と懇親会)",
+    );
+    const offers = await offersFor(intent);
+    const result = await planner.choosePlan(
+      intent,
+      offers,
+      choiceContext("rail", { diningGenres: ["粉もん"] }),
+    );
+
+    expect(result.ok && result.value.diningId).toBe(
+      "restaurant-okonomiyaki-fuku",
+    );
+  });
+
+  test("好みの genre に合う飲食が無ければ今までどおり居酒屋を選ぶ", async () => {
+    const intent = intentFor(
+      "大阪",
+      "2026-09-15",
+      "2026-09-15",
+      "大阪出張 (取引先と懇親会)",
+    );
+    const offers = await offersFor(intent);
+    const result = await planner.choosePlan(
+      intent,
+      offers,
+      choiceContext("rail", { diningGenres: ["フレンチ"] }),
+    );
+
+    expect(result.ok && result.value.diningId).toBe("restaurant-izakaya-tenma");
+  });
+
   test("飲食の候補が無ければ懇親会でも飲食を付けない", async () => {
     const intent = intentFor(
       "大阪",
@@ -447,6 +494,40 @@ describe("choosePlan", () => {
     expect(result.ok && result.value.leisureId).toBe(
       "leisure-inbound-guide-tour",
     );
+  });
+
+  test("好みの genre に合うレジャーがあれば本人確認の要らない先頭より先に選ぶ", async () => {
+    const intent = intentFor(
+      "大阪",
+      "2026-09-25",
+      "2026-09-25",
+      "大阪 工場視察",
+    );
+    const offers = await offersFor(intent);
+    const result = await planner.choosePlan(
+      intent,
+      offers,
+      choiceContext("rail", { leisureGenres: ["history"] }),
+    );
+
+    expect(result.ok && result.value.leisureId).toBe("leisure-osaka-castle");
+  });
+
+  test("好みの genre に合うレジャーが無ければ今までどおり本人確認の要らない先頭を選ぶ", async () => {
+    const intent = intentFor(
+      "大阪",
+      "2026-09-25",
+      "2026-09-25",
+      "大阪 工場視察",
+    );
+    const offers = await offersFor(intent);
+    const result = await planner.choosePlan(
+      intent,
+      offers,
+      choiceContext("rail", { leisureGenres: ["スキー"] }),
+    );
+
+    expect(result.ok && result.value.leisureId).toBe("leisure-kaiyukan");
   });
 
   test("レジャーの候補が無ければ視察でもレジャーを付けない", async () => {

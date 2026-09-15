@@ -43,7 +43,12 @@ const interpretContext = (locale: Locale): InterpretContext => {
 const choiceContext = (locale: Locale): ChoiceContext => {
   return {
     locale,
-    preferences: { homeStation: "東京", preferredTransport: "rail" },
+    preferences: {
+      homeStation: "東京",
+      preferredTransport: "rail",
+      diningGenres: ["居酒屋"],
+      leisureGenres: ["history"],
+    },
     budget: { amount: mustParse(parseAmount(100000)), currency: "MST" },
   };
 };
@@ -128,6 +133,17 @@ describe("choicePrompt", () => {
     expect(placeIds.filter((id) => !prompt.includes(id))).toStrictEqual([]);
     expect(prompt).toContain("diningId");
     expect(prompt).toContain("leisureId");
+  });
+
+  test("出張者の好みの genre と、それを優先させる指示が入る", async () => {
+    const offers = await offersFor(intent);
+    const prompt = choicePrompt(intent, offers, choiceContext("ja"));
+
+    expect(prompt).toContain('"diningGenres":["居酒屋"]');
+    expect(prompt).toContain('"leisureGenres":["history"]');
+    expect(prompt).toContain(
+      "出張者の好み (diningGenres / leisureGenres) に合う genre を優先してください",
+    );
   });
 
   test("年齢制限のある候補を見せた上で、避けさせる指示は書かない", async () => {
