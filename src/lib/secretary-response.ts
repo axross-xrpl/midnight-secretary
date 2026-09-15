@@ -193,6 +193,13 @@ export const failedAgeCheckSchema = z.object({
   checkedAt: z.string(),
 });
 
+/**
+ * 確定旅程を DB に写すのに失敗したこと
+ *
+ * 書き戻しの応答にだけ載り、画面は補足の 1 行を出すのに使う (`kind` 以外のフィールドは looseObject で通す)
+ */
+export const confirmedStoreErrorSchema = z.looseObject({ kind: z.string() });
+
 // 4 状態に共通するフィールドで、予定は scan の応答と同じ形なので流用する
 // 作り直した提案の記録は承認以降も引き継ぐので、4 状態すべてが持ちうる
 const tripBase = {
@@ -238,6 +245,7 @@ export const tripSchema = z.discriminatedUnion("status", [
     ...paidFields,
     writtenEventId: z.string(),
     writtenAt: z.string(),
+    confirmedStoreError: confirmedStoreErrorSchema.optional(),
   }),
 ]);
 

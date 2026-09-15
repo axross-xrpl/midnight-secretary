@@ -119,7 +119,7 @@ const SecretaryContent = ({
       </>
     ))
     .with({ kind: "askWriteBack" }, () => <p>{t("lines.askWriteBack")}</p>)
-    .with({ kind: "written" }, ({ writtenEventId }) => (
+    .with({ kind: "written" }, ({ writtenEventId, confirmedStoreFailed }) => (
       <>
         <p>{t("lines.written")}</p>
         {/* 予定の ID は文言に混ぜず、支払いの明細と同じ形の補足の行に置く */}
@@ -129,6 +129,12 @@ const SecretaryContent = ({
             <dd className={monoValueClass}>{writtenEventId}</dd>
           </div>
         </dl>
+        {/* カレンダーには書けているので、確定旅程の保存の失敗は補足の 1 行だけにする */}
+        {confirmedStoreFailed ? (
+          <p className="text-[12.5px] text-muted">
+            {t("lines.confirmedStoreFailed")}
+          </p>
+        ) : undefined}
       </>
     ))
     .with({ kind: "working" }, ({ step, title }) => (

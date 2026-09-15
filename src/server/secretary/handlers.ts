@@ -5,6 +5,7 @@ import type { SecretaryContext, SessionError } from "@/adapters/auth/session";
 import { WAVE1_PREFERENCES } from "@/application/preferences";
 import {
   approveTrip,
+  deleteConfirmedTrip,
   payForTrip,
   proposeTrip,
   replanTrip,
@@ -27,7 +28,11 @@ import {
   parseTripIdParam,
   parseWriteBackInput,
 } from "./inputs";
-import { dataResponse, secretaryErrorResponse } from "./responses";
+import {
+  dataResponse,
+  secretaryErrorResponse,
+  writeBackResponseOf,
+} from "./responses";
 import type { WriteBackTranslate } from "./write-back-text";
 import { writeBackText } from "./write-back-text";
 
@@ -332,5 +337,41 @@ export const handleWriteBackTrip = async (
     return secretaryErrorResponse(written.error);
   }
 
-  return dataResponse(written.value, 200);
+  return dataResponse(writeBackResponseOf(written.value), 200);
+};
+
+/**
+ * 確定旅程を 1 件消す
+ *
+ * body は無く、成功は消した id を返す
+ * 無い id でも成功にするので、二重に押されても 200 のまま
+ */
+export const handleDeleteConfirmedTrip = async (
+  request: NextRequest,
+  tripId: string,
+  deps: SecretaryHandlerDeps,
+): Promise<Response> => {
+  const context = await deps.resolveContext(request);
+
+  if (!context.ok) {
+    return unauthorizedResponse();
+  }
+
+  const parsedTripId = parseTripIdParam(tripId);
+
+  if (!parsedTripId.ok) {
+    return invalidRequestResponse(parsedTripId.error.issues);
+  }
+
+  const deleted = await deleteConfirmedTrip(
+    context.value.userId,
+    parsedTripId.value,
+    context.value.deps,
+  );
+
+  if (!deleted.ok) {
+    return secretaryErrorResponse(deleted.error);
+  }
+
+  return dataResponse({ id: parsedTripId.value }, 200);
 };

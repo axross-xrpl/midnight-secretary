@@ -82,7 +82,11 @@ export type SecretaryLine =
   | { kind: "partiallyPaid"; authorizations: readonly AuthorizationResponse[] }
   | { kind: "paid"; authorizations: readonly AuthorizationResponse[] }
   | { kind: "askWriteBack" }
-  | { kind: "written"; writtenEventId: string }
+  | {
+      kind: "written";
+      writtenEventId: string;
+      confirmedStoreFailed: boolean;
+    }
   | { kind: "working"; step: WorkingStep; title: string }
   | { kind: "failed"; failure: RequestFailure };
 
@@ -438,7 +442,11 @@ const historyOf = (state: ChatState, trip: TripResponse): readonly Bubble[] => {
       ...paidHistory(event, written),
       user({ kind: "writeBack" }),
       secretary(
-        { kind: "written", writtenEventId: written.writtenEventId },
+        {
+          kind: "written",
+          writtenEventId: written.writtenEventId,
+          confirmedStoreFailed: written.confirmedStoreError !== undefined,
+        },
         written.writtenAt,
       ),
     ])

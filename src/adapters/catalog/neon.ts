@@ -1,4 +1,4 @@
-import { and, asc, eq, or } from "drizzle-orm";
+import { and, asc, eq, inArray, or } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { getDb } from "@/db/client";
 import { placeServices, transportServices } from "@/db/schema";
@@ -278,6 +278,46 @@ const readDestinations = async (db: Db): Promise<readonly string[]> => {
   return rows.map(({ city }) => city);
 };
 
+// 交通と場 (宿・飲食・レジャー) は別の表なので、両方を code で引いて 1 つの対応表にする
+const readServiceIds = async (
+  db: Db,
+  codes: readonly OfferId[],
+): Promise<readonly { code: string; id: string }[]> => {
+  const [transport, places] = await Promise.all([
+    db
+      .select({ code: transportServices.code, id: transportServices.id })
+      .from(transportServices)
+      .where(inArray(transportServices.code, [...codes])),
+    db
+      .select({ code: placeServices.code, id: placeServices.id })
+      .from(placeServices)
+      .where(inArray(placeServices.code, [...codes])),
+  ]);
+
+  return [...transport, ...places];
+};
+
+const serviceIdsFor = async (
+  db: Db,
+  codes: readonly OfferId[],
+): Promise<Result<Record<OfferId, string>, CatalogError>> => {
+  const rows = await readServiceIds(db, codes);
+  const resolved: Record<OfferId, string> = Object.fromEntries(
+    rows.map((row) => [row.code, row.id]),
+  );
+  const missing = codes.filter((code) => resolved[code] === undefined);
+
+  if (missing.length > 0) {
+    // 「引けない code」に対応する kind が無いので、原因を添えて unavailable にする
+    return err({
+      kind: "unavailable",
+      cause: { reason: "unknownServiceCodes", codes: missing },
+    });
+  }
+
+  return ok(resolved);
+};
+
 const offerSetFor = async (
   db: Db,
   query: OfferQuery,
@@ -332,6 +372,14 @@ export const createNeonCatalog = (): FareCatalogPort => {
     findOffers: async (query) => {
       try {
         return await offerSetFor(getDb(), query);
+      } catch (cause) {
+        return err({ kind: "unavailable", cause });
+      }
+    },
+
+    resolveServiceIds: async (codes) => {
+      try {
+        return await serviceIdsFor(getDb(), codes);
       } catch (cause) {
         return err({ kind: "unavailable", cause });
       }

@@ -38,6 +38,7 @@ import {
 import type { SecretaryHandlerDeps } from "./handlers";
 import {
   handleApproveTrip,
+  handleDeleteConfirmedTrip,
   handlePayForTrip,
   handleProposeTrip,
   handleReplanTrip,
@@ -170,6 +171,10 @@ const postRequest = (path: string, body?: unknown): NextRequest => {
   });
 };
 
+const deleteRequest = (path: string): NextRequest => {
+  return new NextRequest(`http://localhost${path}`, { method: "DELETE" });
+};
+
 const brokenJsonRequest = (path: string): NextRequest => {
   return new NextRequest(`http://localhost${path}`, {
     method: "POST",
@@ -269,6 +274,25 @@ const writeBackRequest = async (id: string): Promise<Response> => {
   );
 };
 
+const deleteConfirmedRequest = async (id: string): Promise<Response> => {
+  return handleDeleteConfirmedTrip(
+    deleteRequest(`/api/secretary/confirmed-trips/${id}`),
+    id,
+    state.deps,
+  );
+};
+
+// 確定旅程は読み取りの handler が無いので、store をそのまま見る
+const confirmedTripIds = async (): Promise<readonly string[]> => {
+  const confirmed = await state.context.deps.store.listConfirmedTrips(USER);
+
+  if (!confirmed.ok) {
+    throw new Error("test: the confirmed trips could not be read");
+  }
+
+  return confirmed.value.map((trip) => trip.id);
+};
+
 // 提案された出張の id を、共有スキーマを通して取り出す
 const proposedTripId = async (event: string): Promise<string> => {
   const trip = parseTripResponse(await (await proposeRequest(event)).json());
@@ -281,7 +305,7 @@ const proposedTripId = async (event: string): Promise<string> => {
 };
 
 describe("サインインしていないとき", () => {
-  test("6 つの handler すべてが 401 を返す", async () => {
+  test("7 つの handler すべてが 401 を返す", async () => {
     const deps = signedOutDeps();
     const responses = await Promise.all([
       handleSetUpMandate(postRequest("/api/secretary/mandate", {}), deps),
@@ -294,10 +318,15 @@ describe("サインインしていないとき", () => {
         UNKNOWN_TRIP_ID,
         deps,
       ),
+      handleDeleteConfirmedTrip(
+        deleteRequest("/confirmed-trips"),
+        UNKNOWN_TRIP_ID,
+        deps,
+      ),
     ]);
 
     expect(responses.map((response) => response.status)).toStrictEqual([
-      401, 401, 401, 401, 401, 401,
+      401, 401, 401, 401, 401, 401, 401,
     ]);
     expect(parseSecretaryFailure(await responses[0].json())).toStrictEqual({
       code: "unauthorized",
@@ -737,6 +766,44 @@ describe("年齢確認つきの承認", () => {
     expect(parseTripResponse(await paid.json())).toMatchObject({
       ok: true,
       value: { status: "paid", authorizations: [{}, {}, {}] },
+    });
+  });
+});
+
+describe("handleDeleteConfirmedTrip", () => {
+  test("書き戻した旅程を消すと 200 で id を返し、確定旅程から消える", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-3");
+
+    await approveRequest(id);
+    await payRequest(id);
+    await writeBackRequest(id);
+
+    expect(await confirmedTripIds()).toStrictEqual([id]);
+
+    const response = await deleteConfirmedRequest(id);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toStrictEqual({ data: { id } });
+    expect(await confirmedTripIds()).toStrictEqual([]);
+  });
+
+  test("知らない UUID でも 200 を返す", async () => {
+    const response = await deleteConfirmedRequest(UNKNOWN_TRIP_ID);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toStrictEqual({
+      data: { id: UNKNOWN_TRIP_ID },
+    });
+  });
+
+  test("UUID でない tripId は 422 になる", async () => {
+    const response = await deleteConfirmedRequest("trip-1");
+
+    expect(response.status).toBe(422);
+    expect(parseSecretaryFailure(await response.json())).toStrictEqual({
+      code: "invalid_request",
+      issues: [{ path: ["tripId"], message: "invalid" }],
     });
   });
 });

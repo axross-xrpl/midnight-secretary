@@ -144,11 +144,22 @@ export type FindOffers = (
 ) => Promise<Result<OfferSet, CatalogError>>;
 
 /**
+ * 候補 id (カタログの code) を、サービス行そのものの id に引き直す
+ *
+ * 確定旅程の明細は `code` ではなくサービス行の id を持つので、写すときにここを通す
+ * 引けない code が 1 つでもあれば失敗する (存在しない行を指す明細を作らない)
+ */
+export type ResolveServiceId = (
+  codes: readonly OfferId[],
+) => Promise<Result<Record<OfferId, string>, CatalogError>>;
+
+/**
  * seed 済みの運賃データへの読み取りアクセス (全ユーザで共有)
  */
 export type FareCatalogPort = {
   listDestinations: ListDestinations;
   findOffers: FindOffers;
+  resolveServiceIds: ResolveServiceId;
 };
 
 const withoutAgeVerification = (offer: PlaceOffer): boolean => {
