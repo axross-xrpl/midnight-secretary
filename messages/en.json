@@ -155,6 +155,13 @@
       "age": "Age check",
       "residence": "Residence check"
     },
+    "ageCredential": {
+      "title": "Age credential",
+      "description": "Issue a credential that proves only that you meet an age requirement, computed from your date of birth. The date of birth itself never reaches the other party.",
+      "issue": "Issue the credential",
+      "issued": "Credential issued",
+      "needsBirthDate": "Register your date of birth first"
+    },
     "readiness": {
       "title": "What these settings unlock",
       "description": "Services that require an identity check are only suggested when the matching detail is filled in.",
@@ -476,6 +483,7 @@
       "tripNotFound": "That trip was not found.",
       "wrongStatus": "The trip is not at the step this action needs; reload the page.",
       "privateSettlementUnsupported": "This allowance cannot settle payments privately. Approve with every payment public.",
+      "ageCredentialMissing": "Your age credential has not been issued yet. Issue it on the <link>settings page</link>.",
       "birthDateMissing": "To prove your age, register your date of birth in your profile.",
       "replanNotNeeded": "This plan does not need rebuilding; reload the page."
     },

@@ -162,6 +162,16 @@ export const ageProofSchema = z.object({
 });
 
 /**
+ * 発行済みの年齢確認証明書
+ *
+ * 公開されるのは commitment の鍵 (`identity`) と発行時刻だけで、生年月日は載らない
+ */
+export const ageRegistrationSchema = z.object({
+  identity: z.string(),
+  registeredAt: z.string(),
+});
+
+/**
  * 秘書が計画を作り直した記録
  *
  * いまは年齢確認が通らなかったときだけ
@@ -302,6 +312,11 @@ export type PlaceOfferResponse = z.infer<typeof placeOfferSchema>;
 export type AgeProofResponse = z.infer<typeof ageProofSchema>;
 
 /**
+ * 発行済みの年齢確認証明書
+ */
+export type AgeRegistrationResponse = z.infer<typeof ageRegistrationSchema>;
+
+/**
  * 秘書が計画を作り直した記録
  */
 export type PlanRevisionResponse = z.infer<typeof planRevisionSchema>;
@@ -346,6 +361,11 @@ const mandateEnvelopeSchema = z.object({ data: mandateSchema });
 
 const tripEnvelopeSchema = z.object({ data: tripSchema });
 
+// 未発行を表す値が要るので、この封筒だけは JSON の null をそのまま受けて境界で undefined にする
+const ageCredentialEnvelopeSchema = z.object({
+  data: z.object({ credential: ageRegistrationSchema.nullable() }),
+});
+
 const failureBodySchema = z.looseObject({ code: z.string() });
 
 const failureEnvelopeSchema = z.object({ error: failureBodySchema });
@@ -384,6 +404,20 @@ export const parseTripResponse = (
   return map(
     fromZod(tripEnvelopeSchema.safeParse(payload)),
     (envelope) => envelope.data,
+  );
+};
+
+/**
+ * 年齢確認証明書を返す Route Handler の応答から証明書を取り出す
+ *
+ * 未発行は JSON の null なので、undefined に直して返す
+ */
+export const parseAgeCredentialResponse = (
+  payload: unknown,
+): Result<AgeRegistrationResponse | undefined, SchemaError> => {
+  return map(
+    fromZod(ageCredentialEnvelopeSchema.safeParse(payload)),
+    (envelope) => envelope.data.credential ?? undefined,
   );
 };
 

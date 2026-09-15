@@ -5,8 +5,10 @@ import type { SecretaryContext, SessionError } from "@/adapters/auth/session";
 import {
   approveTrip,
   deleteConfirmedTrip,
+  issueAgeCredential,
   payForTrip,
   proposeTrip,
+  readAgeCredential,
   replanTrip,
   setUpMandate,
   writeBackTrip,
@@ -28,6 +30,7 @@ import {
   parseWriteBackInput,
 } from "./inputs";
 import {
+  ageCredentialResponseOf,
   dataResponse,
   secretaryErrorResponse,
   writeBackResponseOf,
@@ -70,6 +73,61 @@ const readJsonBody = async (
   request: Request,
 ): Promise<Result<unknown, readonly SchemaIssue[]>> => {
   return fromPromise(request.json(), () => INVALID_JSON_ISSUES);
+};
+
+/**
+ * 発行済みの年齢確認証明書を読む
+ *
+ * body は無く、未発行なら `credential` が null になる
+ */
+export const handleReadAgeCredential = async (
+  request: NextRequest,
+  deps: SecretaryHandlerDeps,
+): Promise<Response> => {
+  const context = await deps.resolveContext(request);
+
+  if (!context.ok) {
+    return unauthorizedResponse();
+  }
+
+  const credential = await readAgeCredential(
+    context.value.userId,
+    context.value.deps,
+  );
+
+  if (!credential.ok) {
+    return secretaryErrorResponse(credential.error);
+  }
+
+  return dataResponse(ageCredentialResponseOf(credential.value), 200);
+};
+
+/**
+ * プロフィールの生年月日で年齢確認証明書を発行する
+ *
+ * body は無く、発行済みなら同じ証明書をそのまま返す
+ */
+export const handleIssueAgeCredential = async (
+  request: NextRequest,
+  deps: SecretaryHandlerDeps,
+): Promise<Response> => {
+  const context = await deps.resolveContext(request);
+
+  if (!context.ok) {
+    return unauthorizedResponse();
+  }
+
+  const issued = await issueAgeCredential(
+    context.value.userId,
+    context.value.now,
+    context.value.deps,
+  );
+
+  if (!issued.ok) {
+    return secretaryErrorResponse(issued.error);
+  }
+
+  return dataResponse(ageCredentialResponseOf(issued.value), 200);
 };
 
 /**
