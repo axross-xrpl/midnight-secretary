@@ -71,7 +71,7 @@ function toCandidate(row: PlaceRow): ServiceCandidate {
     address: row.address,
     nearestStation: row.nearestStation,
     stationAccessMin: row.stationAccessMin,
-    priceJpy: row.priceJpyc,
+    priceJpy: row.price,
     requiredVerifications: row.requiredVerifications,
     // undefined の項目は落として、AI に渡す JSON を短くする
     ...Object.fromEntries(
@@ -107,14 +107,14 @@ export async function findCandidates(
   }
 
   if (kind === "hotel" && filters.maxPrice !== undefined) {
-    conditions.push(lte(placeServices.priceJpyc, filters.maxPrice));
+    conditions.push(lte(placeServices.price, filters.maxPrice));
   }
 
   const rows = await getDb()
     .select()
     .from(placeServices)
     .where(and(...conditions))
-    .orderBy(asc(placeServices.priceJpyc), asc(placeServices.code))
+    .orderBy(asc(placeServices.price), asc(placeServices.code))
     .limit(MAX_CANDIDATES_PER_KIND);
 
   return rows.map(toCandidate);

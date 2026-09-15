@@ -31,7 +31,7 @@ import { jstDateTimeOf } from "../jst";
 /**
  * 金額の通貨
  *
- * DB は円単位の JPYC 整数を持つが、`Money` の通貨はデモ用の 2 つしか無い
+ * DB は円単位の整数を持つが、`Money` の通貨はデモ用の 2 つしか無い
  * 金額の大きさは同じなので、fake と揃えて MST 建てとして扱う
  */
 const mst = (amount: number): Money => {
@@ -79,12 +79,12 @@ type TransportRow = {
   departTime: string | null;
   arriveTime: string | null;
   durationMin: number;
-  priceJpyc: number;
+  price: number;
   originAccessMin: number;
   boardingBufferMin: number;
   arrivalBufferMin: number | null;
   destinationAccessMin: number;
-  accessFareJpyc: number | null;
+  accessFare: number | null;
   walletAddress: string;
 };
 
@@ -94,7 +94,7 @@ type PlaceRow = {
   name: string;
   city: string;
   genre: string | null;
-  priceJpyc: number;
+  price: number;
   requiredVerifications: string[];
   rating: number | null;
   ageLimit: number | null;
@@ -114,7 +114,7 @@ const doorToDoorOf = (row: TransportRow): DoorToDoor => {
       row.durationMin +
       (row.arrivalBufferMin ?? 0) +
       row.destinationAccessMin,
-    totalPrice: mst(row.priceJpyc + (row.accessFareJpyc ?? 0)),
+    totalPrice: mst(row.price + (row.accessFare ?? 0)),
   };
 };
 
@@ -141,7 +141,7 @@ const transportOfferOn = (
     destination: row.toSpot,
     departAt: jstDateTimeOf(date, hourMinute(row.departTime)),
     arriveAt: jstDateTimeOf(date, hourMinute(row.arriveTime)),
-    price: mst(row.priceJpyc),
+    price: mst(row.price),
     doorToDoor: doorToDoorOf(row),
   };
 };
@@ -159,7 +159,7 @@ const lodgingOfferFor = (
     city: row.city,
     checkIn: query.departOn,
     checkOut: query.returnOn,
-    price: mst(row.priceJpyc * nights),
+    price: mst(row.price * nights),
     ...(row.rating === null ? {} : { rating: row.rating }),
     requiredVerifications: verificationsOf(row.requiredVerifications),
   };
@@ -176,7 +176,7 @@ const placeOfferOf = (row: PlaceRow, kind: PlaceOfferKind): PlaceOffer => {
     name: row.name,
     city: row.city,
     ...(genre === undefined ? {} : { genre }),
-    price: mst(row.priceJpyc),
+    price: mst(row.price),
     requiredVerifications: verificationsOf(row.requiredVerifications),
     ...(ageLimit === undefined ? {} : { ageLimit }),
   };
@@ -191,12 +191,12 @@ const TRANSPORT_COLUMNS = {
   departTime: transportServices.departTime,
   arriveTime: transportServices.arriveTime,
   durationMin: transportServices.durationMin,
-  priceJpyc: transportServices.priceJpyc,
+  price: transportServices.price,
   originAccessMin: transportServices.originAccessMin,
   boardingBufferMin: transportServices.boardingBufferMin,
   arrivalBufferMin: transportServices.arrivalBufferMin,
   destinationAccessMin: transportServices.destinationAccessMin,
-  accessFareJpyc: transportServices.accessFareJpyc,
+  accessFare: transportServices.accessFare,
   walletAddress: transportServices.walletAddress,
 };
 
@@ -206,7 +206,7 @@ const PLACE_COLUMNS = {
   name: placeServices.name,
   city: placeServices.city,
   genre: placeServices.genre,
-  priceJpyc: placeServices.priceJpyc,
+  price: placeServices.price,
   requiredVerifications: placeServices.requiredVerifications,
   rating: placeServices.rating,
   ageLimit: placeServices.ageLimit,

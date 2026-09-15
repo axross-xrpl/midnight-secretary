@@ -21,7 +21,7 @@ const profile = (
   homeSpot: "品川",
   diningGenres: [],
   leisureGenres: [],
-  budgetJpyc: null,
+  budget: null,
   priority: null,
   ...overrides,
 });

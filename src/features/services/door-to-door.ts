@@ -20,9 +20,9 @@ export type TransportLeg = {
   /** 航空の荷物受取など。鉄道は 0 か未設定 */
   arrivalBufferMin: number | null;
   destinationAccessMin: number;
-  priceJpyc: number;
+  price: number;
   /** 前後アクセスの運賃合計 */
-  accessFareJpyc: number | null;
+  accessFare: number | null;
 };
 
 /**
@@ -42,7 +42,7 @@ export type DoorToDoor = {
   /** 総所要 (分) */
   totalMin: number;
   /** 総額 (円) */
-  totalJpyc: number;
+  totalPrice: number;
   breakdown: DoorToDoorBreakdown;
 };
 
@@ -63,7 +63,7 @@ export const doorToDoor = (leg: TransportLeg): DoorToDoor => {
       breakdown.durationMin +
       breakdown.arrivalBufferMin +
       breakdown.destinationAccessMin,
-    totalJpyc: leg.priceJpyc + (leg.accessFareJpyc ?? 0),
+    totalPrice: leg.price + (leg.accessFare ?? 0),
     breakdown,
   };
 };

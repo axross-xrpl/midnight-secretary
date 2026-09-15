@@ -3,12 +3,12 @@ import type {
   ConfirmedTripItem,
 } from "@/features/trips/confirmed-trip";
 
-type ItemSeed = Omit<ConfirmedTripItem, "id" | "seq" | "priceJpyc"> & {
+type ItemSeed = Omit<ConfirmedTripItem, "id" | "seq" | "price"> & {
   quantity: number;
 };
 
 // 明細の id と並び順、確定額 (単価 × 数量) は旅程ごとに機械的に決まるので、種から組み立てる
-// `priceJpyc = unitPriceJpyc * quantity` は DB の CHECK と同じ関係 (`db-design.md` §8)
+// `price = unitPrice * quantity` は DB の CHECK と同じ関係 (`db-design.md` §8)
 const itemsOf = (
   tripId: string,
   seeds: readonly ItemSeed[],
@@ -17,7 +17,7 @@ const itemsOf = (
     ...seed,
     id: `${tripId}-item-${index + 1}`,
     seq: index + 1,
-    priceJpyc: seed.unitPriceJpyc * seed.quantity,
+    price: seed.unitPrice * seed.quantity,
   }));
 };
 
@@ -32,7 +32,7 @@ const OSAKA_STAY: ConfirmedTrip = {
     {
       category: "rail",
       name: "JR東海道新幹線 のぞみ221号",
-      unitPriceJpyc: 14520,
+      unitPrice: 14520,
       quantity: 1,
       startAt: "2026-09-20T01:00:00.000Z",
       endAt: "2026-09-20T03:30:00.000Z",
@@ -42,7 +42,7 @@ const OSAKA_STAY: ConfirmedTrip = {
     {
       category: "hotel",
       name: "ホテルB 大阪梅田",
-      unitPriceJpyc: 16000,
+      unitPrice: 16000,
       quantity: 1,
       startAt: "2026-09-20T06:00:00.000Z",
       endAt: "2026-09-21T02:00:00.000Z",
@@ -52,7 +52,7 @@ const OSAKA_STAY: ConfirmedTrip = {
     {
       category: "restaurant",
       name: "中華料理 陳家",
-      unitPriceJpyc: 8000,
+      unitPrice: 8000,
       quantity: 1,
       startAt: "2026-09-20T10:00:00.000Z",
       endAt: "2026-09-20T12:00:00.000Z",
@@ -62,7 +62,7 @@ const OSAKA_STAY: ConfirmedTrip = {
     {
       category: "leisure",
       name: "京セラドーム大阪 野球観戦",
-      unitPriceJpyc: 5500,
+      unitPrice: 5500,
       quantity: 1,
       startAt: "2026-09-21T04:00:00.000Z",
       endAt: "2026-09-21T08:00:00.000Z",
@@ -72,7 +72,7 @@ const OSAKA_STAY: ConfirmedTrip = {
     {
       category: "rail",
       name: "JR東海道新幹線 のぞみ330号",
-      unitPriceJpyc: 14520,
+      unitPrice: 14520,
       quantity: 1,
       startAt: "2026-09-21T09:00:00.000Z",
       endAt: "2026-09-21T11:30:00.000Z",
@@ -93,7 +93,7 @@ const OSAKA_DAY_TRIP: ConfirmedTrip = {
     {
       category: "air",
       name: "ANA 017便",
-      unitPriceJpyc: 13000,
+      unitPrice: 13000,
       quantity: 1,
       startAt: "2026-08-04T23:00:00.000Z",
       endAt: "2026-08-05T00:10:00.000Z",
@@ -103,7 +103,7 @@ const OSAKA_DAY_TRIP: ConfirmedTrip = {
     {
       category: "restaurant",
       name: "中華 天心",
-      unitPriceJpyc: 2200,
+      unitPrice: 2200,
       quantity: 2,
       startAt: "2026-08-05T03:00:00.000Z",
       endAt: "2026-08-05T04:00:00.000Z",
@@ -113,7 +113,7 @@ const OSAKA_DAY_TRIP: ConfirmedTrip = {
     {
       category: "air",
       name: "ANA 038便",
-      unitPriceJpyc: 13000,
+      unitPrice: 13000,
       quantity: 1,
       startAt: "2026-08-05T10:00:00.000Z",
       endAt: "2026-08-05T11:15:00.000Z",

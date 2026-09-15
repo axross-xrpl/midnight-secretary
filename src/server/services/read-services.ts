@@ -26,7 +26,7 @@ export type ServiceListItem = {
   category: ServiceCategory;
   code: string;
   name: string;
-  priceJpyc: number;
+  price: number;
   /** 交通は区間、場所系は都市 */
   location: string;
   /** 場所系の最寄り駅。交通は null */
@@ -142,7 +142,7 @@ export async function readServices(
             mode: transportServices.mode,
             code: transportServices.code,
             name: transportServices.name,
-            priceJpyc: transportServices.priceJpyc,
+            price: transportServices.price,
             fromSpot: transportServices.fromSpot,
             toSpot: transportServices.toSpot,
             active: transportServices.active,
@@ -159,7 +159,7 @@ export async function readServices(
             kind: placeServices.kind,
             code: placeServices.code,
             name: placeServices.name,
-            priceJpyc: placeServices.priceJpyc,
+            price: placeServices.price,
             city: placeServices.city,
             nearestStation: placeServices.nearestStation,
             stationAccessMin: placeServices.stationAccessMin,
@@ -179,7 +179,7 @@ export async function readServices(
     category: row.mode as ServiceCategory,
     code: row.code,
     name: row.name,
-    priceJpyc: row.priceJpyc,
+    price: row.price,
     location: `${row.fromSpot} → ${row.toSpot}`,
     station: null,
     stationAccessMin: null,
@@ -194,7 +194,7 @@ export async function readServices(
     category: row.kind as ServiceCategory,
     code: row.code,
     name: row.name,
-    priceJpyc: row.priceJpyc,
+    price: row.price,
     location: row.city,
     station: row.nearestStation,
     stationAccessMin: row.stationAccessMin,

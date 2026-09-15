@@ -19,7 +19,7 @@ export const userProfiles = pgTable("user_profiles", {
   homeSpot: text("home_spot"),
   diningGenres: text("dining_genres").array().notNull(),
   leisureGenres: text("leisure_genres").array().notNull(),
-  budgetJpyc: integer("budget_jpyc"),
+  budget: integer("budget"),
   priority: text("priority"),
   walletAddress: text("wallet_address"),
   createdAt: timestamp("created_at", {

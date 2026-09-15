@@ -46,7 +46,7 @@ function profileValues(input: ProfileSaveInput) {
     homeSpot: input.homeSpot,
     diningGenres: input.diningGenres,
     leisureGenres: input.leisureGenres,
-    budgetJpyc: input.budgetJpyc,
+    budget: input.budget,
     priority: input.priority,
     walletAddress: input.walletAddress,
   };
@@ -69,7 +69,7 @@ const toDto = (row: typeof userProfiles.$inferSelect): ProfileDto => ({
   homeSpot: row.homeSpot,
   diningGenres: row.diningGenres,
   leisureGenres: row.leisureGenres,
-  budgetJpyc: row.budgetJpyc,
+  budget: row.budget,
   priority: row.priority as ProfileDto["priority"],
   walletAddress: row.walletAddress,
   updatedAt: row.updatedAt.toISOString(),

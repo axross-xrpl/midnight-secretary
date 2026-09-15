@@ -12,7 +12,7 @@ type ProfileReadinessProps = {
   residencePref: string;
   homeCity: string;
   homeSpot: string;
-  budgetJpyc: string;
+  budget: string;
   priority: Priority | "";
   walletAddress: string;
 };
@@ -28,7 +28,7 @@ export function ProfileReadiness({
   residencePref,
   homeCity,
   homeSpot,
-  budgetJpyc,
+  budget,
   priority,
   walletAddress,
 }: ProfileReadinessProps) {
@@ -54,11 +54,8 @@ export function ProfileReadiness({
       value: priority === "" ? none : t(`priorities.${priority}`),
     },
     {
-      label: t("labels.budgetJpyc"),
-      value:
-        budgetJpyc === ""
-          ? none
-          : priceFormatter.format(Number(budgetJpyc ?? 0)),
+      label: t("labels.budget"),
+      value: budget === "" ? none : priceFormatter.format(Number(budget ?? 0)),
     },
     {
       label: t("labels.walletAddress"),

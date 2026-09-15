@@ -41,11 +41,11 @@ AI秘書が出張・旅行のプランニングを行うために、**提案の�
 | 4 | **`wallet_address` の CHECK が EVM 前提** | 制約は `^0x[0-9a-fA-F]{40}$` だが、`basic-spec.md` のネットワークは **Midnight testnet**（`0x`＋40hex ではない）。このままでは Midnight のアドレスが**全件 CHECK で拒否される** | 正規表現の CHECK を外す。DBは NOT NULL と長さのみを見て、形式検証はアプリ層に置く（§8） |
 | 5 | **`register-page-spec.md` が旧設計を前提にしている** | 画面仕様は `vendors` / `inventory_items` / `transit_meta` / `cities` / `city_aliases` / `destinations` を前提にしているが、第一版はそれら全部を「持たない」と明示。参照先の「db-design.md §7 / §10 / §11」も存在しない（第一版は §6 まで） | 画面とテーブルの対応を §11 に置き、`register-page-spec.md` を本書に合わせて改訂した |
 | 6 | **アクセス層の記述が実装と乖離** | `basic-spec.md` §3 のアーキ図は単一 FastAPI、第一版 §6 は Python モジュールのシグネチャ据え置きを指示。どちらもこのリポジトリに存在しない | 前提を §2 で確定。読み取り経路を §10 に再定義 |
-| 7 | **金額の単位が未定義** | `amount_jpyc` にオンチェーンの最小単位を入れると integer が溢れ、桁の解釈もコードごとにぶれる | **全テーブル円単位の整数**に統一。最小単位への変換は決済層だけで行い、DBに持ち込まない（§8） |
+| 7 | **金額の単位が未定義** | `amount` にオンチェーンの最小単位を入れると integer が溢れ、桁の解釈もコードごとにぶれる | **全テーブル円単位の整数**に統一。最小単位への変換は決済層だけで行い、DBに持ち込まない（§8） |
 | 8 | **`origin_access_min` が「拠点」を暗黙に1つへ固定** | 交通行が「五反田→品川=15分」を持つため、プロフィールの住所が変わると行の値と矛盾する | MVPの割り切りとして明文化（§9）。拠点はデモユーザー1人分に固定し、プロフィールの住所は表示と出発都市の解決に使う |
 | 9 | **同じサービスへの二重決済を防ぐ仕組みが無い** | 在庫を持たないため、再送・再試行で同一明細に複数の入金が起きうる | 「1明細につき有効な決済は1件」を部分ユニーク制約で担保（§8） |
 | 10 | **`updated_at` の更新責任が未定義** | トリガが無いまま更新漏れが起きると、同時編集検知（409）が機能しない | 更新はアプリ層で必ずセットする。トリガを置かない理由も §12 |
-| 11 | **種別ごとにテーブルを分けたため共通仕様が4重管理になる** | `wallet_address` の CHECK・`active` による論理削除・`updated_at` の扱い・`price_jpyc` の制約が4テーブル分。CRUD・API・バリデーションも4系統に分かれる | 場所系3つを `place_services` に統合し、2系統にする（§4） |
+| 11 | **種別ごとにテーブルを分けたため共通仕様が4重管理になる** | `wallet_address` の CHECK・`active` による論理削除・`updated_at` の扱い・`price` の制約が4テーブル分。CRUD・API・バリデーションも4系統に分かれる | 場所系3つを `place_services` に統合し、2系統にする（§4） |
 | 12 | **全種別を横断する一覧が 4-way UNION になる** | サービス管理画面の「種別＝全て」や予算内候補の抽出が4テーブルの UNION になり、種別を増やすたびに全クエリを直す必要がある | 2テーブル化＋横断用の VIEW（§8） |
 
 ---
@@ -65,9 +65,9 @@ AI秘書が出張・旅行のプランニングを行うために、**提案の�
 | `lodging_services` | 11 | 6 | **55%** |
 | `dining_services` | 12 | 9 | **75%** |
 | `leisure_services` | 10 | 9 | **90%** |
-| `transport_services` | 16 | 2（`name` / `price_jpyc` のみ） | **13%** |
+| `transport_services` | 16 | 2（`name` / `price` のみ） | **13%** |
 
-- 場所系3つが共有する6列（`name` / `city` / `address` / `nearest_station` / `station_access_min` / `price_jpyc`）は
+- 場所系3つが共有する6列（`name` / `city` / `address` / `nearest_station` / `station_access_min` / `price`）は
   **3種別すべてで必須**。統合しても NOT NULL を維持できる。
 - `genre` / `open_from` / `open_to` は飲食とレジャーで共通。**レジャーの固有列は `age_limit` だけ**で、
   独立したテーブルを持つ根拠がほぼ無い。
@@ -168,7 +168,7 @@ erDiagram
 | `home_spot` | text | – | 起点最寄り（「品川」）。候補の絞り込みと表示に使う |
 | `dining_genres` | text[] | – | 食事の好み（`{中華}`）。`place_services.genre` と突き合わせる |
 | `leisure_genres` | text[] | – | 趣味（`{art,baseball}`）。同上 |
-| `budget_jpyc` | integer | – | 1旅程あたりの上限。`filter_feasible` のハード制約に使う |
+| `budget` | integer | – | 1旅程あたりの上限。`filter_feasible` のハード制約に使う |
 | `priority` | text | – | `time` / `price` / `comfort`（コード固定値）。`select_option` のスコア重みを決める |
 | `wallet_address` | text | – | **秘書ウォレット＝支払元**。サービス側の `wallet_address`（送金先）とは役割が逆 |
 
@@ -210,9 +210,9 @@ erDiagram
 | `category` | text | ✓ | `rail` / `air` / `hotel` / `restaurant` / `leisure`。**参照先テーブルもこの値から決まる**（§7） |
 | `service_id` | uuid | ✓ | 対象サービス行の id（論理参照） |
 | `name_snapshot` | text | ✓ | 確定時点の名称 |
-| `unit_price_jpyc` | integer | ✓ | 確定時点の単価（1泊 / 1人 / 1枚 / 片道） |
+| `unit_price` | integer | ✓ | 確定時点の単価（1泊 / 1人 / 1枚 / 片道） |
 | `quantity` | integer | ✓ | 泊数・人数・枚数。既定 1 |
-| `price_jpyc` | integer | ✓ | 確定額（= `unit_price_jpyc` × `quantity`）。決済と合計はこの列だけを見る |
+| `price` | integer | ✓ | 確定額（= `unit_price` × `quantity`）。決済と合計はこの列だけを見る |
 | `payee_snapshot` | text | ✓ | 確定時点の送金先アドレス |
 | `start_at` / `end_at` | timestamptz | – | 旅程上の日時。タスク表示とカレンダー登録に使う |
 | `status` | text | ✓ | `selected` → `paid` → `booked`（異常系: `cancelled`） |
@@ -234,7 +234,7 @@ erDiagram
 | `ref_id` | text PK | ✓ | 据え置き | 決済の冪等キー（コントラクトの `refId` の元） |
 | `trip_item_id` | uuid FK→`trip_items` | ✓ | **★追加** | 決済対象の明細 |
 | `payee` | text | ✓ | 据え置き | 送金先アドレスのスナップショット |
-| `amount_jpyc` | integer | ✓ | 据え置き | 金額（円単位・§8） |
+| `amount` | integer | ✓ | 据え置き | 金額（円単位・§8） |
 | `expiry` | timestamptz | ✓ | 据え置き | 返金可能になる時刻 |
 | `status` | text | ✓ | 据え置き | `deposited` / `released` / `refunded` / `failed` |
 | `deposit_tx` / `release_tx` / `refund_tx` | text | – | 据え置き | 各トランザクションハッシュ |
@@ -256,12 +256,12 @@ erDiagram
 | `from_spot` / `to_spot` | text | ✓ | 出発地点 / 到着地点（「品川」「新大阪」「HND」「ITM」） |
 | `depart_time` / `arrive_time` | time | – | 出発時刻 / 到着時刻 |
 | `duration_min` | integer | ✓ | 移動時間（乗車・搭乗のみ。待ち時間は含めない） |
-| `price_jpyc` | integer | ✓ | 運賃（片道あたり） |
+| `price` | integer | ✓ | 運賃（片道あたり） |
 | `origin_access_min` | integer | ✓ | **拠点→出発地点**（五反田→品川=15、→羽田=50） |
 | `boarding_buffer_min` | integer | ✓ | **乗車・搭乗前**の待ち（鉄道=10、航空=60） |
 | `arrival_buffer_min` | integer | – | **降車・降機後**（航空の荷物受取=20、鉄道=0） |
 | `destination_access_min` | integer | ✓ | **到着地点→市内目的地**（新大阪→梅田=15、伊丹→梅田=30） |
-| `access_fare_jpyc` | integer | – | 前後アクセスの運賃合計（鉄道=490、航空=1350） |
+| `access_fare` | integer | – | 前後アクセスの運賃合計（鉄道=490、航空=1350） |
 | `seat_class` | text | – | 席種（指定席） |
 | `wallet_address` | text | ✓ | 送金先 |
 | `active` | boolean | ✓ | 論理削除 |
@@ -282,7 +282,7 @@ erDiagram
 | `address` | text | 住所 |
 | `nearest_station` | text | 最寄り駅（「新大阪駅」） |
 | `station_access_min` | integer | **最寄り駅からの時間**。到着地点からの追加時間として door-to-door に加算する（§9） |
-| `price_jpyc` | integer | 価格。単位は `kind` から導出（1泊 / 1人 / 1枚） |
+| `price` | integer | 価格。単位は `kind` から導出（1泊 / 1人 / 1枚） |
 | `required_verifications` | text[] | **要求する本人属性の検証**（`age` / `nationality` / `residence`・§7.2）。既定 `{}`（検証不要）。**NOT NULL** にして「不要」を NULL と空配列の2通りで表さない |
 | `wallet_address` | text | 送金先 |
 | `active` | boolean | 論理削除 |
@@ -376,7 +376,7 @@ DBが重複を防げないため、**種別を接頭辞にする命名規約**�
 
 ```sql
 -- 金額・数量（全テーブル共通）
-CHECK (price_jpyc >= 0)
+CHECK (price >= 0)
 CHECK (quantity >= 1)
 
 -- 送金先は形式を DB で縛らない（Midnight / EVM でアドレス形式が異なるため）
@@ -428,8 +428,10 @@ CREATE UNIQUE INDEX ON payments (trip_item_id) WHERE status <> 'failed';
 ネットワークが変わるたびに制約とマイグレーションを書き換えるのは割に合わないため、
 **形式検証はアプリ層（保存前のバリデーション）に置き、DBは長さと NOT NULL だけを見る**。
 
-**金額の単位**: `*_jpyc` はすべて**円単位の整数**。オンチェーンの最小単位への変換は決済層だけで行い、
+**金額の単位**: 金額の列（`price` / `unit_price` / `access_fare` / `amount` / `budget`）はすべて
+**デモトークン MST 建ての整数**（1 MST = 1 円相当）。オンチェーンの最小単位への変換は決済層だけで行い、
 DBには持ち込まない（integer に最小単位を入れると桁が溢れる）。
+**列名には通貨を入れない**（通貨が変わっても列名を変えずに済むようにするため）。
 
 **インデックス**
 
@@ -450,12 +452,12 @@ DBには持ち込まない（integer に最小単位を入れると桁が溢れ�
 
 ```sql
 CREATE VIEW service_catalog AS
-  SELECT id, mode AS category, code, name, price_jpyc,
+  SELECT id, mode AS category, code, name, price,
          from_spot || ' → ' || to_spot AS location,
          wallet_address, active, updated_at
     FROM transport_services
   UNION ALL
-  SELECT id, kind AS category, code, name, price_jpyc,
+  SELECT id, kind AS category, code, name, price,
          city AS location,
          wallet_address, active, updated_at
     FROM place_services;
@@ -472,7 +474,7 @@ CREATE VIEW service_catalog AS
 ```
 所要 = origin_access_min + boarding_buffer_min + duration_min
        + arrival_buffer_min + destination_access_min
-総額 = price_jpyc + access_fare_jpyc
+総額 = price + access_fare
 ```
 
 検算値も据え置き（鉄道 **187分 / 15,010**、航空 **235分 / 14,350**）。
@@ -500,7 +502,7 @@ AI秘書のツール（`basic-spec.md` §4）と DB の対応。秘書は Next.j
 | `resolve_directory(intent)` | `user_profiles`（拠点・好み・趣味・予算）＋ 目的都市は予定の件名テキストから解決 |
 | `lookup_fares(route, ...)` | `transport_services` を `from_city` / `to_city` / `active` で取得し、内訳列から door-to-door を合成 |
 | （サービス候補の取得） | `place_services` を `kind` ＋ `city` ＋ `genre` で取得 |
-| `filter_feasible` | `place_services.required_verifications` を読み、**検証を満たせない候補を除外する**（`age` は `birth_date` と `age_limit`、`nationality` は `nationality`、`residence` は `residence_pref` で判定・§7.2）。判定と経路は実装済みだが、**現バージョンは除外を無効にし、満たせるかの判断も AI に委ねている**（`profile-page-spec.md` §15）。`budget_jpyc` も画面の上限価格と単位が違う（1旅程 / 1泊）ため、ハード制約ではなく AI への指示として渡している |
+| `filter_feasible` | `place_services.required_verifications` を読み、**検証を満たせない候補を除外する**（`age` は `birth_date` と `age_limit`、`nationality` は `nationality`、`residence` は `residence_pref` で判定・§7.2）。判定と経路は実装済みだが、**現バージョンは除外を無効にし、満たせるかの判断も AI に委ねている**（`profile-page-spec.md` §15）。`budget` も画面の上限価格と単位が違う（1旅程 / 1泊）ため、ハード制約ではなく AI への指示として渡している |
 | `select_option` | `user_profiles.priority` で重み付け。好みのジャンル（`dining_genres` / `leisure_genres`）に合う候補を前に出す。**提案経路に実装済み**（`profile-page-spec.md` §15）。宿泊は `rating` 最大を「おすすめ」にする |
 | `pay_invoice` / `confirm_booking` | `payments` の作成と状態遷移、`trip_items.status` / `booking_ref` の更新 |
 | `build_task_list(bookings)` | `trips` / `trip_items` を書き込み、`trips.status` を `confirmed` にする |
@@ -512,7 +514,7 @@ AI秘書のツール（`basic-spec.md` §4）と DB の対応。秘書は Next.j
 | `agent_id`（スレッド識別・表示） | サービスの `code` |
 | 表示名・アバター | `name` ＋ `category` の固定色・アイコン（§7） |
 | 請求先（`payee`） | `wallet_address` |
-| 価格 | `price_jpyc` |
+| 価格 | `price` |
 
 **HTTP API（画面用）**
 
@@ -583,7 +585,7 @@ AI秘書のツール（`basic-spec.md` §4）と DB の対応。秘書は Next.j
 
 | # | 論点 | 補足 |
 |---|---|---|
-| 1 | **通貨・ネットワークの記述が混在** | `basic-spec.md` は Midnight testnet / NIGHT・DUST、一方で決済額は JPYC、ユーザープロフィール例には KAIA faucet が出てくる。アドレス形式（§8）と `*_jpyc` の命名はこの決着待ち |
+| 1 | ~~**通貨・ネットワークの記述が混在**~~ **決着済み** | 決済額は**デモトークン MST**（`token.compact` が発行、1 MST = 1 円相当）。ネイティブトークンの NIGHT とガス資源の DUST はそのまま。金額の列名からは通貨を外した（§8）ので、通貨が変わっても列名は動かない。アドレス形式を DB で縛らない判断（§8）も据え置き |
 | 2 | 秘書ウォレットの秘密鍵 | DBには**持たない**。`user_profiles.wallet_address` は公開アドレスのみ。署名の置き場所は別途決める |
 | 3 | 場所系に種別・認証種別を追加するときの運用 | スキーマ変更は不要だが、`kind` の CHECK・種別依存列の CHECK・`required_verifications` の CHECK・画面の切り替えを同時に更新する必要がある（§7）。CHECK が種別数に比例して増えるため、5〜6種別を超える規模になったら `jsonb` か詳細テーブルへの分離を再検討する |
 | 4 | **`nationality` / `residence` の述語のパラメータ** | `age` は `age_limit` でしきい値を持つが、他の2つは「どの国籍か」「どの都道府県か」を列に持っていない（§7.2）。MVPは `item_name` の名称で表す。複数の条件を機械判定する必要が出たら、`required_verifications` を text[] から `jsonb`（種類＋パラメータの配列）に変えるか、子テーブルに分ける |

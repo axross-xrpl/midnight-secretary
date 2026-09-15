@@ -24,7 +24,7 @@ export async function readProfile(userId: string): Promise<ProfileDto | null> {
       homeSpot: userProfiles.homeSpot,
       diningGenres: userProfiles.diningGenres,
       leisureGenres: userProfiles.leisureGenres,
-      budgetJpyc: userProfiles.budgetJpyc,
+      budget: userProfiles.budget,
       priority: userProfiles.priority,
       walletAddress: userProfiles.walletAddress,
       updatedAt: userProfiles.updatedAt,
@@ -122,7 +122,7 @@ export async function readPlanningProfile(
       homeSpot: userProfiles.homeSpot,
       diningGenres: userProfiles.diningGenres,
       leisureGenres: userProfiles.leisureGenres,
-      budgetJpyc: userProfiles.budgetJpyc,
+      budget: userProfiles.budget,
       priority: userProfiles.priority,
     })
     .from(userProfiles)

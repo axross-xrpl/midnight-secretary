@@ -61,7 +61,7 @@ export const profileSaveSchema = z
     homeSpot: optionalText(120),
     diningGenres: genres,
     leisureGenres: genres,
-    budgetJpyc: budget,
+    budget,
     priority: z.preprocess(
       (value) => (value === "" ? null : value),
       z.enum(priorities).nullable().default(null),
@@ -92,7 +92,7 @@ export const profileSchema = z.object({
   homeSpot: z.string().nullable(),
   diningGenres: z.array(z.string()),
   leisureGenres: z.array(z.string()),
-  budgetJpyc: z.number().int().nullable(),
+  budget: z.number().int().nullable(),
   priority: z.enum(priorities).nullable(),
   walletAddress: z.string().nullable(),
   updatedAt: z.string().datetime({ offset: true }),
@@ -112,7 +112,7 @@ export const profileFields = [
   "homeSpot",
   "diningGenres",
   "leisureGenres",
-  "budgetJpyc",
+  "budget",
   "priority",
   "walletAddress",
 ] as const;

@@ -106,7 +106,7 @@ const DoorToDoorPanel = ({
 }: DoorToDoorPanelProps): ReactElement | undefined => {
   const t = useTranslations("ServiceManagement");
   const leg: TransportLeg = service;
-  const { totalMin, totalJpyc, breakdown } = doorToDoor(leg);
+  const { totalMin, totalPrice, breakdown } = doorToDoor(leg);
 
   if (totalMin === 0) {
     return undefined;
@@ -130,7 +130,7 @@ const DoorToDoorPanel = ({
         <div className="text-right">
           <p className="text-xs text-slate-500">{t("detail.total")}</p>
           <p className="mt-1 text-lg font-semibold tabular-nums">
-            {priceFormatter.format(totalJpyc)} JPYC
+            {priceFormatter.format(totalPrice)} MST
           </p>
         </div>
       </div>
@@ -260,13 +260,13 @@ const TransportFields = ({ service }: TransportFieldsProps): ReactElement => {
         <Section title={t("detail.section.price")}>
           <Field label={t("detail.fare")}>
             <span className="tabular-nums">
-              {priceFormatter.format(service.priceJpyc)} JPYC
+              {priceFormatter.format(service.price)} MST
             </span>
           </Field>
-          {service.accessFareJpyc === null ? undefined : (
+          {service.accessFare === null ? undefined : (
             <Field label={t("detail.accessFare")}>
               <span className="tabular-nums">
-                {priceFormatter.format(service.accessFareJpyc)} JPYC
+                {priceFormatter.format(service.accessFare)} MST
               </span>
             </Field>
           )}
@@ -302,7 +302,7 @@ const PlaceFields = ({ service }: PlaceFieldsProps): ReactElement => {
         )}
         <Field label={t("price")}>
           <span className="tabular-nums">
-            {priceFormatter.format(service.priceJpyc)} JPYC
+            {priceFormatter.format(service.price)} MST
           </span>
           <span className="ml-1 text-xs font-normal text-slate-500">
             / {unit}

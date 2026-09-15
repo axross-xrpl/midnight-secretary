@@ -3,7 +3,7 @@ import "server-only";
 /**
  * 保有しているデモトークンの残高
  *
- * 単位は `token.compact` が発行する MST (`basic-spec.md` の JPYC に相当するデモ用トークン)
+ * 単位は `token.compact` が発行するデモ用トークン MST (1 MST = 1 円相当)
  */
 export type MstBalance = {
   symbol: string;

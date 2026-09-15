@@ -34,7 +34,7 @@ type FormValues = {
   homeSpot: string;
   diningGenres: string[];
   leisureGenres: string[];
-  budgetJpyc: string;
+  budget: string;
   priority: Priority | "";
   walletAddress: string;
 };
@@ -67,10 +67,10 @@ const toFormValues = (
   homeSpot: profile?.homeSpot ?? "",
   diningGenres: profile?.diningGenres ?? [],
   leisureGenres: profile?.leisureGenres ?? [],
-  budgetJpyc:
-    profile?.budgetJpyc === null || profile?.budgetJpyc === undefined
+  budget:
+    profile?.budget === null || profile?.budget === undefined
       ? ""
-      : String(profile.budgetJpyc),
+      : String(profile.budget),
   priority: profile?.priority ?? "",
   walletAddress: profile?.walletAddress ?? "",
 });
@@ -84,7 +84,7 @@ const toSaveInput = (values: FormValues, updatedAt: string | undefined) => ({
   homeSpot: values.homeSpot,
   diningGenres: values.diningGenres,
   leisureGenres: values.leisureGenres,
-  budgetJpyc: values.budgetJpyc === "" ? null : Number(values.budgetJpyc),
+  budget: values.budget === "" ? null : Number(values.budget),
   priority: values.priority,
   walletAddress: values.walletAddress,
   ...(updatedAt === undefined ? {} : { updatedAt }),
@@ -356,7 +356,7 @@ export function ProfileForm({
         </Section>
 
         <Section title={t("sections.budget")}>
-          <Field label={t("labels.budgetJpyc")} error={errorFor("budgetJpyc")}>
+          <Field label={t("labels.budget")} error={errorFor("budget")}>
             {(id) => (
               <>
                 <input
@@ -365,13 +365,11 @@ export function ProfileForm({
                   inputMode="numeric"
                   min={0}
                   step={1}
-                  value={values.budgetJpyc}
-                  onChange={(event) =>
-                    update({ budgetJpyc: event.target.value })
-                  }
+                  value={values.budget}
+                  onChange={(event) => update({ budget: event.target.value })}
                   className={`${inputClass} tabular-nums`}
                 />
-                <Hint>{t("hints.budgetJpyc")}</Hint>
+                <Hint>{t("hints.budget")}</Hint>
               </>
             )}
           </Field>
@@ -457,7 +455,7 @@ export function ProfileForm({
           residencePref={values.residencePref}
           homeCity={values.homeCity}
           homeSpot={values.homeSpot}
-          budgetJpyc={values.budgetJpyc}
+          budget={values.budget}
           priority={values.priority}
           walletAddress={values.walletAddress}
         />
