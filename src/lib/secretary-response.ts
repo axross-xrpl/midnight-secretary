@@ -149,20 +149,74 @@ export const tripPlanSchema = z.object({
   rationale: z.string(),
 });
 
+/**
+ * 成人の証明 (承認のときに通ったもの)
+ *
+ * `cutoffDate` は出発日の `ageLimit` 年前で、生年月日は載らない
+ */
+export const ageProofSchema = z.object({
+  identity: z.string(),
+  cutoffDate: z.string(),
+  proofRef: z.string(),
+  provedAt: z.string(),
+});
+
+/**
+ * 秘書が計画を作り直した記録
+ *
+ * いまは年齢確認が通らなかったときだけ
+ * `previous` は作り直す前の提案と、承認のときに選んでいた公開範囲
+ */
+export const planRevisionSchema = z.object({
+  reason: z.object({
+    kind: z.literal("ageNotVerified"),
+    ageLimit: z.number(),
+    cutoffDate: z.string(),
+  }),
+  previous: z.object({
+    plan: tripPlanSchema,
+    proposedAt: z.string(),
+    visibility: paymentVisibilitySchema,
+  }),
+  revisedAt: z.string(),
+});
+
+/**
+ * 年齢の証明が通らなかった記録
+ *
+ * 提案済みの出張にだけ載り、`visibility` は承認のときに選んでいた公開範囲
+ */
+export const failedAgeCheckSchema = z.object({
+  ageLimit: z.number(),
+  cutoffDate: z.string(),
+  visibility: paymentVisibilitySchema,
+  checkedAt: z.string(),
+});
+
 // 4 状態に共通するフィールドで、予定は scan の応答と同じ形なので流用する
+// 作り直した提案の記録は承認以降も引き継ぐので、4 状態すべてが持ちうる
 const tripBase = {
   id: z.string(),
   event: scanEventSchema,
   plan: tripPlanSchema,
   proposedAt: z.string(),
+  revision: planRevisionSchema.optional(),
+};
+
+// 証明が通らなかった記録は提案済みにだけ載る (承認できるのは通った trip だけ)
+const proposedFields = {
+  ...tripBase,
+  failedAgeCheck: failedAgeCheckSchema.optional(),
 };
 
 // readonly にしておくと domain の Trip をそのまま props に渡せる (domain の配列は readonly)
+// 成人の証明は計画が年齢制限つきの候補を含むときだけある
 const approvedFields = {
   ...tripBase,
   approvedAt: z.string(),
   visibility: paymentVisibilitySchema,
   authorizations: z.array(authorizationSchema).readonly(),
+  ageProof: ageProofSchema.optional(),
 };
 
 const paidFields = { ...approvedFields, paidAt: z.string() };
@@ -173,7 +227,7 @@ const paidFields = { ...approvedFields, paidAt: z.string() };
  * status で分かれ、後の状態は前の状態のフィールドをすべて持つ
  */
 export const tripSchema = z.discriminatedUnion("status", [
-  z.object({ status: z.literal("proposed"), ...tripBase }),
+  z.object({ status: z.literal("proposed"), ...proposedFields }),
 
   z.object({ status: z.literal("approved"), ...approvedFields }),
 
@@ -233,6 +287,21 @@ export type LodgingOfferResponse = z.infer<typeof lodgingOfferSchema>;
  * 現地のサービス 1 件 (飲食・レジャー)
  */
 export type PlaceOfferResponse = z.infer<typeof placeOfferSchema>;
+
+/**
+ * 成人の証明
+ */
+export type AgeProofResponse = z.infer<typeof ageProofSchema>;
+
+/**
+ * 秘書が計画を作り直した記録
+ */
+export type PlanRevisionResponse = z.infer<typeof planRevisionSchema>;
+
+/**
+ * 年齢の証明が通らなかった記録
+ */
+export type FailedAgeCheckResponse = z.infer<typeof failedAgeCheckSchema>;
 
 /**
  * 検証済みのプラン

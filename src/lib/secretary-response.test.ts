@@ -149,8 +149,8 @@ describe("parseSecretaryFailure", () => {
   });
 });
 
-// 居酒屋つきの計画
-const APPROVED_WITH_DINING_PAYLOAD = {
+// 居酒屋つきの計画と、承認のときに通った成人の証明
+const APPROVED_WITH_PROOF_PAYLOAD = {
   data: {
     ...APPROVED_PAYLOAD.data,
     plan: {
@@ -169,15 +169,21 @@ const APPROVED_WITH_DINING_PAYLOAD = {
       total: { amount: 32440, currency: "MST" },
     },
     visibility: { outbound: "public", inbound: "private", dining: "private" },
+    ageProof: {
+      identity: "identity:user-1",
+      cutoffDate: "2006-09-15",
+      proofRef: "proof-1",
+      provedAt: "2026-09-10T00:01:00Z",
+    },
   },
 };
 
-// 居酒屋とレジャーつきの計画
+// 居酒屋とレジャーつきの計画 (成人の証明も持つ)
 const APPROVED_WITH_LEISURE_PAYLOAD = {
   data: {
-    ...APPROVED_WITH_DINING_PAYLOAD.data,
+    ...APPROVED_WITH_PROOF_PAYLOAD.data,
     plan: {
-      ...APPROVED_WITH_DINING_PAYLOAD.data.plan,
+      ...APPROVED_WITH_PROOF_PAYLOAD.data.plan,
       leisure: {
         id: "leisure-inbound-guide-tour",
         kind: "leisure",
@@ -195,6 +201,56 @@ const APPROVED_WITH_LEISURE_PAYLOAD = {
       inbound: "private",
       dining: "private",
       leisure: "private",
+    },
+  },
+};
+
+// 年齢確認が通らず、居酒屋の無い計画に作り直した提案
+const REVISED_PAYLOAD = {
+  data: {
+    status: "proposed",
+    id: APPROVED_PAYLOAD.data.id,
+    event: APPROVED_PAYLOAD.data.event,
+    plan: APPROVED_PAYLOAD.data.plan,
+    proposedAt: "2026-09-10T00:01:00Z",
+    revision: {
+      reason: {
+        kind: "ageNotVerified",
+        ageLimit: 20,
+        cutoffDate: "2006-09-15",
+      },
+      previous: {
+        plan: APPROVED_WITH_PROOF_PAYLOAD.data.plan,
+        proposedAt: "2026-09-10T00:00:00Z",
+        visibility: {
+          outbound: "public",
+          inbound: "private",
+          dining: "private",
+        },
+      },
+      revisedAt: "2026-09-10T00:01:00Z",
+    },
+  },
+};
+
+// 作り直した提案を承認したもの (記録は承認以降も残る)
+const APPROVED_REVISED_PAYLOAD = {
+  data: { ...APPROVED_PAYLOAD.data, revision: REVISED_PAYLOAD.data.revision },
+};
+
+// 居酒屋つきの提案のまま、年齢の証明が通らなかった記録を付けたもの
+const AGE_REJECTED_PAYLOAD = {
+  data: {
+    status: "proposed",
+    id: APPROVED_PAYLOAD.data.id,
+    event: APPROVED_PAYLOAD.data.event,
+    plan: APPROVED_WITH_PROOF_PAYLOAD.data.plan,
+    proposedAt: "2026-09-10T00:00:00Z",
+    failedAgeCheck: {
+      ageLimit: 20,
+      cutoffDate: "2006-09-15",
+      visibility: { outbound: "public", inbound: "private", dining: "private" },
+      checkedAt: "2026-09-10T00:01:00Z",
     },
   },
 };
@@ -224,12 +280,12 @@ describe("parseTripResponse", () => {
     expect(parsed.ok).toBe(false);
   });
 
-  test("飲食を持つ承認済みの応答を通す", () => {
-    const parsed = parseTripResponse(APPROVED_WITH_DINING_PAYLOAD);
+  test("飲食と成人の証明を持つ承認済みの応答を通す", () => {
+    const parsed = parseTripResponse(APPROVED_WITH_PROOF_PAYLOAD);
 
     expect(parsed).toStrictEqual({
       ok: true,
-      value: APPROVED_WITH_DINING_PAYLOAD.data,
+      value: APPROVED_WITH_PROOF_PAYLOAD.data,
     });
   });
 
@@ -245,13 +301,70 @@ describe("parseTripResponse", () => {
   test("知らない本人確認の種類を持つ飲食は拒否する", () => {
     const parsed = parseTripResponse({
       data: {
-        ...APPROVED_WITH_DINING_PAYLOAD.data,
+        ...APPROVED_WITH_PROOF_PAYLOAD.data,
         plan: {
-          ...APPROVED_WITH_DINING_PAYLOAD.data.plan,
+          ...APPROVED_WITH_PROOF_PAYLOAD.data.plan,
           dining: {
-            ...APPROVED_WITH_DINING_PAYLOAD.data.plan.dining,
+            ...APPROVED_WITH_PROOF_PAYLOAD.data.plan.dining,
             requiredVerifications: ["passport"],
           },
+        },
+      },
+    });
+
+    expect(parsed.ok).toBe(false);
+  });
+
+  test("作り直しの記録を持つ提案を通す", () => {
+    const parsed = parseTripResponse(REVISED_PAYLOAD);
+
+    expect(parsed).toStrictEqual({ ok: true, value: REVISED_PAYLOAD.data });
+  });
+
+  test("作り直しの記録は承認済みの応答でも残る", () => {
+    const parsed = parseTripResponse(APPROVED_REVISED_PAYLOAD);
+
+    expect(parsed).toStrictEqual({
+      ok: true,
+      value: APPROVED_REVISED_PAYLOAD.data,
+    });
+  });
+
+  test("知らない作り直しの理由は拒否する", () => {
+    const parsed = parseTripResponse({
+      data: {
+        ...REVISED_PAYLOAD.data,
+        revision: {
+          ...REVISED_PAYLOAD.data.revision,
+          reason: {
+            kind: "overBudget",
+            ageLimit: 20,
+            cutoffDate: "2006-09-15",
+          },
+        },
+      },
+    });
+
+    expect(parsed.ok).toBe(false);
+  });
+
+  test("年齢の証明が通らなかった記録を持つ提案を通す", () => {
+    const parsed = parseTripResponse(AGE_REJECTED_PAYLOAD);
+
+    expect(parsed).toStrictEqual({
+      ok: true,
+      value: AGE_REJECTED_PAYLOAD.data,
+    });
+  });
+
+  test("公開範囲の無い証明の記録は拒否する", () => {
+    const parsed = parseTripResponse({
+      data: {
+        ...AGE_REJECTED_PAYLOAD.data,
+        failedAgeCheck: {
+          ageLimit: 20,
+          cutoffDate: "2006-09-15",
+          checkedAt: "2026-09-10T00:01:00Z",
         },
       },
     });

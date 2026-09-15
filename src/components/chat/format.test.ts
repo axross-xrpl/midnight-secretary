@@ -6,6 +6,8 @@ import type {
 } from "@/lib/secretary-response";
 import type { FormatNumber } from "./format";
 import {
+  adultRequirementOfResponse,
+  asOfDateOf,
   inclusiveEndDate,
   moneyText,
   nightsOf,
@@ -102,6 +104,16 @@ const IZAKAYA = {
   price: mst(3000),
   requiredVerifications: ["age"],
   ageLimit: 20,
+} as const;
+
+const CAFE = {
+  ...IZAKAYA,
+  id: "restaurant-cafe-nakanoshima",
+  name: "中之島カフェ",
+  genre: "カフェ",
+  price: mst(1200),
+  requiredVerifications: [],
+  ageLimit: undefined,
 } as const;
 
 const GATHERING_PLAN: TripPlanResponse = {
@@ -234,6 +246,44 @@ describe("planRows", () => {
         (row) => row.kind,
       ),
     ).toStrictEqual(["transport", "lodging", "dining", "leisure", "transport"]);
+  });
+});
+
+describe("adultRequirementOfResponse", () => {
+  test("年齢確認を要する飲食があればその候補と下限を返す", () => {
+    expect(adultRequirementOfResponse(GATHERING_PLAN)).toStrictEqual({
+      offer: IZAKAYA,
+      ageLimit: 20,
+    });
+  });
+
+  test("下限を持たない候補は 20 になる", () => {
+    const requirement = adultRequirementOfResponse({
+      ...GATHERING_PLAN,
+      dining: { ...IZAKAYA, ageLimit: undefined },
+    });
+
+    expect(requirement?.ageLimit).toBe(20);
+  });
+
+  test("年齢確認を要しない飲食なら undefined", () => {
+    expect(
+      adultRequirementOfResponse({ ...GATHERING_PLAN, dining: CAFE }),
+    ).toBeUndefined();
+  });
+
+  test("飲食が無ければ undefined", () => {
+    expect(adultRequirementOfResponse(DAY_TRIP_PLAN)).toBeUndefined();
+  });
+});
+
+describe("asOfDateOf", () => {
+  test("cutoff の 20 年後が基準日になる", () => {
+    expect(asOfDateOf("2006-09-15", 20)).toBe("2026-09-15");
+  });
+
+  test("下限が違えばその年数だけ戻す", () => {
+    expect(asOfDateOf("2008-01-31", 18)).toBe("2026-01-31");
   });
 });
 

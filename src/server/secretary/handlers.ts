@@ -7,6 +7,7 @@ import {
   approveTrip,
   payForTrip,
   proposeTrip,
+  replanTrip,
   setUpMandate,
   writeBackTrip,
 } from "@/application/secretary";
@@ -21,6 +22,7 @@ import type { SchemaIssue } from "@/lib/schema";
 import {
   parseApproveTripInput,
   parseProposeTripInput,
+  parseReplanInput,
   parseSetUpMandateInput,
   parseTripIdParam,
   parseWriteBackInput,
@@ -150,6 +152,8 @@ export const handleProposeTrip = async (
 
 /**
  * 提案済みの出張を、候補ごとの公開範囲つきで承認する
+ *
+ * 年齢確認が通らなかったときは記録を付けた提案済みのままなので、承認済みでも提案済みでも 200 で trip を返す
  */
 export const handleApproveTrip = async (
   request: NextRequest,
@@ -180,19 +184,71 @@ export const handleApproveTrip = async (
     return invalidRequestResponse(input.error.issues);
   }
 
-  const approved = await approveTrip(
-    context.value.userId,
-    parsedTripId.value,
-    input.value,
-    context.value.now,
+  const outcome = await approveTrip(
+    {
+      userId: context.value.userId,
+      tripId: parsedTripId.value,
+      requested: input.value,
+      now: context.value.now,
+    },
     context.value.deps,
   );
 
-  if (!approved.ok) {
-    return secretaryErrorResponse(approved.error);
+  if (!outcome.ok) {
+    return secretaryErrorResponse(outcome.error);
   }
 
-  return dataResponse(approved.value, 200);
+  return dataResponse(outcome.value.trip, 200);
+};
+
+/**
+ * 年齢の証明が通らなかった提案済みの出張を、年齢制限のない候補で組み直す
+ */
+export const handleReplanTrip = async (
+  request: NextRequest,
+  tripId: string,
+  deps: SecretaryHandlerDeps,
+): Promise<Response> => {
+  const context = await deps.resolveContext(request);
+
+  if (!context.ok) {
+    return unauthorizedResponse();
+  }
+
+  const parsedTripId = parseTripIdParam(tripId);
+
+  if (!parsedTripId.ok) {
+    return invalidRequestResponse(parsedTripId.error.issues);
+  }
+
+  const body = await readJsonBody(request);
+
+  if (!body.ok) {
+    return invalidRequestResponse(body.error);
+  }
+
+  const input = parseReplanInput(body.value);
+
+  if (!input.ok) {
+    return invalidRequestResponse(input.error.issues);
+  }
+
+  const revised = await replanTrip(
+    {
+      userId: context.value.userId,
+      tripId: parsedTripId.value,
+      locale: input.value.locale,
+      preferences: WAVE1_PREFERENCES,
+      now: context.value.now,
+    },
+    context.value.deps,
+  );
+
+  if (!revised.ok) {
+    return secretaryErrorResponse(revised.error);
+  }
+
+  return dataResponse(revised.value, 200);
 };
 
 /**

@@ -4,6 +4,7 @@ import type { EnvLike, PortSources, SourcesError } from "@/application/sources";
 import { parsePortSources, SOURCE_ENV_KEYS } from "@/application/sources";
 import type { RequestContext, SecretaryFactories } from "@/application/wiring";
 import { buildSecretaryDeps } from "@/application/wiring";
+import { addDays, yearsBefore } from "@/domain/dates";
 import {
   mustParse,
   parseCalendarEventId,
@@ -12,6 +13,7 @@ import {
   parseTripId,
 } from "@/domain/identifiers.parse";
 import { createSecretaryFactories } from "./factories";
+import { jstDateOf } from "./jst";
 
 /**
  * プロセスごとに 1 回作るもの全部で、解決済みの source と port の factory
@@ -27,6 +29,11 @@ type RuntimeSlot = {
 
 // globalThis には runtime 用の型付きの置き場が無いので、ここがパーサの外で唯一のキャスト
 const slot = globalThis as RuntimeSlot;
+
+// demo の予約者は起動日の 7 日後に 20 歳になる (seed の +6 日の出張は 20 歳前、+9 日の出張は 20 歳以上)
+const DEMO_BIRTHDAY_IN_DAYS = 7;
+
+const DEMO_ADULT_AGE = 20;
 
 const describeSourcesError = (error: SourcesError): string => {
   if (error.kind === "invalidValue") {
@@ -49,11 +56,17 @@ const createRuntime = (env: EnvLike): SecretaryRuntime => {
     );
   }
 
+  const startedAt = mustParse(parseIsoDateTime(new Date().toISOString()));
+
   return {
     sources: sources.value,
     factories: createSecretaryFactories({
       env,
-      startedAt: mustParse(parseIsoDateTime(new Date().toISOString())),
+      startedAt,
+      demoBirthDate: yearsBefore(
+        addDays(jstDateOf(startedAt), DEMO_BIRTHDAY_IN_DAYS),
+        DEMO_ADULT_AGE,
+      ),
       newTripId: () => mustParse(parseTripId(randomUUID())),
       newEventId: () => mustParse(parseCalendarEventId(`seed-${randomUUID()}`)),
       mandateIds: {
@@ -65,6 +78,12 @@ const createRuntime = (env: EnvLike): SecretaryRuntime => {
           createHash("sha256")
             .update(`${mandateId}:${paymentRef}`)
             .digest("hex"),
+      },
+      identityIds: {
+        // identity は公開されるので、ユーザ id をそのまま出さずハッシュにする
+        identityOf: (userId) =>
+          createHash("sha256").update(`age-id:${userId}`).digest("hex"),
+        newProofRef: () => randomUUID(),
       },
     }),
   };

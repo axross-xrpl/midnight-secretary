@@ -50,7 +50,16 @@ plan totals 31,920 MST and the payment is three bookings; the izakaya row carrie
 switch as the transport rows. 大阪出張 (工場視察と懇親会) is the one-night trip where every category
 meets: lodging, the izakaya and a leisure place (the first one for the destination that asks for no
 verification, 海遊館 here), so the plan totals 47,120 MST, the payment is five bookings, and each row can
-be kept private on its own.
+be kept private on its own. The demo profile is fixed: the date of birth is
+20 years before the server start date plus 7 days (2006-09-21 for a server started on 2026-09-14).
+Pressing **計画を承認する** on a plan that includes an age-restricted place does not call the server yet:
+the secretary first asks whether it may send the age proof, and you answer **証明を送る** or
+**今はやめておく**. The proof is taken as of the departure date. For the earlier trip it does not pass, so
+the secretary asks whether it may rebuild the plan from the places with no age limit; answer
+**組み直す** and it proposes the rebuilt plan (中之島カフェ here, 30,120 MST). Approve that plan and the
+rest of the path runs with no proof at all. For the trip three days later the proof passes and the
+approval goes through. The date of birth is never passed to the AI; it is registered only with the
+identity lane (in memory in demo mode).
 
 The dev sign-in trusts whoever clicks the button, so it only starts when `NEXTAUTH_URL` points at
 localhost, and it forces the calendar to the fake (that session has no Google token).
@@ -80,8 +89,14 @@ example `SECRETARY_CATALOG=fake`.
 | `SECRETARY_PLANNER` | `real`, `fake` | from the mode |
 | `SECRETARY_MANDATE` | `real`, `fake` | from the mode |
 | `SECRETARY_STORE` | `real`, `fake` | from the mode |
+| `SECRETARY_IDENTITY` | `real`, `fake` | from the mode |
+| `SECRETARY_PROFILE` | `real`, `fake` | from the mode |
 
 Precedence: a per-port variable beats `SECRETARY_MODE`, which beats the `normal` default (everything real).
+
+`SECRETARY_PROFILE=real` reads the date of birth from the profile in NeonDB (the profile page's table) and
+needs `DATABASE_URL`; `SECRETARY_IDENTITY=real` still runs the in-process fake until the contract server
+exposes the age verification endpoints.
 
 ## Getting Started
 

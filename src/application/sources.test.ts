@@ -40,6 +40,36 @@ describe("parsePortSources", () => {
     });
   });
 
+  test("identity のレーンは SECRETARY_IDENTITY で切り替える", () => {
+    expect(parsePortSources({ SECRETARY_IDENTITY: "fake" })).toStrictEqual({
+      ok: true,
+      value: { ...REAL_SOURCES, identity: "fake" },
+    });
+    expect(
+      parsePortSources({
+        SECRETARY_MODE: "demo",
+        SECRETARY_IDENTITY: "real",
+        ...localhost,
+      }),
+    ).toStrictEqual({ ok: true, value: { ...DEMO_SOURCES, identity: "real" } });
+  });
+
+  test("profile のレーンは SECRETARY_PROFILE で切り替える", () => {
+    expect(parsePortSources({ SECRETARY_PROFILE: "fake" })).toStrictEqual({
+      ok: true,
+      value: { ...REAL_SOURCES, profile: "fake" },
+    });
+    expect(parsePortSources({ SECRETARY_PROFILE: "neon" })).toStrictEqual({
+      ok: false,
+      error: {
+        kind: "invalidValue",
+        key: "SECRETARY_PROFILE",
+        value: "neon",
+        allowed: ["real", "fake"],
+      },
+    });
+  });
+
   test("port の不正な値はキーと許される値つきで invalidValue になる", () => {
     expect(parsePortSources({ SECRETARY_CALENDAR: "stub" })).toStrictEqual({
       ok: false,
@@ -145,6 +175,8 @@ describe("activeFakes", () => {
       "planner",
       "mandate",
       "store",
+      "identity",
+      "profile",
     ]);
   });
 });

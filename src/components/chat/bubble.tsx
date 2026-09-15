@@ -6,7 +6,14 @@ import { match } from "ts-pattern";
 import { AuthorizationList } from "./authorization-list";
 import type { Bubble, SecretaryLine, UserLine } from "./conversation";
 import { FailureNotice } from "./failure-notice";
-import { moneyText, plainSpaces, TIMED_OPTIONS } from "./format";
+import {
+  asOfDateOf,
+  DATE_OPTIONS,
+  moneyText,
+  plainSpaces,
+  shortHash,
+  TIMED_OPTIONS,
+} from "./format";
 import type { VisibilityChangeHandler } from "./plan-details";
 import { PlanDetails } from "./plan-details";
 import {
@@ -14,6 +21,7 @@ import {
   detailKeyClass,
   detailListClass,
   detailRowClass,
+  hashClass,
   monoValueClass,
   secretaryAvatarClass,
   secretaryBubbleClass,
@@ -32,6 +40,7 @@ const SecretaryContent = ({
   onVisibilityChange,
 }: SecretaryContentProps): ReactElement => {
   const t = useTranslations("Conversation");
+  const format = useFormatter();
   const formatNumber = useFormatNumber();
 
   return match(line)
@@ -49,6 +58,51 @@ const SecretaryContent = ({
           visibility={visibility}
           onVisibilityChange={onVisibilityChange}
         />
+      </>
+    ))
+    .with({ kind: "askProof" }, ({ place, ageLimit }) => (
+      <p>{t("lines.askProof", { place: place.name, age: ageLimit })}</p>
+    ))
+    .with({ kind: "ageRejected" }, ({ place, ageLimit, cutoffDate }) => (
+      <p>
+        {t("lines.ageRejected", {
+          date: plainSpaces(
+            format.dateTime(
+              new Date(asOfDateOf(cutoffDate, ageLimit)),
+              DATE_OPTIONS,
+            ),
+          ),
+          age: ageLimit,
+          place: place.name,
+        })}
+      </p>
+    ))
+    .with({ kind: "ageVerified" }, ({ proof, ageLimit }) => (
+      <>
+        <p>
+          {t("lines.ageVerified", {
+            date: plainSpaces(
+              format.dateTime(
+                new Date(asOfDateOf(proof.cutoffDate, ageLimit)),
+                DATE_OPTIONS,
+              ),
+            ),
+            age: ageLimit,
+          })}
+        </p>
+        {/* 公開されるのは identity と証明の参照だけで、生年月日は出ない */}
+        <dl className={detailListClass}>
+          <div className={detailRowClass}>
+            <dt className={detailKeyClass}>{t("ageProof.identity")}</dt>
+            <dd className={hashClass} title={proof.identity}>
+              {shortHash(proof.identity)}
+            </dd>
+          </div>
+          <div className={detailRowClass}>
+            <dt className={detailKeyClass}>{t("ageProof.ref")}</dt>
+            <dd className={monoValueClass}>{proof.proofRef}</dd>
+          </div>
+        </dl>
       </>
     ))
     .with({ kind: "askPay" }, () => <p>{t("lines.askPay")}</p>)
@@ -147,6 +201,8 @@ const UserBubble = ({ line }: UserBubbleProps): ReactElement => {
     .with({ kind: "approve" }, ({ privateCount }) =>
       t("echo.approvePartlyPrivate", { count: privateCount }),
     )
+    .with({ kind: "sendProof" }, () => t("echo.sendProof"))
+    .with({ kind: "replan" }, () => t("echo.replan"))
     .with({ kind: "pay", resume: true }, () => t("echo.resume"))
     .with({ kind: "pay", resume: false }, () => t("echo.pay"))
     .with({ kind: "writeBack" }, () => t("echo.writeBack"))

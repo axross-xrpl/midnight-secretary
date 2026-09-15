@@ -17,7 +17,7 @@ import {
   STEP_ORDER,
   stepIndexOf,
 } from "./flow";
-import type { FlowState } from "./flow";
+import type { FlowState, Stage } from "./flow";
 import type { RequestFailure, Step } from "./types";
 
 const TRIP_ID = tripIdAt(1);
@@ -116,6 +116,11 @@ const WRITTEN: TripResponse = {
 
 const busyState = (step: Step): FlowState => {
   return { ...INITIAL_FLOW_STATE, activity: { kind: "busy", step } };
+};
+
+const CONSENT_STATE: FlowState = {
+  ...INITIAL_FLOW_STATE,
+  activity: { kind: "awaitingConsent" },
 };
 
 describe("reduceFlow", () => {
@@ -261,6 +266,44 @@ describe("reduceFlow", () => {
     });
   });
 
+  test("askConsent は休止中からだけ返事待ちに入る", () => {
+    expect(
+      reduceFlow(INITIAL_FLOW_STATE, { type: "askConsent" }),
+    ).toStrictEqual({ activity: { kind: "awaitingConsent" }, visibility: {} });
+
+    const busy = busyState("approve");
+
+    expect(reduceFlow(busy, { type: "askConsent" })).toBe(busy);
+    expect(reduceFlow(CONSENT_STATE, { type: "askConsent" })).toBe(
+      CONSENT_STATE,
+    );
+  });
+
+  test("declineConsent は返事待ちからだけ休止中に戻り、選択は残る", () => {
+    const chosen = reduceFlow(CONSENT_STATE, {
+      type: "setVisibility",
+      category: "dining",
+      value: "private",
+    });
+
+    expect(reduceFlow(chosen, { type: "declineConsent" })).toStrictEqual({
+      activity: { kind: "idle" },
+      visibility: { dining: "private" },
+    });
+    expect(reduceFlow(INITIAL_FLOW_STATE, { type: "declineConsent" })).toBe(
+      INITIAL_FLOW_STATE,
+    );
+  });
+
+  test("返事待ちからは start で承認が進む", () => {
+    expect(
+      reduceFlow(CONSENT_STATE, { type: "start", step: "approve" }),
+    ).toStrictEqual({
+      activity: { kind: "busy", step: "approve" },
+      visibility: {},
+    });
+  });
+
   test("succeed は次の計画に選択を持ち越さない", () => {
     const chosen = reduceFlow(busyState("approve"), {
       type: "setVisibility",
@@ -303,6 +346,10 @@ describe("stepIndexOf", () => {
     expect(stepIndexOf({ kind: "idle" }, WRITTEN)).toBe(4);
   });
 
+  test("証明を送るかの返事待ちは承認の段", () => {
+    expect(stepIndexOf({ kind: "awaitingConsent" }, PROPOSED)).toBe(1);
+  });
+
   test("進行中と失敗はその 1 手の段", () => {
     expect(stepIndexOf({ kind: "busy", step: "propose" }, PROPOSED)).toBe(0);
     expect(stepIndexOf({ kind: "busy", step: "pay" }, APPROVED)).toBe(2);
@@ -313,10 +360,20 @@ describe("stepIndexOf", () => {
       ),
     ).toBe(3);
   });
+
+  test("組み直しは承認の段", () => {
+    expect(stepIndexOf({ kind: "busy", step: "replan" }, PROPOSED)).toBe(1);
+    expect(
+      stepIndexOf(
+        { kind: "failed", step: "replan", failure: NETWORK_FAILURE },
+        PROPOSED,
+      ),
+    ).toBe(1);
+  });
 });
 
 describe("STATUS_ORDER と STEP_ORDER", () => {
-  test("domain の TripStatus と Step を進む順に並べている", () => {
+  test("domain の TripStatus と段を進む順に並べている", () => {
     expect(STATUS_ORDER).toStrictEqual([
       "proposed",
       "approved",
@@ -330,6 +387,12 @@ describe("STATUS_ORDER と STEP_ORDER", () => {
       "writeBack",
     ]);
     expectTypeOf<(typeof STATUS_ORDER)[number]>().toEqualTypeOf<TripStatus>();
-    expectTypeOf<(typeof STEP_ORDER)[number]>().toEqualTypeOf<Step>();
+    expectTypeOf<(typeof STEP_ORDER)[number]>().toEqualTypeOf<Stage>();
+  });
+
+  test("段はどれも 1 手で、組み直しだけが段に無い", () => {
+    expectTypeOf<Stage>().toExtend<Step>();
+    expectTypeOf<"replan">().toExtend<Step>();
+    expectTypeOf<"replan">().not.toExtend<Stage>();
   });
 });

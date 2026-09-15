@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   parseApproveTripInput,
   parseProposeTripInput,
+  parseReplanInput,
   parseSetUpMandateInput,
   parseTripIdParam,
   parseWriteBackInput,
@@ -104,6 +105,12 @@ describe("parseApproveTripInput", () => {
     expect(parseApproveTripInput({}).ok).toBe(false);
   });
 
+  test("locale は要らないので、あれば schema の失敗になる", () => {
+    expect(parseApproveTripInput({ visibility: {}, locale: "ja" }).ok).toBe(
+      false,
+    );
+  });
+
   test("知らない公開範囲は schema の失敗になる", () => {
     expect(
       parseApproveTripInput({ visibility: { outbound: "secret" } }).ok,
@@ -131,6 +138,19 @@ describe("parseApproveTripInput", () => {
     expect(
       parseApproveTripInput({ visibility: { breakfast: "private" } }).ok,
     ).toBe(false);
+  });
+});
+
+describe("parseReplanInput", () => {
+  test("locale を取り出す", () => {
+    expect(parseReplanInput({ locale: "en" })).toStrictEqual({
+      ok: true,
+      value: { locale: "en" },
+    });
+  });
+
+  test("locale が無い body は schema の失敗になる", () => {
+    expect(parseReplanInput({}).ok).toBe(false);
   });
 });
 

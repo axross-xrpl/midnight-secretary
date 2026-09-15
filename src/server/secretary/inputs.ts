@@ -14,6 +14,7 @@ import type { PaymentVisibilityInput } from "@/domain/trip";
 import {
   approveTripBodySchema,
   proposeTripBodySchema,
+  replanBodySchema,
   setUpMandateBodySchema,
   writeBackBodySchema,
 } from "@/lib/secretary-request";
@@ -27,6 +28,13 @@ import { fromZod } from "@/lib/schema";
  */
 export type ProposeTripRequest = {
   eventId: CalendarEventId;
+  locale: Locale;
+};
+
+/**
+ * `replanTrip` に渡す、body から読める分の入力
+ */
+export type ReplanRequest = {
   locale: Locale;
 };
 
@@ -101,7 +109,7 @@ export const parseProposeTripInput = (
 };
 
 /**
- * `POST /api/secretary/trips/[tripId]/approve` の body を公開範囲の指定にする
+ * `POST /api/secretary/trips/[tripId]/approve` の body を承認の入力にする
  *
  * 計画に合わせるのは use case の仕事なので、ここは形だけを見る
  */
@@ -115,6 +123,21 @@ export const parseApproveTripInput = (
   }
 
   return ok(body.value.visibility);
+};
+
+/**
+ * `POST /api/secretary/trips/[tripId]/replan` の body を組み直しの入力にする
+ */
+export const parseReplanInput = (
+  raw: unknown,
+): Result<ReplanRequest, SchemaError> => {
+  const body = fromZod(replanBodySchema.safeParse(raw));
+
+  if (!body.ok) {
+    return body;
+  }
+
+  return ok({ locale: body.value.locale });
 };
 
 /**

@@ -7,11 +7,16 @@ import {
   seedCalendarEvents,
 } from "@/adapters/calendar/fake";
 import { createFakeCatalog, seedCatalog } from "@/adapters/catalog/fake";
+import type { FakeIdentityIds } from "@/adapters/identity/fake";
+import { createFakeIdentity } from "@/adapters/identity/fake";
+import { jstDateOf } from "@/adapters/jst";
 import type { FakeMandateIds } from "@/adapters/mandate/fake";
 import { createFakeMandate } from "@/adapters/mandate/fake";
 import { createFakePlanner } from "@/adapters/planner/fake";
+import { createFakeProfile } from "@/adapters/profile/fake";
 import { createFakeStore } from "@/adapters/store/fake";
 import type { SecretaryDeps } from "@/application/deps";
+import { addDays, yearsBefore } from "@/domain/dates";
 import type {
   CalendarEventId,
   IsoDateTime,
@@ -22,6 +27,7 @@ import {
   parseCalendarEventId,
   parseIsoDateTime,
   parseMandateId,
+  parseTripId,
   parseUserId,
 } from "@/domain/identifiers.parse";
 import {
@@ -34,6 +40,7 @@ import {
   handleApproveTrip,
   handlePayForTrip,
   handleProposeTrip,
+  handleReplanTrip,
   handleSetUpMandate,
   handleWriteBackTrip,
 } from "./handlers";
@@ -54,6 +61,10 @@ const mandateId = (raw: string): MandateId => {
 const NOW = at("2026-09-09T00:00:00Z");
 
 const USER = mustParse(parseUserId("user-1"));
+
+// demo と同じ式で、予約者は NOW の 7 日後 (2026-09-16) に 20 歳になる
+// seed-5 (+6 日) の出発日はまだ 20 歳前、seed-6 (+9 日) の出発日は 20 歳以上
+const BIRTH_DATE = yearsBefore(addDays(jstDateOf(NOW), 7), 20);
 
 const MANDATE_BODY = {
   cap: 200000,
@@ -90,6 +101,20 @@ const testMandateIds = (): FakeMandateIds => {
   };
 };
 
+// 採番はテスト設定に閉じているので、identity はユーザ id から、証明の参照は閉じたカウンタで作る
+const testIdentityIds = (): FakeIdentityIds => {
+  const state = { proved: 0 };
+
+  return {
+    identityOf: (id) => `identity:${id}`,
+    newProofRef: () => {
+      state.proved = state.proved + 1;
+
+      return `proof-${state.proved}`;
+    },
+  };
+};
+
 const testDeps = (): SecretaryDeps => {
   return {
     calendar: createFakeCalendar({
@@ -100,6 +125,8 @@ const testDeps = (): SecretaryDeps => {
     planner: createFakePlanner(),
     mandate: createFakeMandate({ mandates: [], ids: testMandateIds() }),
     store: createFakeStore(),
+    identity: createFakeIdentity({ ids: testIdentityIds() }),
+    profile: createFakeProfile({ birthDate: BIRTH_DATE }),
     newTripId: sequentialTripIds(),
   };
 };
@@ -187,6 +214,17 @@ const approveRequest = async (
   );
 };
 
+const replanRequest = async (
+  id: string,
+  body: unknown = { locale: "ja" },
+): Promise<Response> => {
+  return handleReplanTrip(
+    postRequest(`/api/secretary/trips/${id}/replan`, body),
+    id,
+    state.deps,
+  );
+};
+
 // body の形そのものを確かめるテスト用に、封筒を組まずそのまま送る
 const rawApproveRequest = async (
   id: string,
@@ -243,12 +281,13 @@ const proposedTripId = async (event: string): Promise<string> => {
 };
 
 describe("サインインしていないとき", () => {
-  test("5 つの handler すべてが 401 を返す", async () => {
+  test("6 つの handler すべてが 401 を返す", async () => {
     const deps = signedOutDeps();
     const responses = await Promise.all([
       handleSetUpMandate(postRequest("/api/secretary/mandate", {}), deps),
       handleProposeTrip(postRequest("/api/secretary/trips", {}), deps),
       handleApproveTrip(postRequest("/approve"), UNKNOWN_TRIP_ID, deps),
+      handleReplanTrip(postRequest("/replan", {}), UNKNOWN_TRIP_ID, deps),
       handlePayForTrip(postRequest("/pay"), UNKNOWN_TRIP_ID, deps),
       handleWriteBackTrip(
         postRequest("/write-back", {}),
@@ -258,7 +297,7 @@ describe("サインインしていないとき", () => {
     ]);
 
     expect(responses.map((response) => response.status)).toStrictEqual([
-      401, 401, 401, 401, 401,
+      401, 401, 401, 401, 401, 401,
     ]);
     expect(parseSecretaryFailure(await responses[0].json())).toStrictEqual({
       code: "unauthorized",
@@ -494,6 +533,23 @@ describe("承認から書き戻しまで", () => {
     expect(failure).toHaveProperty("issues");
   });
 
+  test("locale の付いた承認は余分なキーとして 422 になる", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-2");
+
+    const response = await rawApproveRequest(id, {
+      visibility: {},
+      locale: "ja",
+    });
+
+    expect(response.status).toBe(422);
+
+    const failure = parseSecretaryFailure(await response.json());
+
+    expect(failure.code).toBe("invalid_request");
+    expect(failure).toHaveProperty("issues");
+  });
+
   test("UUID でない tripId は 422 になる", async () => {
     const response = await approveRequest("trip-1");
 
@@ -514,6 +570,173 @@ describe("承認から書き戻しまで", () => {
         source: "flow",
         error: { kind: "tripNotFound", tripId: UNKNOWN_TRIP_ID },
       },
+    });
+  });
+});
+
+describe("年齢確認つきの承認", () => {
+  test("出発日にまだ 20 歳でない出張の承認は 200 で記録つきの提案を返し、store も同じ", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-5");
+
+    const response = await approveRequest(id);
+
+    expect(response.status).toBe(200);
+
+    expect(parseTripResponse(await response.json())).toMatchObject({
+      ok: true,
+      value: {
+        status: "proposed",
+        id,
+        plan: { dining: { id: "restaurant-izakaya-tenma" } },
+        failedAgeCheck: {
+          ageLimit: 20,
+          cutoffDate: "2006-09-15",
+          visibility: {
+            outbound: "public",
+            inbound: "public",
+            dining: "public",
+          },
+          checkedAt: NOW,
+        },
+      },
+    });
+
+    const stored = await state.context.deps.store.getTrip(
+      USER,
+      mustParse(parseTripId(id)),
+    );
+
+    expect(stored.ok && stored.value?.status).toBe("proposed");
+    expect(
+      stored.ok &&
+        stored.value?.status === "proposed" &&
+        stored.value.failedAgeCheck?.ageLimit,
+    ).toBe(20);
+  });
+
+  test("記録つきの提案の組み直しは 200 で作り直した提案を返し、もう一度は 422 になる", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-5");
+
+    await approveRequest(id);
+
+    const response = await replanRequest(id);
+
+    expect(response.status).toBe(200);
+    expect(parseTripResponse(await response.json())).toMatchObject({
+      ok: true,
+      value: {
+        status: "proposed",
+        id,
+        plan: { dining: { id: "restaurant-cafe-nakanoshima" } },
+        revision: {
+          reason: {
+            kind: "ageNotVerified",
+            ageLimit: 20,
+            cutoffDate: "2006-09-15",
+          },
+          previous: { plan: { dining: { id: "restaurant-izakaya-tenma" } } },
+        },
+      },
+    });
+
+    const again = await replanRequest(id);
+
+    expect(again.status).toBe(422);
+    expect(parseSecretaryFailure(await again.json())).toStrictEqual({
+      code: "secretary",
+      error: {
+        source: "flow",
+        error: { kind: "replanNotNeeded", tripId: id },
+      },
+    });
+  });
+
+  test("組み直した提案の承認は 200 で approved を返し、証明の記録は残らない", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-5");
+
+    await approveRequest(id);
+    await replanRequest(id);
+
+    const response = await approveRequest(id);
+
+    expect(response.status).toBe(200);
+
+    const trip = parseTripResponse(await response.json());
+
+    expect(trip.ok && trip.value.status).toBe("approved");
+    expect(trip.ok && "ageProof" in trip.value).toBe(false);
+    expect(trip.ok && "failedAgeCheck" in trip.value).toBe(false);
+    expect(trip.ok && trip.value.revision?.reason.kind).toBe("ageNotVerified");
+  });
+
+  test("locale の無い組み直しは 422 で issues を返す", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-5");
+
+    await approveRequest(id);
+
+    const response = await replanRequest(id, {});
+
+    expect(response.status).toBe(422);
+
+    const failure = parseSecretaryFailure(await response.json());
+
+    expect(failure.code).toBe("invalid_request");
+    expect(failure).toHaveProperty("issues");
+  });
+
+  test("生年月日の無いプロフィールでは 422 で birthDateMissing を返す", async () => {
+    // このテストだけ生年月日の無いプロフィールに差し替えるので、beforeEach の入れ物へ再代入する
+    state.context = {
+      ...state.context,
+      deps: { ...state.context.deps, profile: createFakeProfile({}) },
+    };
+    state.deps = handlerDepsFor(state.context);
+
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-5");
+
+    const response = await approveRequest(id);
+
+    expect(response.status).toBe(422);
+    expect(parseSecretaryFailure(await response.json())).toStrictEqual({
+      code: "secretary",
+      error: {
+        source: "flow",
+        error: { kind: "birthDateMissing", tripId: id },
+      },
+    });
+  });
+
+  test("出発日に 20 歳以上の出張の承認は 200 で ageProof を載せる", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-6");
+
+    const response = await approveRequest(id);
+
+    expect(response.status).toBe(200);
+    expect(parseTripResponse(await response.json())).toMatchObject({
+      ok: true,
+      value: {
+        status: "approved",
+        ageProof: {
+          identity: "identity:user-1",
+          cutoffDate: "2006-09-18",
+          proofRef: "proof-1",
+          provedAt: NOW,
+        },
+      },
+    });
+
+    const paid = await payRequest(id);
+
+    expect(paid.status).toBe(200);
+    expect(parseTripResponse(await paid.json())).toMatchObject({
+      ok: true,
+      value: { status: "paid", authorizations: [{}, {}, {}] },
     });
   });
 });

@@ -26,3 +26,25 @@ export const addDays = (date: IsoDate, days: number): IsoDate => {
 export const nightsBetween = (from: IsoDate, to: IsoDate): number => {
   return Math.round((Date.parse(to) - Date.parse(from)) / DAY_MS);
 };
+
+// 年は 4 桁に揃える (IsoDate の年は 4 桁)
+const isoDateOf = (year: number, monthDay: string): string => {
+  return `${String(year).padStart(4, "0")}-${monthDay}`;
+};
+
+/**
+ * `date` の `years` 年前の同じ月日 (2 月 29 日は 2 月 28 日にする)
+ *
+ * 年齢確認の cutoff に使う (出発日の 20 年前以前に生まれていれば 20 歳以上)
+ */
+export const yearsBefore = (date: IsoDate, years: number): IsoDate => {
+  const year = Number(date.slice(0, 4)) - years;
+  const sameMonthDay = parseIsoDate(isoDateOf(year, date.slice(5)));
+
+  if (sameMonthDay.ok) {
+    return sameMonthDay.value;
+  }
+
+  // 年を変えて存在しなくなる月日は 2 月 29 日だけなので、その年の 2 月 28 日にする
+  return mustParse(parseIsoDate(isoDateOf(year, "02-28")));
+};

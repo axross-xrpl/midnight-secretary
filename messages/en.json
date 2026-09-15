@@ -49,7 +49,9 @@
       "catalog": "Fare catalog",
       "planner": "Planner",
       "mandate": "Spending allowance",
-      "store": "Storage"
+      "store": "Storage",
+      "identity": "Age verification",
+      "profile": "Profile"
     }
   },
   "LocaleSwitcher": {
@@ -309,6 +311,9 @@
       "greeting": "Hello. I can help arrange \"{title}\". The spending allowance covers up to {cap}.",
       "ask": "Shall I arrange this event as a business trip?",
       "proposal": "Here is my plan. The total is {total}.",
+      "askProof": "{place} asks for age verification ({age}+). May I send the age proof? Your birth date stays private; the proof only shows that you are {age} or older.",
+      "ageRejected": "You are not yet {age} as of {date}, so {place} is not available. May I rebuild the plan from the places with no age limit?",
+      "ageVerified": "Proved that you are {age} or older as of {date}.",
       "askPay": "Shall I pay for it from the allowance?",
       "partiallyPaid": "{count, plural, one {# item is} other {# items are}} already paid. Shall I pay for the rest?",
       "paid": "{count, plural, one {# payment} other {# payments}} authorized and settled from the allowance.",
@@ -317,6 +322,8 @@
       "working": {
         "propose": "Drafting a plan for {title}...",
         "approve": "Recording your approval...",
+        "approveWithProof": "Proving your age and recording your approval...",
+        "replan": "Rebuilding the plan from the places with no age limit...",
         "pay": "Generating the zero-knowledge proof and paying...",
         "writeBack": "Writing the trip to the calendar..."
       },
@@ -326,6 +333,9 @@
     "replies": {
       "propose": "Propose a plan",
       "approve": "Approve the plan",
+      "sendProof": "Send the proof",
+      "declineProof": "Not now",
+      "replan": "Rebuild the plan",
       "pay": "Pay from the allowance",
       "resume": "Resume the payment",
       "writeBack": "Add to calendar",
@@ -335,6 +345,8 @@
       "propose": "Please propose a plan.",
       "approve": "I approve the plan.",
       "approvePartlyPrivate": "I approve the plan ({count, plural, one {# payment} other {# payments}} kept private).",
+      "sendProof": "Please send the proof.",
+      "replan": "Please rebuild the plan.",
       "pay": "Please pay from the allowance.",
       "resume": "Please resume the payment.",
       "writeBack": "Please add it to my calendar."
@@ -364,6 +376,10 @@
       "authorizedAt": "Authorized at",
       "visibility": "Visibility",
       "transaction": "Transaction"
+    },
+    "ageProof": {
+      "identity": "Public ID",
+      "ref": "Proof reference"
     }
   },
   "MandateCard": {
@@ -455,7 +471,19 @@
       "eventAlreadyArranged": "A trip for this event is already past the proposal stage.",
       "tripNotFound": "That trip was not found.",
       "wrongStatus": "The trip is not at the step this action needs; reload the page.",
-      "privateSettlementUnsupported": "This allowance cannot settle payments privately. Approve with every payment public."
+      "privateSettlementUnsupported": "This allowance cannot settle payments privately. Approve with every payment public.",
+      "birthDateMissing": "To prove your age, register your date of birth in your profile.",
+      "replanNotNeeded": "This plan does not need rebuilding; reload the page."
+    },
+    "identity": {
+      "notRegistered": "Your date of birth is not registered for age verification yet.",
+      "alreadyRegistered": "Your date of birth is already registered for age verification.",
+      "proofFailed": "Generating the age proof failed; try again.",
+      "unavailable": "The age verification contract is not reachable right now."
+    },
+    "profile": {
+      "unavailable": "The profile is not reachable right now.",
+      "schema": "The profile had an unexpected shape."
     },
     "unauthorized": "Your session ended. Sign in again.",
     "invalid_request": "The request was rejected as invalid.",

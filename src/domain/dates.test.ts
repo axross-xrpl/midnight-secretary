@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { addDays, nightsBetween } from "./dates";
+import { addDays, nightsBetween, yearsBefore } from "./dates";
 import type { IsoDate } from "./identifiers";
 import { mustParse, parseIsoDate } from "./identifiers.parse";
 
@@ -36,5 +36,28 @@ describe("nightsBetween", () => {
 
   test("月をまたいでも数えられる", () => {
     expect(nightsBetween(date("2026-09-30"), date("2026-10-02"))).toBe(2);
+  });
+});
+
+describe("yearsBefore", () => {
+  test("同じ月日の 20 年前になる", () => {
+    expect(yearsBefore(date("2026-09-21"), 20)).toBe("2006-09-21");
+  });
+
+  test("2 月 29 日は閏年でない年では 2 月 28 日になる", () => {
+    expect(yearsBefore(date("2024-02-29"), 1)).toBe("2023-02-28");
+  });
+
+  test("2 月 29 日は閏年ならそのまま", () => {
+    expect(yearsBefore(date("2024-02-29"), 4)).toBe("2020-02-29");
+  });
+
+  test("年の初めと終わりでも月日は変わらず年をまたがない", () => {
+    expect(yearsBefore(date("2026-01-01"), 20)).toBe("2006-01-01");
+    expect(yearsBefore(date("2026-12-31"), 20)).toBe("2006-12-31");
+  });
+
+  test("0 年なら同じ日付になる", () => {
+    expect(yearsBefore(date("2026-09-10"), 0)).toBe("2026-09-10");
   });
 });

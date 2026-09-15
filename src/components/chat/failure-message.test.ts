@@ -120,6 +120,39 @@ describe("failureMessageOf", () => {
     ).toStrictEqual({ kind: "plain", key: "schema" });
   });
 
+  test("生年月日の不足、組み直しの不要、identity / profile の失敗は plain キーになる", () => {
+    expect(
+      failureMessageOf({
+        code: "secretary",
+        error: {
+          source: "flow",
+          error: { kind: "birthDateMissing", tripId: "trip-1" },
+        },
+      }),
+    ).toStrictEqual({ kind: "plain", key: "flow.birthDateMissing" });
+    expect(
+      failureMessageOf({
+        code: "secretary",
+        error: {
+          source: "flow",
+          error: { kind: "replanNotNeeded", tripId: "trip-1" },
+        },
+      }),
+    ).toStrictEqual({ kind: "plain", key: "flow.replanNotNeeded" });
+    expect(
+      failureMessageOf({
+        code: "secretary",
+        error: { source: "identity", error: { kind: "notRegistered" } },
+      }),
+    ).toStrictEqual({ kind: "plain", key: "identity.notRegistered" });
+    expect(
+      failureMessageOf({
+        code: "secretary",
+        error: { source: "profile", error: { kind: "unavailable" } },
+      }),
+    ).toStrictEqual({ kind: "plain", key: "profile.unavailable" });
+  });
+
   test("知らない source と kind は unknown になる", () => {
     expect(
       failureMessageOf({
