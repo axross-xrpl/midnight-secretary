@@ -378,7 +378,10 @@ describe("年齢確認証明書", () => {
     expect(issued.status).toBe(200);
     expect(await issued.json()).toStrictEqual({
       data: {
-        credential: { identity: "identity:user-1", registeredAt: NOW },
+        credential: {
+          identity: "identity:user-1",
+          origin: { kind: "memory", registeredAt: NOW },
+        },
       },
     });
 
@@ -387,7 +390,10 @@ describe("年齢確認証明書", () => {
     expect(read.status).toBe(200);
     expect(await read.json()).toStrictEqual({
       data: {
-        credential: { identity: "identity:user-1", registeredAt: NOW },
+        credential: {
+          identity: "identity:user-1",
+          origin: { kind: "memory", registeredAt: NOW },
+        },
       },
     });
   });

@@ -63,7 +63,7 @@ const register = (
   const registration: AgeRegistration = {
     userId,
     identity: ids.identityOf(userId),
-    registeredAt: now,
+    origin: { kind: "memory", registeredAt: now },
   };
 
   recordRegistration(state, { birthDate, registration });

@@ -2,12 +2,23 @@ import type { Result } from "@/lib/result";
 import type { IsoDate, IsoDateTime, UserId } from "./identifiers";
 
 /**
+ * 証明書がどこに載っているか
+ *
+ * `memory` は Fake のインメモリで、発行時刻だけを持つ
+ * `midnight` は Midnight のコントラクトで、生年月日のコミットメントとコントラクトのアドレスを持つ
+ * on-chain には登録の時刻が残らないので `midnight` に `registeredAt` は無い
+ */
+export type AgeCredentialOrigin =
+  | { kind: "memory"; registeredAt: IsoDateTime }
+  | { kind: "midnight"; dobCommitment: string; contractAddress: string };
+
+/**
  * 生年月日の登録 (identity は公開される commitment の鍵、生年月日は非公開)
  */
 export type AgeRegistration = {
   userId: UserId;
   identity: string;
-  registeredAt: IsoDateTime;
+  origin: AgeCredentialOrigin;
 };
 
 /**
@@ -74,7 +85,7 @@ export type ProveAdult = (
 /**
  * 年齢確認の port
  *
- * Fake はメモリ、real は contract server の `/age/*` (T11-4 で入る)
+ * Fake はメモリ、real は contract server の `/age-verification/*`
  */
 export type IdentityPort = {
   registerBirthDate: RegisterBirthDate;

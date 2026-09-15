@@ -162,13 +162,28 @@ export const ageProofSchema = z.object({
 });
 
 /**
+ * 証明書がどこに載っているか
+ *
+ * `memory` は Fake のインメモリで発行時刻を持ち、`midnight` は Midnight のコントラクトで生年月日のコミットメントとアドレスを持つ
+ */
+export const ageCredentialOriginSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("memory"), registeredAt: z.string() }),
+
+  z.object({
+    kind: z.literal("midnight"),
+    dobCommitment: z.string(),
+    contractAddress: z.string(),
+  }),
+]);
+
+/**
  * 発行済みの年齢確認証明書
  *
- * 公開されるのは commitment の鍵 (`identity`) と発行時刻だけで、生年月日は載らない
+ * 公開されるのは commitment の鍵 (`identity`) と載っている場所の情報だけで、生年月日は載らない
  */
 export const ageRegistrationSchema = z.object({
   identity: z.string(),
-  registeredAt: z.string(),
+  origin: ageCredentialOriginSchema,
 });
 
 /**
@@ -310,6 +325,13 @@ export type PlaceOfferResponse = z.infer<typeof placeOfferSchema>;
  * 成人の証明
  */
 export type AgeProofResponse = z.infer<typeof ageProofSchema>;
+
+/**
+ * 証明書がどこに載っているか
+ */
+export type AgeCredentialOriginResponse = z.infer<
+  typeof ageCredentialOriginSchema
+>;
 
 /**
  * 発行済みの年齢確認証明書

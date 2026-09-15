@@ -70,7 +70,7 @@ describe("registerBirthDate", () => {
       value: {
         userId: "user-1",
         identity: "identity:user-1",
-        registeredAt: NOW,
+        origin: { kind: "memory", registeredAt: NOW },
       },
     });
     expect(await identity.readRegistration(USER)).toStrictEqual(created);
@@ -90,7 +90,7 @@ describe("registerBirthDate", () => {
       value: {
         userId: "user-1",
         identity: "identity:user-1",
-        registeredAt: NOW,
+        origin: { kind: "memory", registeredAt: NOW },
       },
     });
   });

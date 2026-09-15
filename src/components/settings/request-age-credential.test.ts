@@ -7,7 +7,7 @@ import {
 
 const CREDENTIAL = {
   identity: "identity:user-1",
-  registeredAt: "2026-09-09T00:00:00Z",
+  origin: { kind: "memory", registeredAt: "2026-09-09T00:00:00Z" },
 };
 
 type Recorded = {

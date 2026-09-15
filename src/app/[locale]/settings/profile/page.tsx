@@ -38,7 +38,7 @@ const issuedCredential = async (): Promise<
 
   return {
     identity: credential.value.identity,
-    registeredAt: credential.value.registeredAt,
+    origin: credential.value.origin,
   };
 };
 

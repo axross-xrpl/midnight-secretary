@@ -123,7 +123,7 @@ export const writeBackResponseOf = (
 /**
  * 年齢確認証明書を JSON にする
  *
- * 生年月日はもちろん `userId` も返さず、公開される `identity` と発行時刻だけを載せる
+ * 生年月日はもちろん `userId` も返さず、公開される `identity` と載っている場所の情報 (`origin`) だけを載せる
  * 未発行はフィールドごと消えないよう null にする (JSON では undefined が消えるため)
  */
 export const ageCredentialResponseOf = (
@@ -136,7 +136,7 @@ export const ageCredentialResponseOf = (
   return {
     credential: {
       identity: registration.identity,
-      registeredAt: registration.registeredAt,
+      origin: registration.origin,
     },
   };
 };
