@@ -1,7 +1,6 @@
 {
   "NavBar": {
     "home": "Home",
-    "dashboard": "Dashboard",
     "tasks": "Tasks",
     "settings": "Settings"
   },
@@ -10,9 +9,33 @@
     "ready": "Contract server ready",
     "unreachable": "Contract server unreachable"
   },
-  "Dashboard": {
-    "title": "Dashboard",
-    "welcome": "Welcome, {name}."
+  "Home": {
+    "title": "Home",
+    "signedOut": "Sign in to see your MST balance and confirmed itineraries.",
+    "balance": {
+      "section": "Balance",
+      "title": "MST you hold",
+      "note": "A stand-in figure until the balance lookup lands."
+    },
+    "trips": {
+      "title": "Confirmed itineraries",
+      "empty": "No itinerary has been confirmed yet.",
+      "total": "Total",
+      "route": "{from} → {to} · {count} items",
+      "detail": {
+        "items": "Breakdown",
+        "noItems": "This itinerary has no items.",
+        "unitPrice": "{price, number} × {count}",
+        "bookingRef": "Booking",
+        "close": "Close",
+        "status": {
+          "selected": "Selected",
+          "paid": "Paid",
+          "booked": "Booked",
+          "cancelled": "Cancelled"
+        }
+      }
+    }
   },
   "Auth": {
     "signInWithGoogle": "Sign in with Google",

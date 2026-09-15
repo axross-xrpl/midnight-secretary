@@ -9,7 +9,6 @@ import ContractServerStatus from "@/components/contract-server-status";
 
 const links = [
   { href: "/", label: "home", protected: false },
-  { href: "/dashboard", label: "dashboard", protected: true },
   { href: "/tasks", label: "tasks", protected: true },
   { href: "/settings/profile", label: "settings", protected: true },
   // Add more links for navigation. Set `protected: true` to only
