@@ -1,13 +1,36 @@
 {
   "NavBar": {
     "home": "ホーム",
-    "dashboard": "ダッシュボード",
     "tasks": "タスク",
     "settings": "設定"
   },
-  "Dashboard": {
-    "title": "ダッシュボード",
-    "welcome": "ようこそ、{name} さん。"
+  "Home": {
+    "title": "ホーム",
+    "signedOut": "サインインすると、MST残高と確定した旅程が表示されます。",
+    "balance": {
+      "section": "残高",
+      "title": "保有 MST",
+      "note": "残高の取得が入るまでの暫定の値です。"
+    },
+    "trips": {
+      "title": "確定した旅程",
+      "empty": "確定した旅程はまだありません。",
+      "total": "合計",
+      "route": "{from} → {to} · {count} 件",
+      "detail": {
+        "items": "明細",
+        "noItems": "この旅程に明細はありません。",
+        "unitPrice": "{price, number} × {count}",
+        "bookingRef": "予約番号",
+        "close": "閉じる",
+        "status": {
+          "selected": "選択済み",
+          "paid": "支払い済み",
+          "booked": "予約確定",
+          "cancelled": "取り消し"
+        }
+      }
+    }
   },
   "Auth": {
     "signInWithGoogle": "Googleでサインイン",
