@@ -11,6 +11,11 @@ import type {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * 年齢制限つきの候補が下限を持たないときの既定 (domain の `adultRequirementOf` と同じ)
+ */
+export const DEFAULT_AGE_LIMIT = 20;
+
+/**
  * 時刻付きの日時の書式 (日付は中、時刻は短)
  *
  * 吹き出しの時刻、承認日時、便の発着、時刻付きの予定に使う
@@ -195,4 +200,43 @@ export const planRows = (plan: TripPlanResponse): readonly PlanRow[] => {
     ...leisureRowOf(plan.leisure),
     { kind: "transport", category: "inbound", offer: plan.inbound },
   ];
+};
+
+/**
+ * 計画が成人であることを要する候補と年齢の下限 (クライアントの型)
+ */
+export type AdultRequirementResponse = {
+  offer: PlaceOfferResponse;
+  ageLimit: number;
+};
+
+/**
+ * 計画が成人であることを要する候補を含むなら、その候補と年齢の下限
+ *
+ * domain の `adultRequirementOf` と同じ導出で、クライアントは brand を持たないので手元に置く
+ * `requiredVerifications` に `age` を含む `dining` が対象で、`ageLimit` が無ければ 20
+ */
+export const adultRequirementOfResponse = (
+  plan: TripPlanResponse,
+): AdultRequirementResponse | undefined => {
+  const dining = plan.dining;
+
+  if (dining === undefined || !dining.requiredVerifications.includes("age")) {
+    return undefined;
+  }
+
+  return { offer: dining, ageLimit: dining.ageLimit ?? DEFAULT_AGE_LIMIT };
+};
+
+/**
+ * 年齢確認の基準日 (cutoff の `ageLimit` 年後の同じ月日)
+ *
+ * cutoff は基準日 (出発日) の `ageLimit` 年前なので、戻すと基準日になる
+ * 基準日が 2 月 29 日のときだけ cutoff が 2 月 28 日に寄っているので、戻した日も 2 月 28 日になる
+ * 文言の「{date} 時点で」に出すのは cutoff ではなくこちら
+ */
+export const asOfDateOf = (cutoffDate: string, ageLimit: number): string => {
+  const year = Number(cutoffDate.slice(0, 4)) + ageLimit;
+
+  return `${String(year).padStart(4, "0")}-${cutoffDate.slice(5)}`;
 };

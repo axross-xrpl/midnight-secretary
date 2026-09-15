@@ -60,6 +60,13 @@ export const approveTripBodySchema = z
   .strict();
 
 /**
+ * `POST /api/secretary/trips/[tripId]/replan` の body
+ *
+ * `locale` は planner の呼び直しに要る
+ */
+export const replanBodySchema = z.object({ locale: localeSchema }).strict();
+
+/**
  * `POST /api/secretary/trips/[tripId]/write-back` の body
  */
 export const writeBackBodySchema = z.object({ locale: localeSchema }).strict();
@@ -78,6 +85,11 @@ export type ProposeTripBody = z.infer<typeof proposeTripBodySchema>;
  * `POST /api/secretary/trips/[tripId]/approve` の body
  */
 export type ApproveTripBody = z.infer<typeof approveTripBodySchema>;
+
+/**
+ * `POST /api/secretary/trips/[tripId]/replan` の body
+ */
+export type ReplanBody = z.infer<typeof replanBodySchema>;
 
 /**
  * `POST /api/secretary/trips/[tripId]/write-back` の body

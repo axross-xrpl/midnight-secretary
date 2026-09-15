@@ -20,8 +20,8 @@ import {
   parseWalletAddress,
 } from "./identifiers.parse";
 import type { Currency, Money } from "./money";
-import type { PlanChoice, TripIntent } from "./plan";
-import { assemblePlan } from "./plan";
+import type { PlanChoice, TripIntent, TripPlan } from "./plan";
+import { adultRequirementOf, assemblePlan } from "./plan";
 
 const RATIONALE = "test: first matching offers";
 
@@ -150,6 +150,17 @@ const OFFERS: OfferSet = {
   lodging: [HOTEL],
   dining: [IZAKAYA, CAFE, BAR_WITHOUT_LIMIT],
   leisure: [TOUR],
+};
+
+const planWith = (dining: PlaceOffer | undefined): TripPlan => {
+  return {
+    intent: SAME_DAY,
+    outbound: OUTBOUND,
+    inbound: INBOUND,
+    ...(dining === undefined ? {} : { dining }),
+    total: money(29440),
+    rationale: RATIONALE,
+  };
 };
 
 const ONE_NIGHT = intentOn("2026-09-14", "2026-09-15");
@@ -423,5 +434,29 @@ describe("assemblePlan", () => {
       ok: false,
       error: { kind: "unknownOffer", offerId: "aquarium" },
     });
+  });
+});
+
+describe("adultRequirementOf", () => {
+  test("年齢確認を要する飲食があればその候補と下限を返す", () => {
+    expect(adultRequirementOf(planWith(IZAKAYA))).toStrictEqual({
+      offer: IZAKAYA,
+      ageLimit: 20,
+    });
+  });
+
+  test("下限を持たない候補は 20 になる", () => {
+    expect(adultRequirementOf(planWith(BAR_WITHOUT_LIMIT))).toStrictEqual({
+      offer: BAR_WITHOUT_LIMIT,
+      ageLimit: 20,
+    });
+  });
+
+  test("年齢確認を要しない飲食なら undefined", () => {
+    expect(adultRequirementOf(planWith(CAFE))).toBeUndefined();
+  });
+
+  test("飲食が無ければ undefined", () => {
+    expect(adultRequirementOf(planWith(undefined))).toBeUndefined();
   });
 });

@@ -5,12 +5,17 @@ import {
   seedCalendarEvents,
 } from "@/adapters/calendar/fake";
 import { createFakeCatalog, seedCatalog } from "@/adapters/catalog/fake";
+import type { FakeIdentityIds } from "@/adapters/identity/fake";
+import { createFakeIdentity } from "@/adapters/identity/fake";
+import { jstDateOf } from "@/adapters/jst";
 import type { FakeMandateIds } from "@/adapters/mandate/fake";
 import { createFakeMandate } from "@/adapters/mandate/fake";
 import { createFakePlanner } from "@/adapters/planner/fake";
+import { createFakeProfile } from "@/adapters/profile/fake";
 import { createFakeStore } from "@/adapters/store/fake";
 import type { CalendarPort } from "@/domain/calendar";
 import type { LodgingOffer, PlaceOffer } from "@/domain/catalog";
+import { addDays, yearsBefore } from "@/domain/dates";
 import type {
   CalendarEventId,
   IsoDateTime,
@@ -26,6 +31,7 @@ import {
   parseMandateId,
   parseUserId,
 } from "@/domain/identifiers.parse";
+import type { IdentityPort } from "@/domain/identity";
 import type {
   Mandate,
   MandateDraft,
@@ -47,7 +53,12 @@ import type { Result } from "@/lib/result";
 import { err } from "@/lib/result";
 import type { SecretaryDeps } from "./deps";
 import { WAVE1_PREFERENCES } from "./preferences";
-import type { ProposeTripInput, RenderEventText } from "./secretary";
+import type {
+  ApproveTripInput,
+  ProposeTripInput,
+  RenderEventText,
+  ReplanTripInput,
+} from "./secretary";
 import {
   approveTrip,
   loadDashboard,
@@ -55,6 +66,7 @@ import {
   loadTrips,
   payForTrip,
   proposeTrip,
+  replanTrip,
   setUpMandate,
   writeBackTrip,
 } from "./secretary";
@@ -103,12 +115,19 @@ const DINNER_EVENT = eventId("seed-6");
 // 工場視察と懇親会 (+16 日から 1 泊) は宿、居酒屋、レジャーがすべて付く
 const INSPECTION_EVENT = eventId("seed-7");
 
+// demo と同じ式で、予約者は NOW の 7 日後 (2026-09-16) に 20 歳になる
+// 懇親会の出発日 2026-09-15 はまだ 20 歳前、会食の出発日 2026-09-18 は 20 歳以上
+const BIRTH_DATE = yearsBefore(addDays(jstDateOf(NOW), 7), 20);
+
 // seedCatalog の価格から計算した合計 (鉄道優先なので ひかり505号 と のぞみ232号 の往復、1 泊は なんばホテルC、居酒屋は 天満 立ち飲み居酒屋 大和、レジャーは本人確認の要らない先頭の 海遊館)
 const OSAKA_TOTAL = 14400 + 14520;
 
 const OVERNIGHT_TOTAL = 14400 + 14520 + 12500;
 
 const GATHERING_TOTAL = 14400 + 14520 + 3000;
+
+// 年齢確認が通らず作り直した懇親会の合計 (居酒屋を除くと飲食の先頭は 中之島カフェ)
+const REVISED_GATHERING_TOTAL = 14400 + 14520 + 1200;
 
 const INSPECTION_TOTAL = 14400 + 14520 + 12500 + 3000 + 2700;
 
@@ -143,6 +162,20 @@ const testMandateIds = (): FakeMandateIds => {
   };
 };
 
+// 採番はテスト設定に閉じているので、identity はユーザ id から、証明の参照は閉じたカウンタで作る
+const testIdentityIds = (): FakeIdentityIds => {
+  const state = { proved: 0 };
+
+  return {
+    identityOf: (id) => `identity:${id}`,
+    newProofRef: () => {
+      state.proved = state.proved + 1;
+
+      return `proof-${state.proved}`;
+    },
+  };
+};
+
 // Fake は状態を持つので、テストごとに組み直す
 const testDeps = (): SecretaryDeps => {
   return {
@@ -154,6 +187,8 @@ const testDeps = (): SecretaryDeps => {
     planner: createFakePlanner(),
     mandate: createFakeMandate({ mandates: [], ids: testMandateIds() }),
     store: createFakeStore(),
+    identity: createFakeIdentity({ ids: testIdentityIds() }),
+    profile: createFakeProfile({ birthDate: BIRTH_DATE }),
     newTripId: sequentialTripIds(),
   };
 };
@@ -234,12 +269,59 @@ const mustPropose = async (
   return mustOk(await proposeTrip(proposeInput(event), deps));
 };
 
+const approveInput = (
+  id: TripId,
+  requested: PaymentVisibilityInput = {},
+): ApproveTripInput => {
+  return { userId: USER, tripId: id, requested, now: NOW };
+};
+
+const replanInput = (id: TripId): ReplanTripInput => {
+  return {
+    userId: USER,
+    tripId: id,
+    locale: "ja",
+    preferences: WAVE1_PREFERENCES,
+    now: NOW,
+  };
+};
+
 const mustApprove = async (
   deps: SecretaryDeps,
   id: TripId,
   requested: PaymentVisibilityInput = {},
 ): Promise<ApprovedTrip> => {
-  return mustOk(await approveTrip(USER, id, requested, NOW, deps));
+  const outcome = mustOk(await approveTrip(approveInput(id, requested), deps));
+
+  if (outcome.kind !== "approved") {
+    throw new Error(`test: expected an approval but was ${outcome.kind}`);
+  }
+
+  return outcome.trip;
+};
+
+// 年齢確認が通らなかったことを前提に、記録つきの提案を取り出す
+const mustFailAgeCheck = async (
+  deps: SecretaryDeps,
+  id: TripId,
+  requested: PaymentVisibilityInput = {},
+): Promise<ProposedTrip> => {
+  const outcome = mustOk(await approveTrip(approveInput(id, requested), deps));
+
+  if (outcome.kind !== "ageNotVerified") {
+    throw new Error(
+      `test: expected a failed age check but was ${outcome.kind}`,
+    );
+  }
+
+  return outcome.trip;
+};
+
+const mustReplan = async (
+  deps: SecretaryDeps,
+  id: TripId,
+): Promise<ProposedTrip> => {
+  return mustOk(await replanTrip(replanInput(id), deps));
 };
 
 const mustPay = async (deps: SecretaryDeps, id: TripId): Promise<PaidTrip> => {
@@ -313,6 +395,24 @@ const failsToListTrips = (store: SecretaryStore): SecretaryStore => {
   return {
     ...store,
     listTrips: async () => err({ kind: "unavailable", cause: "stub" }),
+  };
+};
+
+// 2 回目の登録だけ失敗させ、他は Fake に委譲する (登録が 1 回で済むことを値で確かめる)
+const failsAtSecondRegistration = (identity: IdentityPort): IdentityPort => {
+  const state = { calls: 0 };
+
+  return {
+    ...identity,
+    registerBirthDate: async (userId, birthDate, now) => {
+      state.calls = state.calls + 1;
+
+      if (state.calls === 2) {
+        return err({ kind: "unavailable", cause: "stub" });
+      }
+
+      return identity.registerBirthDate(userId, birthDate, now);
+    },
   };
 };
 
@@ -684,10 +784,7 @@ describe("approveTrip", () => {
 
     expect(
       await approveTrip(
-        USER,
-        proposed.id,
-        { lodging: "private" },
-        NOW,
+        approveInput(proposed.id, { lodging: "private" }),
         limited,
       ),
     ).toStrictEqual({
@@ -723,11 +820,138 @@ describe("approveTrip", () => {
     });
   });
 
+  test("成人を要しない計画は証明なしで承認し、identity には登録しない", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, OSAKA_EVENT);
+
+    const approved = await mustApprove(deps, proposed.id);
+
+    expect("ageProof" in approved).toBe(false);
+    expect(await deps.identity.readRegistration(USER)).toStrictEqual({
+      ok: true,
+      value: undefined,
+    });
+  });
+
+  test("生年月日が無ければ birthDateMissing で、trip は提案済みのまま", async () => {
+    const deps = { ...testDeps(), profile: createFakeProfile({}) };
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, GATHERING_EVENT);
+
+    expect(await approveTrip(approveInput(proposed.id), deps)).toStrictEqual({
+      ok: false,
+      error: {
+        source: "flow",
+        error: { kind: "birthDateMissing", tripId: proposed.id },
+      },
+    });
+    expect(await storedTrip(deps, proposed.id)).toStrictEqual(proposed);
+    expect(await deps.identity.readRegistration(USER)).toStrictEqual({
+      ok: true,
+      value: undefined,
+    });
+  });
+
+  test("出発日にまだ 20 歳でなければ計画を変えず、証明が通らなかった記録を付けて提案済みのまま残す", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, GATHERING_EVENT);
+
+    const rejected = await mustFailAgeCheck(deps, proposed.id, {
+      dining: "private",
+    });
+
+    expect(rejected).toStrictEqual({
+      ...proposed,
+      failedAgeCheck: {
+        ageLimit: 20,
+        cutoffDate: "2006-09-15",
+        visibility: {
+          outbound: "public",
+          inbound: "public",
+          dining: "private",
+        },
+        checkedAt: NOW,
+      },
+    });
+    expect(diningOf(rejected.plan).id).toBe("restaurant-izakaya-tenma");
+    expect(await storedTrip(deps, proposed.id)).toStrictEqual(rejected);
+  });
+
+  test("組み直した提案は証明なしで承認でき、作り直しの記録を引き継ぐ", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, GATHERING_EVENT);
+
+    await mustFailAgeCheck(deps, proposed.id);
+    const revised = await mustReplan(deps, proposed.id);
+
+    const approved = await mustApprove(deps, proposed.id);
+
+    expect("ageProof" in approved).toBe(false);
+    expect("failedAgeCheck" in approved).toBe(false);
+    expect(approved.plan).toStrictEqual(revised.plan);
+    expect(approved.revision).toStrictEqual(revised.revision);
+  });
+
+  test("出発日に 20 歳以上なら ageProof 付きで承認し、identity に登録が 1 件できる", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, DINNER_EVENT);
+
+    const approved = await mustApprove(deps, proposed.id);
+
+    expect(approved.ageProof).toStrictEqual({
+      identity: "identity:user-1",
+      cutoffDate: "2006-09-18",
+      proofRef: "proof-1",
+      provedAt: NOW,
+    });
+    expect(approved.authorizations).toStrictEqual([]);
+    expect(await storedTrip(deps, proposed.id)).toStrictEqual(approved);
+    expect(await deps.identity.readRegistration(USER)).toStrictEqual({
+      ok: true,
+      value: { userId: USER, identity: "identity:user-1", registeredAt: NOW },
+    });
+  });
+
+  test("2 つ目の出張の承認は登録を増やさず、最初の登録の identity のまま", async () => {
+    const base = testDeps();
+    const deps = {
+      ...base,
+      identity: failsAtSecondRegistration(base.identity),
+    };
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const dinner = await mustPropose(deps, DINNER_EVENT);
+    const gathering = await mustPropose(deps, GATHERING_EVENT);
+
+    const approved = await mustApprove(deps, dinner.id);
+    const rejected = await mustFailAgeCheck(deps, gathering.id);
+
+    // 2 回目の登録なら unavailable になるので、証明の結果まで進むのは登録を飛ばした証
+    expect(rejected.failedAgeCheck?.ageLimit).toBe(20);
+    expect(await deps.identity.readRegistration(USER)).toStrictEqual({
+      ok: true,
+      value: {
+        userId: USER,
+        identity: approved.ageProof?.identity,
+        registeredAt: NOW,
+      },
+    });
+  });
+
   test("知らない trip id は tripNotFound になる", async () => {
     const deps = testDeps();
     const unknown = UNKNOWN_TRIP_ID;
 
-    expect(await approveTrip(USER, unknown, {}, NOW, deps)).toStrictEqual({
+    expect(await approveTrip(approveInput(unknown), deps)).toStrictEqual({
       ok: false,
       error: {
         source: "flow",
@@ -744,7 +968,7 @@ describe("approveTrip", () => {
 
     await mustApprove(deps, proposed.id);
 
-    expect(await approveTrip(USER, proposed.id, {}, NOW, deps)).toStrictEqual({
+    expect(await approveTrip(approveInput(proposed.id), deps)).toStrictEqual({
       ok: false,
       error: {
         source: "flow",
@@ -754,6 +978,116 @@ describe("approveTrip", () => {
           expected: "proposed",
           actual: "approved",
         },
+      },
+    });
+  });
+});
+
+describe("replanTrip", () => {
+  test("証明が通らなかった提案を年齢制限のない候補で組み直し、同じ id の提案として残す", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, GATHERING_EVENT);
+    const rejected = await mustFailAgeCheck(deps, proposed.id, {
+      dining: "private",
+    });
+
+    const revised = await mustReplan(deps, proposed.id);
+
+    expect(revised.id).toBe(proposed.id);
+    expect(revised.proposedAt).toBe(NOW);
+    expect("failedAgeCheck" in revised).toBe(false);
+    expect(revised.revision).toStrictEqual({
+      reason: {
+        kind: "ageNotVerified",
+        ageLimit: 20,
+        cutoffDate: "2006-09-15",
+      },
+      previous: {
+        plan: proposed.plan,
+        proposedAt: proposed.proposedAt,
+        visibility: rejected.failedAgeCheck?.visibility,
+      },
+      revisedAt: NOW,
+    });
+    expect(revised.revision?.previous.visibility).toStrictEqual({
+      outbound: "public",
+      inbound: "public",
+      dining: "private",
+    });
+    expect(diningOf(revised.plan).id).toBe("restaurant-cafe-nakanoshima");
+    expect(diningOf(revised.plan).requiredVerifications).toStrictEqual([]);
+    expect(revised.plan.total).toStrictEqual(mst(REVISED_GATHERING_TOTAL));
+    expect(await storedTrip(deps, proposed.id)).toStrictEqual(revised);
+  });
+
+  test("証明が通らなかった記録の無い提案は replanNotNeeded になり、計画は変わらない", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, GATHERING_EVENT);
+
+    expect(await replanTrip(replanInput(proposed.id), deps)).toStrictEqual({
+      ok: false,
+      error: {
+        source: "flow",
+        error: { kind: "replanNotNeeded", tripId: proposed.id },
+      },
+    });
+    expect(await storedTrip(deps, proposed.id)).toStrictEqual(proposed);
+  });
+
+  test("組み直した提案をもう一度組み直すと replanNotNeeded になる", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, GATHERING_EVENT);
+
+    await mustFailAgeCheck(deps, proposed.id);
+    const revised = await mustReplan(deps, proposed.id);
+
+    expect(await replanTrip(replanInput(proposed.id), deps)).toStrictEqual({
+      ok: false,
+      error: {
+        source: "flow",
+        error: { kind: "replanNotNeeded", tripId: proposed.id },
+      },
+    });
+    expect(await storedTrip(deps, proposed.id)).toStrictEqual(revised);
+  });
+
+  test("承認済みの trip は wrongStatus になる", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, OSAKA_EVENT);
+
+    await mustApprove(deps, proposed.id);
+
+    expect(await replanTrip(replanInput(proposed.id), deps)).toStrictEqual({
+      ok: false,
+      error: {
+        source: "flow",
+        error: {
+          kind: "wrongStatus",
+          tripId: proposed.id,
+          expected: "proposed",
+          actual: "approved",
+        },
+      },
+    });
+  });
+
+  test("知らない trip id は tripNotFound になる", async () => {
+    const deps = testDeps();
+    const unknown = UNKNOWN_TRIP_ID;
+
+    expect(await replanTrip(replanInput(unknown), deps)).toStrictEqual({
+      ok: false,
+      error: {
+        source: "flow",
+        error: { kind: "tripNotFound", tripId: unknown },
       },
     });
   });
@@ -856,13 +1190,13 @@ describe("payForTrip", () => {
     ).toStrictEqual(["tokenTransfer", "tokenTransfer", "shieldedTransfer"]);
   });
 
-  test("居酒屋つきの日帰りは往路、復路、飲食の順に 3 件支払う", async () => {
+  test("居酒屋つきの日帰りは往路、復路、飲食の順に 3 件支払い、証明は引き継ぐ", async () => {
     const deps = testDeps();
 
     await mustSetUpMandate(deps, ENOUGH_CAP);
     const proposed = await mustPropose(deps, DINNER_EVENT);
 
-    await mustApprove(deps, proposed.id);
+    const approved = await mustApprove(deps, proposed.id);
     const paid = await mustPay(deps, proposed.id);
 
     expect(
@@ -882,6 +1216,7 @@ describe("payForTrip", () => {
       "mn_shield-addr_test1demo-service-seller",
     ]);
     expect(paid.authorizations.at(2)?.amount).toStrictEqual(mst(3000));
+    expect(paid.ageProof).toStrictEqual(approved.ageProof);
 
     const ledger = mustOk(await loadLedgerViews(USER, deps));
 

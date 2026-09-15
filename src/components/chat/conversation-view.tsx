@@ -18,6 +18,7 @@ import type { Bubble, Reply } from "./conversation";
 import { conversationOf } from "./conversation";
 import { effectiveTrip, INITIAL_FLOW_STATE, reduceFlow } from "./flow";
 import {
+  adultRequirementOfResponse,
   DATE_OPTIONS,
   inclusiveEndDate,
   plainSpaces,
@@ -31,6 +32,7 @@ import {
   requestApproveTrip,
   requestPayForTrip,
   requestProposeTrip,
+  requestReplanTrip,
   requestSetUpMandate,
   requestWriteBackTrip,
 } from "./request-secretary";
@@ -60,13 +62,13 @@ type ReplyHandler = (reply: Reply) => void;
 // 通貨は API の既定 (`secretary-request.ts`) と同じ MST
 const DEFAULT_CURRENCY = "MST";
 
-// 吹き出しの key (話し手と行の種類)
-// React の key と、自動スクロールで会話の末尾を見分ける印に使う
-const bubbleKey = (bubble: Bubble): string => {
-  return `${bubble.speaker}:${bubble.line.kind}`;
+// 吹き出しの React の key (位置と話し手と行の種類)
+// 作り直した提案では前の提案と新しい提案が並ぶので、位置を混ぜて一意にする
+const bubbleKey = (bubble: Bubble, index: number): string => {
+  return `${index}:${bubble.speaker}:${bubble.line.kind}`;
 };
 
-// 会話の末尾を表す印 (件数と最後の吹き出しの key)
+// 会話の末尾を表す印 (件数と最後の吹き出しの話し手と種類)
 // 返答を押したときも秘書の返事が来たときも末尾が変わるので、これが変わったら末尾へスクロールする
 const tailOf = (bubbles: readonly Bubble[]): string => {
   const last = bubbles.at(-1);
@@ -75,7 +77,7 @@ const tailOf = (bubbles: readonly Bubble[]): string => {
     return "";
   }
 
-  return `${bubbles.length}:${bubbleKey(last)}`;
+  return `${bubbles.length}:${last.speaker}:${last.line.kind}`;
 };
 
 type EventWhenProps = {
@@ -117,14 +119,20 @@ const ReplyButton = ({
   const label = match(reply)
     .with({ kind: "propose" }, () => t("replies.propose"))
     .with({ kind: "approve" }, () => t("replies.approve"))
+    .with({ kind: "sendProof" }, () => t("replies.sendProof"))
+    .with({ kind: "declineProof" }, () => t("replies.declineProof"))
+    .with({ kind: "replan" }, () => t("replies.replan"))
     .with({ kind: "pay", resume: true }, () => t("replies.resume"))
     .with({ kind: "pay", resume: false }, () => t("replies.pay"))
     .with({ kind: "writeBack" }, () => t("replies.writeBack"))
     .with({ kind: "dismiss" }, () => t("replies.dismiss"))
     .exhaustive();
   const className = match(reply)
-    .with({ kind: P.union("approve", "pay") }, () => strongButtonClass)
-    .with({ kind: "dismiss" }, () => ghostButtonClass)
+    .with(
+      { kind: P.union("approve", "sendProof", "replan", "pay") },
+      () => strongButtonClass,
+    )
+    .with({ kind: P.union("declineProof", "dismiss") }, () => ghostButtonClass)
     .with({ kind: P.union("propose", "writeBack") }, () => primaryButtonClass)
     .exhaustive();
 
@@ -259,6 +267,26 @@ export const Conversation = (props: ConversationProps): ReactElement => {
     );
   };
 
+  // 証明が通らなかった提案を、年齢制限のない候補で秘書に組み直してもらう
+  const replan = (tripId: string): Promise<void> => {
+    return runStep("replan", () =>
+      requestReplanTrip(fetch, tripId, { locale }),
+    );
+  };
+
+  // 年齢確認を求める候補があれば、証明を送ってよいかを先に聞く (サーバは呼ばない)
+  const askOrApprove = async (
+    target: TripResponse,
+    visibility: PaymentVisibilityInput,
+  ): Promise<void> => {
+    if (adultRequirementOfResponse(target.plan) === undefined) {
+      await approve(target.id, visibility);
+      return;
+    }
+
+    dispatch({ type: "askConsent" });
+  };
+
   const pay = (tripId: string): Promise<void> => {
     return runStep("pay", () => requestPayForTrip(fetch, tripId));
   };
@@ -273,8 +301,15 @@ export const Conversation = (props: ConversationProps): ReactElement => {
     match(reply)
       .with({ kind: "propose" }, ({ eventId }) => propose(eventId))
       .with({ kind: "approve" }, ({ trip: target, visibility }) =>
+        askOrApprove(target, visibility),
+      )
+      .with({ kind: "sendProof" }, ({ trip: target, visibility }) =>
         approve(target.id, visibility),
       )
+      .with({ kind: "declineProof" }, () =>
+        dispatch({ type: "declineConsent" }),
+      )
+      .with({ kind: "replan" }, ({ trip: target }) => replan(target.id))
       .with({ kind: "pay" }, ({ trip: target }) => pay(target.id))
       .with({ kind: "writeBack" }, ({ trip: target }) => writeBack(target.id))
       .with({ kind: "dismiss" }, () => dispatch({ type: "dismiss" }))
@@ -315,9 +350,9 @@ export const Conversation = (props: ConversationProps): ReactElement => {
           aria-label={t("log")}
         >
           <ol className="flex flex-col gap-[18px]">
-            {conversation.bubbles.map((bubble) => (
+            {conversation.bubbles.map((bubble, index) => (
               <BubbleItem
-                key={bubbleKey(bubble)}
+                key={bubbleKey(bubble, index)}
                 bubble={bubble}
                 onVisibilityChange={onVisibilityChange}
               />

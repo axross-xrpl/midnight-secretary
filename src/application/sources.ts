@@ -43,6 +43,8 @@ export const PORT_NAMES = [
   "planner",
   "mandate",
   "store",
+  "identity",
+  "profile",
 ] as const;
 
 /**
@@ -60,6 +62,8 @@ export type SwitchablePortSources = {
   planner: PortSource;
   mandate: PortSource;
   store: PortSource;
+  identity: PortSource;
+  profile: PortSource;
 };
 
 /**
@@ -86,6 +90,8 @@ export const SOURCE_ENV_KEYS = {
   planner: "SECRETARY_PLANNER",
   mandate: "SECRETARY_MANDATE",
   store: "SECRETARY_STORE",
+  identity: "SECRETARY_IDENTITY",
+  profile: "SECRETARY_PROFILE",
 } as const satisfies Record<PortName | "mode" | "auth" | "nextAuthUrl", string>;
 
 /**
@@ -100,6 +106,8 @@ export const REAL_SOURCES = {
   planner: "real",
   mandate: "real",
   store: "real",
+  identity: "real",
+  profile: "real",
 } as const satisfies PortSources;
 
 /**
@@ -114,6 +122,8 @@ export const DEMO_SOURCES = {
   planner: "fake",
   mandate: "fake",
   store: "fake",
+  identity: "fake",
+  profile: "fake",
 } as const satisfies PortSources;
 
 /**
@@ -252,7 +262,8 @@ export const parsePortSources = (
   }
 
   // パースした値は PORT_NAMES の順で返る
-  const [calendar, catalog, planner, mandate, store] = ports.value;
+  const [calendar, catalog, planner, mandate, store, identity, profile] =
+    ports.value;
 
   if (auth.value === "dev" && calendar === "real") {
     return err({ kind: "realCalendarNeedsGoogleAuth" });
@@ -272,10 +283,21 @@ export const parsePortSources = (
       planner,
       mandate,
       store,
+      identity,
+      profile,
     });
   }
 
-  return ok({ auth: "google", calendar, catalog, planner, mandate, store });
+  return ok({
+    auth: "google",
+    calendar,
+    catalog,
+    planner,
+    mandate,
+    store,
+    identity,
+    profile,
+  });
 };
 
 /**

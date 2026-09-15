@@ -12,7 +12,7 @@ import type { RequestFailure } from "./types";
 /**
  * 引数無しで引けるメッセージのキー
  *
- * `SecretaryError` の source x kind のうち金額を出さないものと、封筒の失敗、ブラウザ側の失敗
+ * `SecretaryError` の source x kind のうち金額や日付を出さないものと、封筒の失敗、ブラウザ側の失敗
  * 並びは `src/application/errors.ts` と各 port の error union の定義順
  */
 const PLAIN_FAILURE_KEYS = [
@@ -50,6 +50,14 @@ const PLAIN_FAILURE_KEYS = [
   "flow.tripNotFound",
   "flow.wrongStatus",
   "flow.privateSettlementUnsupported",
+  "flow.birthDateMissing",
+  "flow.replanNotNeeded",
+  "identity.notRegistered",
+  "identity.alreadyRegistered",
+  "identity.proofFailed",
+  "identity.unavailable",
+  "profile.unavailable",
+  "profile.schema",
   "unauthorized",
   "invalid_request",
   "network",

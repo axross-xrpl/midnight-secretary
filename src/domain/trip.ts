@@ -1,5 +1,11 @@
 import type { CalendarEvent, CalendarEventDraft } from "./calendar";
-import type { CalendarEventId, IsoDateTime, TripId } from "./identifiers";
+import type {
+  CalendarEventId,
+  IsoDate,
+  IsoDateTime,
+  TripId,
+} from "./identifiers";
+import type { AgeProof } from "./identity";
 import type { Authorization, SettlementVisibility } from "./mandate";
 import type { TripPlan } from "./plan";
 
@@ -30,6 +36,46 @@ export type PaymentVisibilityInput = {
 };
 
 /**
+ * 計画を作り直した理由
+ *
+ * いまは年齢確認が通らなかった場合だけ (`cutoffDate` は証明に使った公開の引数)
+ */
+export type PlanRevisionReason = {
+  kind: "ageNotVerified";
+  ageLimit: number;
+  cutoffDate: IsoDate;
+};
+
+/**
+ * 秘書が計画を作り直した記録
+ *
+ * `previous` は作り直す前の提案と、承認のときに選んでいた公開範囲
+ * 会話の履歴を再読み込み後も出すために trip に残し、承認以降も引き継ぐ
+ */
+export type PlanRevision = {
+  reason: PlanRevisionReason;
+  previous: {
+    plan: TripPlan;
+    proposedAt: IsoDateTime;
+    visibility: PaymentVisibility;
+  };
+  revisedAt: IsoDateTime;
+};
+
+/**
+ * 年齢の証明が通らなかった記録 (提案済みの trip にだけ付く)
+ *
+ * `visibility` は承認のときに選んでいた公開範囲で、組み直しの `revision.previous.visibility` に写す
+ * 組み直すと新しい提案には付かない
+ */
+export type FailedAgeCheck = {
+  ageLimit: number;
+  cutoffDate: IsoDate;
+  visibility: PaymentVisibility;
+  checkedAt: IsoDateTime;
+};
+
+/**
  * 秘書が提案したプラン
  *
  * まだ何も確定していない
@@ -40,6 +86,12 @@ export type ProposedTrip = {
   event: CalendarEvent;
   plan: TripPlan;
   proposedAt: IsoDateTime;
+
+  /** 作り直した提案なら、その記録 */
+  revision?: PlanRevision;
+
+  /** 年齢の証明が通らなかったなら、その記録 */
+  failedAgeCheck?: FailedAgeCheck;
 };
 
 /**
@@ -59,6 +111,12 @@ export type ApprovedTrip = {
   approvedAt: IsoDateTime;
   visibility: PaymentVisibility;
   authorizations: readonly Authorization[];
+
+  /** 成人の証明 (計画が年齢制限つきの候補を含むときだけ) */
+  ageProof?: AgeProof;
+
+  /** 承認した提案が作り直したものなら、その記録 */
+  revision?: PlanRevision;
 };
 
 /**
@@ -75,6 +133,12 @@ export type PaidTrip = {
   approvedAt: IsoDateTime;
   visibility: PaymentVisibility;
   authorizations: readonly Authorization[];
+
+  /** 成人の証明 (承認のときのものを引き継ぐ) */
+  ageProof?: AgeProof;
+
+  /** 作り直しの記録 (承認のときのものを引き継ぐ) */
+  revision?: PlanRevision;
   paidAt: IsoDateTime;
 };
 
@@ -90,6 +154,12 @@ export type WrittenTrip = {
   approvedAt: IsoDateTime;
   visibility: PaymentVisibility;
   authorizations: readonly Authorization[];
+
+  /** 成人の証明 (承認のときのものを引き継ぐ) */
+  ageProof?: AgeProof;
+
+  /** 作り直しの記録 (承認のときのものを引き継ぐ) */
+  revision?: PlanRevision;
   paidAt: IsoDateTime;
   writtenEventId: CalendarEventId;
   writtenAt: IsoDateTime;
@@ -162,18 +232,29 @@ export const visibilityFor = (
 
 /**
  * ユーザの承認と、そのとき選んだ候補ごとの公開範囲を記録する
+ *
+ * 計画が年齢制限つきの候補を含むときは、通った成人の証明を `ageProof` として残す
+ * 作り直した提案の承認なら、その記録 (`revision`) も引き継ぐ
+ * 承認できるのは証明が通った (または要らない) trip だけなので、`failedAgeCheck` は写さない
  */
 export const markApproved = (
   trip: ProposedTrip,
   approvedAt: IsoDateTime,
   visibility: PaymentVisibility,
+  ageProof?: AgeProof,
 ): ApprovedTrip => {
+  // spread は余分なプロパティを型で拒まないので、`failedAgeCheck` を写さないよう項目を並べて組む
   return {
-    ...trip,
     status: "approved",
+    id: trip.id,
+    event: trip.event,
+    plan: trip.plan,
+    proposedAt: trip.proposedAt,
     approvedAt,
     visibility,
     authorizations: [],
+    ...(ageProof === undefined ? {} : { ageProof }),
+    ...(trip.revision === undefined ? {} : { revision: trip.revision }),
   };
 };
 

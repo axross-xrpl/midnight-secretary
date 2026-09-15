@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import {
+  approveTripBodySchema,
   proposeTripBodySchema,
+  replanBodySchema,
   setUpMandateBodySchema,
   writeBackBodySchema,
 } from "./secretary-request";
@@ -58,6 +60,69 @@ describe("proposeTripBodySchema", () => {
     const parsed = proposeTripBodySchema.safeParse({
       eventId: "seed-2",
       locale: "fr",
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+});
+
+describe("approveTripBodySchema", () => {
+  test("公開範囲だけを受け付ける", () => {
+    const parsed = approveTripBodySchema.safeParse({
+      visibility: { lodging: "private" },
+    });
+
+    expect(parsed.success).toBe(true);
+  });
+
+  test("visibility が無ければ拒否する", () => {
+    const parsed = approveTripBodySchema.safeParse({});
+
+    expect(parsed.success).toBe(false);
+  });
+
+  test("locale は要らないので、あれば余分なキーとして拒否する", () => {
+    const parsed = approveTripBodySchema.safeParse({
+      visibility: {},
+      locale: "ja",
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  test("余分なキーは拒否する", () => {
+    const parsed = approveTripBodySchema.safeParse({
+      visibility: {},
+      tripId: "trip-1",
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+});
+
+describe("replanBodySchema", () => {
+  test("locale を受け付ける", () => {
+    const parsed = replanBodySchema.safeParse({ locale: "ja" });
+
+    expect(parsed.success).toBe(true);
+  });
+
+  test("locale が無ければ拒否する", () => {
+    const parsed = replanBodySchema.safeParse({});
+
+    expect(parsed.success).toBe(false);
+  });
+
+  test("知らない locale は拒否する", () => {
+    const parsed = replanBodySchema.safeParse({ locale: "fr" });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  test("余分なキーは拒否する", () => {
+    const parsed = replanBodySchema.safeParse({
+      locale: "ja",
+      visibility: {},
     });
 
     expect(parsed.success).toBe(false);

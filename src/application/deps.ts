@@ -1,8 +1,10 @@
 import type { CalendarPort } from "@/domain/calendar";
 import type { FareCatalogPort } from "@/domain/catalog";
 import type { TripId } from "@/domain/identifiers";
+import type { IdentityPort } from "@/domain/identity";
 import type { MandatePort } from "@/domain/mandate";
 import type { PlannerPort } from "@/domain/planner";
+import type { ProfilePort } from "@/domain/profile";
 import type { SecretaryStore } from "@/domain/store";
 
 /**
@@ -24,5 +26,7 @@ export type SecretaryDeps = {
   planner: PlannerPort;
   mandate: MandatePort;
   store: SecretaryStore;
+  identity: IdentityPort;
+  profile: ProfilePort;
   newTripId: NewTripId;
 };

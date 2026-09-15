@@ -5,6 +5,7 @@ import type { SchemaError } from "@/lib/schema";
 import type {
   ApproveTripBody,
   ProposeTripBody,
+  ReplanBody,
   SetUpMandateBody,
   WriteBackBody,
 } from "@/lib/secretary-request";
@@ -110,6 +111,7 @@ export const requestProposeTrip = (
  * `POST /api/secretary/trips/[tripId]/approve`
  *
  * `body.visibility` は候補ごとの公開範囲で、指定の無い候補は公開になる
+ * 年齢確認が通らなければ承認済みではなく、`failedAgeCheck` を付けた提案済みの trip が返る
  */
 export const requestApproveTrip = (
   fetchFn: FetchLike,
@@ -122,6 +124,19 @@ export const requestApproveTrip = (
     body,
     parseTripResponse,
   );
+};
+
+/**
+ * `POST /api/secretary/trips/[tripId]/replan`
+ *
+ * 年齢確認が通らなかった提案を年齢制限のない候補で組み直し、`revision` つきの提案が返る
+ */
+export const requestReplanTrip = (
+  fetchFn: FetchLike,
+  tripId: string,
+  body: ReplanBody,
+): Promise<Result<TripResponse, RequestFailure>> => {
+  return postJson(fetchFn, tripPath(tripId, "replan"), body, parseTripResponse);
 };
 
 /**

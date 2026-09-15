@@ -69,6 +69,17 @@ export const serializableSecretaryError = (
       source: "store",
       error: { ...inner, cause: describeCause(inner.cause) },
     }))
+    .with(
+      { source: "identity", error: { cause: P._ } },
+      ({ error: inner }) => ({
+        source: "identity",
+        error: { ...inner, cause: describeCause(inner.cause) },
+      }),
+    )
+    .with({ source: "profile", error: { cause: P._ } }, ({ error: inner }) => ({
+      source: "profile",
+      error: { ...inner, cause: describeCause(inner.cause) },
+    }))
     .otherwise(() => error);
 };
 
@@ -115,7 +126,16 @@ export const statusOf = (error: SecretaryError): number => {
       () => 409,
     )
     .with(
-      { source: "flow", error: { kind: "privateSettlementUnsupported" } },
+      {
+        source: "flow",
+        error: {
+          kind: P.union(
+            "privateSettlementUnsupported",
+            "birthDateMissing",
+            "replanNotNeeded",
+          ),
+        },
+      },
       () => 422,
     )
     .with({ source: "mandate", error: { kind: "notFound" } }, () => 404)
@@ -156,6 +176,21 @@ export const statusOf = (error: SecretaryError): number => {
     .with({ source: "plan" }, () => 422)
     .with({ source: "money" }, () => 422)
     .with({ source: "store" }, () => 502)
+    .with(
+      {
+        source: "identity",
+        error: { kind: P.union("notRegistered", "alreadyRegistered") },
+      },
+      () => 409,
+    )
+    .with(
+      {
+        source: "identity",
+        error: { kind: P.union("proofFailed", "unavailable") },
+      },
+      () => 502,
+    )
+    .with({ source: "profile" }, () => 502)
     .exhaustive();
 };
 

@@ -2,31 +2,42 @@ import type { NewTripId } from "@/application/deps";
 import type { EnvLike } from "@/application/sources";
 import type { RequestContext, SecretaryFactories } from "@/application/wiring";
 import type { CalendarPort } from "@/domain/calendar";
-import type { CalendarEventId, IsoDateTime } from "@/domain/identifiers";
+import type {
+  CalendarEventId,
+  IsoDate,
+  IsoDateTime,
+} from "@/domain/identifiers";
 import { payToken } from "@/lib/dev-contracts/token";
 import { err } from "@/lib/result";
 import { createFakeCalendar, seedCalendarEvents } from "./calendar/fake";
 import { createGoogleCalendar } from "./calendar/google";
 import { createFakeCatalog, seedCatalog } from "./catalog/fake";
 import { createNeonCatalog } from "./catalog/neon";
+import type { FakeIdentityIds } from "./identity/fake";
+import { createFakeIdentity } from "./identity/fake";
 import type { FakeMandateIds } from "./mandate/fake";
 import { createFakeMandate } from "./mandate/fake";
 import { createRealMandate } from "./mandate/real";
 import { createFakePlanner } from "./planner/fake";
+import { createFakeProfile } from "./profile/fake";
+import { createNeonProfile } from "./profile/neon";
 import { createFakeStore } from "./store/fake";
 
 /**
  * adapter に渡すプロセス全体の入力で、環境変数と開始時刻と id の生成関数
  *
  * id は非決定的なので注入する
+ * `demoBirthDate` は Fake のプロフィールが全ユーザに返す生年月日で、起動日から決める
  * 各レーンは自分の adapter が入るときに自分のフィールドを追加する
  */
 export type ProcessResources = {
   env: EnvLike;
   startedAt: IsoDateTime;
+  demoBirthDate: IsoDate;
   newTripId: NewTripId;
   newEventId: () => CalendarEventId;
   mandateIds: FakeMandateIds;
+  identityIds: FakeIdentityIds;
 };
 
 // Google のトークンが無いリクエストはユーザのカレンダーに届かないので、空のふりをするよりそう伝える方がよい
@@ -74,6 +85,12 @@ export const createSecretaryFactories = (
     },
   });
   const fakeStore = createFakeStore();
+  const fakeIdentity = createFakeIdentity({ ids: resources.identityIds });
+  const fakeProfile = createFakeProfile({
+    birthDate: resources.demoBirthDate,
+  });
+  // カタログと同じく、接続は readProfile の getDb() が持つ
+  const neonProfile = createNeonProfile();
 
   return {
     calendar: { real: googleCalendarFor, fake: () => fakeCalendar },
@@ -81,6 +98,8 @@ export const createSecretaryFactories = (
     planner: { real: () => fakePlanner, fake: () => fakePlanner },
     mandate: { real: () => realMandate, fake: () => fakeMandate },
     store: { real: () => fakeStore, fake: () => fakeStore },
+    identity: { real: () => fakeIdentity, fake: () => fakeIdentity },
+    profile: { real: () => neonProfile, fake: () => fakeProfile },
     newTripId: resources.newTripId,
   };
 };

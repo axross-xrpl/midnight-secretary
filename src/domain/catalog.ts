@@ -150,3 +150,17 @@ export type FareCatalogPort = {
   listDestinations: ListDestinations;
   findOffers: FindOffers;
 };
+
+const withoutAgeVerification = (offer: PlaceOffer): boolean => {
+  return !offer.requiredVerifications.includes("age");
+};
+
+/**
+ * 飲食の候補から年齢確認を要するものを除いた候補の集合
+ *
+ * 年齢確認が通らなかったときの作り直しに使う
+ * `adultRequirementOf` が見るのは飲食だけなので、レジャーはそのまま
+ */
+export const withoutAgeRestrictedDining = (offers: OfferSet): OfferSet => {
+  return { ...offers, dining: offers.dining.filter(withoutAgeVerification) };
+};
