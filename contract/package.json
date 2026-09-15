@@ -20,6 +20,9 @@
     "fund-shielded": "node --env-file=.env --import tsx src/shared/fund-shielded.ts",
     "address": "node --env-file=.env --import tsx src/shared/get-address.ts",
     "register-dust": "node --env-file=.env --import tsx src/shared/register-dust.ts",
+    "deploy-age-verification": "node --env-file=.env --import tsx src/age-verification/deploy.ts",
+    "register-age": "node --env-file=.env --import tsx src/age-verification/register.ts",
+    "prove-age": "node --env-file=.env --import tsx src/age-verification/prove.ts",
     "server": "node --env-file=.env --import tsx src/server.ts"
   },
   "dependencies": {
