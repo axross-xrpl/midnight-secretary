@@ -112,9 +112,20 @@ not stop the server but makes that port's calls fail:
 | planner | `GEMINI_API_KEY`, `GEMINI_MODEL` (optional) | every proposal (`planner.llm` when the key is missing) |
 | mandate | `MANDATE_SETTLEMENT_RECIPIENT` | every payment (`unavailable` when missing) |
 | profile | `DATABASE_URL` | the age proof reads the date of birth from the profile page's table |
+| identity | `AGE_VERIFICATION_ADDRESS`, `AGE_VERIFICATION_DOB`, `AGE_VERIFICATION_SEED` (in `contract/.env`, read by the contract server) | issuing the credential and every age proof (`unavailable` when the contract server has no age verification) |
 
-`SECRETARY_IDENTITY=real` still runs the in-process fake until the contract server exposes the age
-verification endpoints.
+`SECRETARY_IDENTITY=real` issues the credential and proves the age through the contract server's
+`/age-verification/*` routes. What is real there is the circuit, the proof, and the on-chain record:
+the date of birth is registered as a commitment on the deployed age-verification contract, and each
+proof is a transaction whose id becomes the proof reference. What is not real is who holds the
+secrets. The date of birth and the identity secret stay with the contract server (the app sends the
+date of birth to it over loopback HTTP), not with the user, so this is a dev stand-in for the flow
+where a wallet on the user's side proves without ever sending them anywhere. The contract server
+needs `AGE_VERIFICATION_ADDRESS`, `AGE_VERIFICATION_DOB`, and `AGE_VERIFICATION_SEED` in
+`contract/.env`, and `AGE_VERIFICATION_SEED` must be a different value from `DEPLOYER_SEED`:
+`deploy-age-verification` writes a private state with a date of birth of 0 under the deployer's
+account, so with the same seed `AGE_VERIFICATION_DOB` is ignored and every proof comes out as
+"adult".
 
 `SECRETARY_STORE=real` writes the confirmed itinerary to NeonDB (`trips` and `trip_items`) once the trip
 is on the calendar, and reads the Confirmed tab from there, so it needs `DATABASE_URL`. Trips in progress
