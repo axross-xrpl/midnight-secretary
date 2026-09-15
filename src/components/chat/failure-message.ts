@@ -51,6 +51,7 @@ const PLAIN_FAILURE_KEYS = [
   "flow.wrongStatus",
   "flow.privateSettlementUnsupported",
   "flow.birthDateMissing",
+  // `flow.ageCredentialMissing` は設定画面へのリンクを含むので、ここには入れず variant を分ける
   "flow.replanNotNeeded",
   "identity.notRegistered",
   "identity.alreadyRegistered",
@@ -73,10 +74,11 @@ export type PlainFailureKey = (typeof PLAIN_FAILURE_KEYS)[number];
 /**
  * 画面に出す文言の引き方
  *
- * 金額を埋める 2 つだけ variant を分け、`t` の引数を型で合わせる
+ * 金額を埋める 2 つとリンクを含む 1 つだけ variant を分け、`t` の引数を型で合わせる
  */
 export type FailureMessage =
   | { kind: "plain"; key: PlainFailureKey }
+  | { kind: "ageCredentialMissing" }
   | { kind: "planOverBudget"; budget: MoneyResponse; total: MoneyResponse }
   | {
       kind: "mandateOverBudget";
@@ -128,6 +130,10 @@ const secretaryMessage = (error: SecretaryErrorJson): FailureMessage => {
 
   if (raw === "mandate.overBudget") {
     return mandateOverBudget(error);
+  }
+
+  if (raw === "flow.ageCredentialMissing") {
+    return { kind: "ageCredentialMissing" };
   }
 
   const known = PLAIN_FAILURE_KEYS.find((candidate) => candidate === raw);

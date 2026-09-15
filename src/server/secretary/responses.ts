@@ -3,6 +3,7 @@ import "server-only";
 import { match, P } from "ts-pattern";
 import type { SecretaryError } from "@/application/errors";
 import type { WriteBackResult } from "@/application/secretary";
+import type { AgeRegistration } from "@/domain/identity";
 import type { StoreError } from "@/domain/store";
 import { fromThrowable } from "@/lib/result";
 
@@ -120,6 +121,27 @@ export const writeBackResponseOf = (
 };
 
 /**
+ * 年齢確認証明書を JSON にする
+ *
+ * 生年月日はもちろん `userId` も返さず、公開される `identity` と発行時刻だけを載せる
+ * 未発行はフィールドごと消えないよう null にする (JSON では undefined が消えるため)
+ */
+export const ageCredentialResponseOf = (
+  registration: AgeRegistration | undefined,
+): Readonly<Record<string, unknown>> => {
+  if (registration === undefined) {
+    return { credential: null };
+  }
+
+  return {
+    credential: {
+      identity: registration.identity,
+      registeredAt: registration.registeredAt,
+    },
+  };
+};
+
+/**
  * use case の失敗に対応する HTTP status
  */
 export const statusOf = (error: SecretaryError): number => {
@@ -167,6 +189,7 @@ export const statusOf = (error: SecretaryError): number => {
         error: {
           kind: P.union(
             "privateSettlementUnsupported",
+            "ageCredentialMissing",
             "birthDateMissing",
             "replanNotNeeded",
           ),

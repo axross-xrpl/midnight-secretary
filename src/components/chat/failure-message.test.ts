@@ -153,6 +153,18 @@ describe("failureMessageOf", () => {
     ).toStrictEqual({ kind: "plain", key: "profile.unavailable" });
   });
 
+  test("証明書の未発行はリンクを含むので専用の variant になる", () => {
+    expect(
+      failureMessageOf({
+        code: "secretary",
+        error: {
+          source: "flow",
+          error: { kind: "ageCredentialMissing", tripId: "trip-1" },
+        },
+      }),
+    ).toStrictEqual({ kind: "ageCredentialMissing" });
+  });
+
   test("知らない source と kind は unknown になる", () => {
     expect(
       failureMessageOf({
@@ -164,9 +176,12 @@ describe("failureMessageOf", () => {
 });
 
 describe("メッセージのキー", () => {
-  test("plain キーと 2 つの overBudget で SecretaryError と封筒の失敗をすべて覆う", () => {
+  test("plain キーと 2 つの overBudget と証明書の未発行で SecretaryError と封筒の失敗をすべて覆う", () => {
     expectTypeOf<
-      PlainFailureKey | "plan.overBudget" | "mandate.overBudget"
+      | PlainFailureKey
+      | "plan.overBudget"
+      | "mandate.overBudget"
+      | "flow.ageCredentialMissing"
     >().toEqualTypeOf<ExpectedFailureKey>();
   });
 });
