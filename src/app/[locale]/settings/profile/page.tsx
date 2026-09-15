@@ -1,11 +1,11 @@
 import { getTranslations } from "next-intl/server";
 import { secretaryContext } from "@/adapters/auth/session";
 import { readAgeCredential } from "@/application/secretary";
+import type { AgeCredentialInitial } from "@/components/settings/age-credential-card";
 import { AgeCredentialCard } from "@/components/settings/age-credential-card";
 import { ProfileForm } from "@/components/settings/profile-form";
 import type { ProfileDto } from "@/features/profile/schemas";
 import { requireSessionUser } from "@/lib/require-session";
-import type { AgeRegistrationResponse } from "@/lib/secretary-response";
 import {
   readGenreOptions,
   readHomeOptions,
@@ -17,14 +17,12 @@ const hasBirthDate = (profile: ProfileDto | null): boolean => {
   return profile !== null && profile.birthDate !== null;
 };
 
-// 発行済みかどうかだけを初期値にするので、読めなかったときは未発行として出す (発行は二重に押されても壊れない)
-const issuedCredential = async (): Promise<
-  AgeRegistrationResponse | undefined
-> => {
+// 読めなかったことを未発行と混ぜない (real では contract server が落ちているだけで読めなくなる)
+const initialCredential = async (): Promise<AgeCredentialInitial> => {
   const context = await secretaryContext();
 
   if (!context.ok) {
-    return undefined;
+    return { kind: "unavailable" };
   }
 
   const credential = await readAgeCredential(
@@ -32,13 +30,20 @@ const issuedCredential = async (): Promise<
     context.value.deps,
   );
 
-  if (!credential.ok || credential.value === undefined) {
-    return undefined;
+  if (!credential.ok) {
+    return { kind: "unavailable" };
+  }
+
+  if (credential.value === undefined) {
+    return { kind: "none" };
   }
 
   return {
-    identity: credential.value.identity,
-    origin: credential.value.origin,
+    kind: "issued",
+    credential: {
+      identity: credential.value.identity,
+      origin: credential.value.origin,
+    },
   };
 };
 
@@ -50,7 +55,7 @@ export default async function ProfileSettingsPage() {
       readProfile(user.userId),
       readHomeOptions(),
       readGenreOptions(),
-      issuedCredential(),
+      initialCredential(),
       getTranslations("ProfileSettings"),
     ],
   );
@@ -68,7 +73,7 @@ export default async function ProfileSettingsPage() {
       </div>
       <div className="mb-6">
         <AgeCredentialCard
-          {...(credential === undefined ? {} : { initial: credential })}
+          initial={credential}
           hasBirthDate={hasBirthDate(profile)}
         />
       </div>

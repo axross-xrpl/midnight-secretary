@@ -160,7 +160,16 @@
       "description": "生年月日から、年齢の条件を満たすことだけを証明する証明書を発行します。生年月日そのものは相手に渡りません。",
       "issue": "証明書を発行",
       "issued": "証明書発行済み",
-      "needsBirthDate": "生年月日の登録が必要です"
+      "needsBirthDate": "生年月日の登録が必要です",
+      "unavailable": "証明書の状態を確認できませんでした。",
+      "recheck": "もう一度確認",
+      "details": {
+        "toggle": "詳細",
+        "identity": "公開 ID",
+        "dobCommitment": "生年月日のコミットメント",
+        "contractAddress": "コントラクトのアドレス",
+        "memory": "この証明書はメモリ上のもので、Midnight には載っていません"
+      }
     },
     "readiness": {
       "title": "この設定で手配できる範囲",
