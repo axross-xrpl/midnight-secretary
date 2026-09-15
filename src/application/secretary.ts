@@ -71,6 +71,7 @@ import type { Result } from "@/lib/result";
 import { err, ok } from "@/lib/result";
 import type { SecretaryDeps } from "./deps";
 import type { FlowError, SecretaryError } from "./errors";
+import { DEFAULT_PREFERENCES } from "./preferences";
 
 /**
  * ダッシュボードが表示するものすべて (ユーザの mandate があればそれ、今後の予定、trip)
@@ -92,13 +93,12 @@ export type LedgerViews = {
 /**
  * trip を提案するときの入力
  *
- * Wave 1 では preferences は定数
+ * 好みはプロフィールから読むので受け取らない
  */
 export type ProposeTripInput = {
   userId: UserId;
   eventId: CalendarEventId;
   locale: Locale;
-  preferences: TravelerPreferences;
   now: IsoDateTime;
 };
 
@@ -125,13 +125,13 @@ export type ApprovalOutcome =
 /**
  * 年齢の証明が通らなかった trip を、年齢制限のない候補で組み直すときの入力
  *
- * `locale` と `preferences` は planner の呼び直しに要る
+ * `locale` は planner の呼び直しに要る
+ * 好みはプロフィールから読むので受け取らない
  */
 export type ReplanTripInput = {
   userId: UserId;
   tripId: TripId;
   locale: Locale;
-  preferences: TravelerPreferences;
   now: IsoDateTime;
 };
 
@@ -322,6 +322,21 @@ const budgetOf = async (
   }
 
   return ok(budget.value);
+};
+
+// planner に渡す好みをプロフィールから読む
+// プロフィールが無いユーザにも計画は作れるので、好みが無ければ既定値で進める
+const preferencesOf = async (
+  userId: UserId,
+  deps: SecretaryDeps,
+): Promise<Result<TravelerPreferences, SecretaryError>> => {
+  const preferences = await deps.profile.readPreferences(userId);
+
+  if (!preferences.ok) {
+    return err(fromProfile(preferences.error));
+  }
+
+  return ok(preferences.value ?? DEFAULT_PREFERENCES);
 };
 
 // 候補の集合から planner に選ばせ、その選択を候補と突き合わせて計画に組み立てる
@@ -518,9 +533,15 @@ const reviseWithoutAgeRestricted = async (
     return budget;
   }
 
+  const preferences = await preferencesOf(input.userId, deps);
+
+  if (!preferences.ok) {
+    return preferences;
+  }
+
   const intent = trip.plan.intent;
   const offers = await deps.catalog.findOffers(
-    offerQueryFor(intent, input.preferences),
+    offerQueryFor(intent, preferences.value),
   );
 
   if (!offers.ok) {
@@ -532,7 +553,7 @@ const reviseWithoutAgeRestricted = async (
     withoutAgeRestrictedDining(offers.value),
     {
       locale: input.locale,
-      preferences: input.preferences,
+      preferences: preferences.value,
       budget: budget.value,
     },
     deps,
@@ -753,6 +774,7 @@ export const setUpMandate = async (
  *
  * 流れは、予定の取得 -> 解釈 -> 候補の検索 -> 選択 -> 組み立て (検証) -> proposed として保存
  * planner に渡す予算は、ユーザの mandate (支払い枠) の残り
+ * planner に渡す好みはプロフィールから読み、無ければ既定値を使う
  * mandate の確認を planner より前に置くのは、LLM を呼ぶ前に確実に失敗するものを弾くため
  */
 export const proposeTrip = async (
@@ -781,6 +803,12 @@ export const proposeTrip = async (
     return budget;
   }
 
+  const preferences = await preferencesOf(input.userId, deps);
+
+  if (!preferences.ok) {
+    return preferences;
+  }
+
   const destinations = await deps.catalog.listDestinations();
 
   if (!destinations.ok) {
@@ -798,7 +826,7 @@ export const proposeTrip = async (
   }
 
   const offers = await deps.catalog.findOffers(
-    offerQueryFor(intent.value, input.preferences),
+    offerQueryFor(intent.value, preferences.value),
   );
 
   if (!offers.ok) {
@@ -810,7 +838,7 @@ export const proposeTrip = async (
     offers.value,
     {
       locale: input.locale,
-      preferences: input.preferences,
+      preferences: preferences.value,
       budget: budget.value,
     },
     deps,

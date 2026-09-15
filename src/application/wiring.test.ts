@@ -92,6 +92,7 @@ const stubIdentity = (): IdentityPort => {
 const stubProfile = (): ProfilePort => {
   return {
     readBirthDate: async () => ok(undefined),
+    readPreferences: async () => ok(undefined),
   };
 };
 

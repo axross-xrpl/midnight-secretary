@@ -2,7 +2,6 @@ import "server-only";
 
 import type { NextRequest } from "next/server";
 import type { SecretaryContext, SessionError } from "@/adapters/auth/session";
-import { WAVE1_PREFERENCES } from "@/application/preferences";
 import {
   approveTrip,
   deleteConfirmedTrip,
@@ -142,7 +141,6 @@ export const handleProposeTrip = async (
       userId: context.value.userId,
       eventId: input.value.eventId,
       locale: input.value.locale,
-      preferences: WAVE1_PREFERENCES,
       now: context.value.now,
     },
     context.value.deps,
@@ -243,7 +241,6 @@ export const handleReplanTrip = async (
       userId: context.value.userId,
       tripId: parsedTripId.value,
       locale: input.value.locale,
-      preferences: WAVE1_PREFERENCES,
       now: context.value.now,
     },
     context.value.deps,

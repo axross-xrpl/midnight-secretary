@@ -2,10 +2,12 @@ import "server-only";
 
 import type { IsoDate } from "@/domain/identifiers";
 import { parseIsoDate } from "@/domain/identifiers.parse";
+import type { TravelerPreferences } from "@/domain/plan";
 import type {
   ProfileError,
   ProfilePort,
   ReadBirthDate,
+  ReadPreferences,
 } from "@/domain/profile";
 import type { ProfileDto } from "@/features/profile/schemas";
 import type { Result } from "@/lib/result";
@@ -50,12 +52,40 @@ const readBirthDate: ReadBirthDate = async (userId) => {
   return birthDateOf(profile.value);
 };
 
+// 行が無ければ好みも無い (未登録)
+// 出発地は起点 (home_spot) があればそれ、無ければ都市 (home_city) を使う
+// 交通手段の列はプロフィールに無いので付けない
+const preferencesOf = (
+  profile: ProfileDto | null,
+): TravelerPreferences | undefined => {
+  if (profile === null) {
+    return undefined;
+  }
+
+  return {
+    homeStation: profile.homeSpot ?? profile.homeCity,
+    diningGenres: profile.diningGenres,
+    leisureGenres: profile.leisureGenres,
+    ...(profile.priority === null ? {} : { notes: profile.priority }),
+  };
+};
+
+const readPreferences: ReadPreferences = async (userId) => {
+  const profile = await fromPromise(readProfile(userId), unavailable);
+
+  if (!profile.ok) {
+    return profile;
+  }
+
+  return ok(preferencesOf(profile.value));
+};
+
 /**
- * NeonDB のプロフィール (#16 の `user_profiles`) から生年月日を読む
+ * NeonDB のプロフィール (#16 の `user_profiles`) から生年月日と好みを読む
  *
  * `DATABASE_URL` の扱いは `readProfile` (drizzle) に任せ、接続や問い合わせの失敗は `unavailable` にする
  * 読むだけで、プロフィール画面の書き込みには触れない
  */
 export const createNeonProfile = (): ProfilePort => {
-  return { readBirthDate };
+  return { readBirthDate, readPreferences };
 };

@@ -34,7 +34,7 @@ const interpretContext: InterpretContext = {
 
 const choiceContext: ChoiceContext = {
   locale: "ja",
-  preferences: { homeStation: "東京" },
+  preferences: { homeStation: "東京", diningGenres: [], leisureGenres: [] },
   budget: { amount: mustParse(parseAmount(100000)), currency: "MST" },
 };
 

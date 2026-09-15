@@ -7,6 +7,7 @@ import type {
   IsoDate,
   IsoDateTime,
 } from "@/domain/identifiers";
+import type { TravelerPreferences } from "@/domain/plan";
 import { payToken } from "@/lib/dev-contracts/token";
 import { payShieldedToken } from "@/lib/dev-contracts/shielded-token";
 import { err } from "@/lib/result";
@@ -43,6 +44,15 @@ export type ProcessResources = {
   mandateIds: FakeMandateIds;
   identityIds: FakeIdentityIds;
 };
+
+// demo のプロフィールが全ユーザに返す好み
+// real のプロフィールと同じ絵になるよう、飲食は居酒屋、レジャーは history を好みに置く
+const DEMO_PREFERENCES = {
+  homeStation: "東京",
+  preferredTransport: "rail",
+  diningGenres: ["居酒屋"],
+  leisureGenres: ["history"],
+} as const satisfies TravelerPreferences;
 
 // Google のトークンが無いリクエストはユーザのカレンダーに届かないので、空のふりをするよりそう伝える方がよい
 const UNAUTHENTICATED_CALENDAR: CalendarPort = {
@@ -113,6 +123,7 @@ export const createSecretaryFactories = (
   const fakeIdentity = createFakeIdentity({ ids: resources.identityIds });
   const fakeProfile = createFakeProfile({
     birthDate: resources.demoBirthDate,
+    preferences: DEMO_PREFERENCES,
   });
   // カタログと同じく、接続は readProfile の getDb() が持つ
   const neonProfile = createNeonProfile();

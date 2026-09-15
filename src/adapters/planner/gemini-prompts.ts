@@ -147,6 +147,7 @@ ${JSON.stringify(eventFacts(event))}
  *
  * 予算と泊数は伝えるが、最終的な検査は `assemblePlan` が行う
  * 飲食とレジャーは用件から要るかどうかを判断させ、要らなければ null を返させる
+ * 選ぶときは出張者の好み (`diningGenres` / `leisureGenres`) に合う genre を優先させる
  */
 export const choicePrompt = (
   intent: TripIntent,
@@ -192,6 +193,7 @@ nights が 1 以上なら宿を 1 つ選んで lodgingId に書き、0 なら lo
 id は上の一覧にあるものだけを使ってください。
 交通は doorToDoor (拠点から目的地までの所要と総額) があればそれで比べ、宿は rating と requiredVerifications (利用者に求められる本人確認) も考慮してください。
 飲食とレジャーは用件と出張者の好みに合うものを選んでください。
+飲食とレジャーを選ぶときは、出張者の好み (diningGenres / leisureGenres) に合う genre を優先してください。
 requiredVerifications や ageLimit のある候補も、用件に合うならそのまま選んでかまいません (本人確認は承認のときに行います)。
 rationale には選んだ理由を 2 文までで書いてください。`;
 };

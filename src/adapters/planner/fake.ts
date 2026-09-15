@@ -7,7 +7,11 @@ import type {
 } from "@/domain/catalog";
 import { nightsBetween } from "@/domain/dates";
 import type { OfferId } from "@/domain/identifiers";
-import type { PlanChoice, TripIntent } from "@/domain/plan";
+import type {
+  PlanChoice,
+  TravelerPreferences,
+  TripIntent,
+} from "@/domain/plan";
 import type {
   ChoiceContext,
   InterpretContext,
@@ -92,35 +96,54 @@ const mentionsAny = (intent: TripIntent, cues: readonly string[]): boolean => {
   return cues.some((cue) => intent.purpose.includes(cue));
 };
 
-// 居酒屋を優先し、無ければ飲食の先頭を取る
+// 出張者の好みに合う genre の候補を取る (好みが空か、合う候補が無ければ undefined)
+const matchingGenre = (
+  offers: readonly PlaceOffer[],
+  genres: readonly string[],
+): PlaceOffer | undefined => {
+  return offers.find(
+    (offer) => offer.genre !== undefined && genres.includes(offer.genre),
+  );
+};
+
+// 好みの genre を優先し、無ければ居酒屋、それも無ければ飲食の先頭を取る
 const chooseDining = (
   intent: TripIntent,
   offers: OfferSet,
+  preferences: TravelerPreferences,
 ): PlaceOffer | undefined => {
   if (!mentionsAny(intent, DINING_CUES)) {
     return undefined;
   }
 
+  const preferred = matchingGenre(offers.dining, preferences.diningGenres);
   const izakaya = offers.dining.find((offer) => offer.genre === IZAKAYA_GENRE);
 
-  return izakaya ?? offers.dining.at(0);
+  return preferred ?? izakaya ?? offers.dining.at(0);
 };
 
 const needsNoVerification = (offer: PlaceOffer): boolean => {
   return offer.requiredVerifications.length === 0;
 };
 
-// レジャーは本人確認の要らない候補を優先し、無ければ先頭を取る
-// 飲食と違い種類を絞る手がかりが題名に無いので、誰でも申し込める候補を先に出す
+// 好みの genre を優先し、無ければ本人確認の要らない候補、それも無ければ先頭を取る
+// 飲食と違い種類を絞る手がかりが題名に無いので、好みが無ければ誰でも申し込める候補を先に出す
 const chooseLeisure = (
   intent: TripIntent,
   offers: OfferSet,
+  preferences: TravelerPreferences,
 ): PlaceOffer | undefined => {
   if (!mentionsAny(intent, LEISURE_CUES)) {
     return undefined;
   }
 
-  return offers.leisure.find(needsNoVerification) ?? offers.leisure.at(0);
+  const preferred = matchingGenre(offers.leisure, preferences.leisureGenres);
+
+  return (
+    preferred ??
+    offers.leisure.find(needsNoVerification) ??
+    offers.leisure.at(0)
+  );
 };
 
 // 選んだ場ごとの句を理由に足す (場が無ければ基本の理由のまま)
@@ -158,8 +181,8 @@ const choose = (
   }
 
   const lodgingId = chooseLodgingId(intent, offers);
-  const dining = chooseDining(intent, offers);
-  const leisure = chooseLeisure(intent, offers);
+  const dining = chooseDining(intent, offers, context.preferences);
+  const leisure = chooseLeisure(intent, offers, context.preferences);
 
   return ok({
     outboundId: outbound.id,
@@ -176,8 +199,10 @@ const choose = (
  *
  * `interpretEvent` はタイトルか場所で最初に見つかった既知の目的地と、予定の日付を取る
  * `choosePlan` はカタログにあれば希望の交通手段を取り、滞在が 1 泊以上なら最初の宿泊を取る
- * 予定の題名 (= `purpose`) が 懇親会 / 会食 / 飲み会 / 居酒屋 のいずれかを含めば、飲食の候補から居酒屋 (無ければ先頭) を取る
- * 題名が 視察 / 観光 / 見学 のいずれかを含めば、レジャーの候補から本人確認の要らない先頭 (無ければ先頭) を取る
+ * 予定の題名 (= `purpose`) が 懇親会 / 会食 / 飲み会 / 居酒屋 のいずれかを含めば飲食の候補を取る
+ * 題名が 視察 / 観光 / 見学 のいずれかを含めばレジャーの候補を取る
+ * どちらも出張者の好み (`diningGenres` / `leisureGenres`) に合う genre を先に取る
+ * 好みが空か合う候補が無ければ、飲食は居酒屋 (無ければ先頭)、レジャーは本人確認の要らない先頭 (無ければ先頭) を取る
  * 予算は `assemblePlan` に任せ、そちらが mandate で賄えない計画を弾く
  */
 export const createFakePlanner = (): PlannerPort => {
