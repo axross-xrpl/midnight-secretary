@@ -5,6 +5,7 @@ import type { ScanEvent } from "@/lib/calendar-scan-response";
 import type {
   AgeProofResponse,
   AuthorizationResponse,
+  FailedAgeCheckResponse,
   MoneyResponse,
   PaymentVisibilityResponse,
   PlanRevisionResponse,
@@ -239,7 +240,23 @@ const PAID_WITH_PROOF: TripResponse = {
   paidAt: "2026-09-10T00:02:00Z",
 };
 
-// 居酒屋つきの提案を承認したが証明が通らず、カフェの計画に作り直した記録
+// 居酒屋つきの提案を承認したが、証明が通らなかった記録
+const FAILED_AGE_CHECK: FailedAgeCheckResponse = {
+  ageLimit: 20,
+  cutoffDate: "2006-09-15",
+  visibility: GATHERING_ALL_PUBLIC,
+  checkedAt: "2026-09-10T00:01:00Z",
+};
+
+// 証明が通らず、組み直しの返事を待っている提案 (計画は居酒屋つきのまま)
+const PROPOSED_AGE_REJECTED: TripResponse = {
+  status: "proposed",
+  ...BASE,
+  plan: GATHERING_PLAN,
+  failedAgeCheck: FAILED_AGE_CHECK,
+};
+
+// 証明が通らなかった提案を、カフェの計画に組み直した記録
 const REVISION: PlanRevisionResponse = {
   reason: { kind: "ageNotVerified", ageLimit: 20, cutoffDate: "2006-09-15" },
   previous: {
@@ -384,10 +401,11 @@ const GATHERING_APPROVE_BUBBLES: readonly Bubble[] = [
   { speaker: "user", line: { kind: "sendProof" } },
 ];
 
-const REVISED_BUBBLE: Bubble = {
+// 証明が通らなかった説明と、組み直してよいかの問い (時刻は証明の時刻か作り直しの時刻で、どちらも同じ値)
+const AGE_REJECTED_BUBBLE: Bubble = {
   speaker: "secretary",
   line: {
-    kind: "revised",
+    kind: "ageRejected",
     place: IZAKAYA,
     ageLimit: 20,
     cutoffDate: "2006-09-15",
@@ -395,11 +413,19 @@ const REVISED_BUBBLE: Bubble = {
   at: "2026-09-10T00:01:00Z",
 };
 
-// 作り直した提案の前に出る、前の提案から作り直しの説明まで
-const REVISION_PRELUDE: readonly Bubble[] = [
+const REPLAN_BUBBLE: Bubble = { speaker: "user", line: { kind: "replan" } };
+
+// 証明が通らなかった提案の履歴 (提案はバッジ、承認の写し 3 つ、組み直しの問い)
+const AGE_REJECTED_BUBBLES: readonly Bubble[] = [
   GATHERING_PROPOSAL_BUBBLE,
   ...GATHERING_APPROVE_BUBBLES,
-  REVISED_BUBBLE,
+  AGE_REJECTED_BUBBLE,
+];
+
+// 作り直した提案の前に出る、前の提案から「組み直して」の写しまで
+const REVISION_PRELUDE: readonly Bubble[] = [
+  ...AGE_REJECTED_BUBBLES,
+  REPLAN_BUBBLE,
 ];
 
 const AGE_VERIFIED_BUBBLE: Bubble = {
@@ -855,8 +881,74 @@ describe("conversationOf (証明の同意)", () => {
   });
 });
 
+describe("conversationOf (証明が通らなかった提案)", () => {
+  test("提案はバッジで出し、承認の写し 3 つと組み直しの問いが続き、返答は組み直しだけ", () => {
+    expect(conversationOf(stateOf(PROPOSED_AGE_REJECTED))).toStrictEqual({
+      bubbles: [...INTRO_BUBBLES, ...AGE_REJECTED_BUBBLES],
+      replies: [{ kind: "replan", trip: PROPOSED_AGE_REJECTED }],
+    });
+  });
+
+  test("承認の写しは承認で選んでいた公開範囲から数え、選択中の値は見ない", () => {
+    const rejected: TripResponse = {
+      ...PROPOSED_AGE_REJECTED,
+      failedAgeCheck: {
+        ...FAILED_AGE_CHECK,
+        visibility: { ...GATHERING_ALL_PUBLIC, dining: "private" },
+      },
+    };
+    const conversation = conversationOf(
+      stateOf(rejected, IDLE, CAN_KEEP_PRIVATE, { inbound: "private" }),
+    );
+
+    expect(conversation.bubbles[3]).toStrictEqual(
+      gatheringProposalBubble({
+        mode: "badges",
+        value: { ...GATHERING_ALL_PUBLIC, dining: "private" },
+      }),
+    );
+    expect(conversation.bubbles[4]).toStrictEqual({
+      speaker: "user",
+      line: { kind: "approve", privateCount: 1 },
+    });
+    expect(conversation.replies).toStrictEqual([
+      { kind: "replan", trip: rejected },
+    ]);
+  });
+
+  test("組み直しの進行中は「組み直して」の写しと working を足し、返答は無い", () => {
+    expect(
+      conversationOf(stateOf(PROPOSED_AGE_REJECTED, busy("replan"))),
+    ).toStrictEqual({
+      bubbles: [
+        ...INTRO_BUBBLES,
+        ...AGE_REJECTED_BUBBLES,
+        REPLAN_BUBBLE,
+
+        {
+          speaker: "secretary",
+          line: { kind: "working", step: "replan", title: OSAKA.title },
+        },
+      ],
+      replies: [],
+    });
+  });
+
+  test("年齢制限つきの候補が無い計画の記録は (起こらないはず) 無いのと同じに扱う", () => {
+    const odd: TripResponse = {
+      ...PROPOSED_AGE_REJECTED,
+      plan: PLAN,
+    };
+
+    expect(conversationOf(stateOf(odd))).toStrictEqual({
+      bubbles: [...INTRO_BUBBLES, EDITOR_PROPOSAL_BUBBLE],
+      replies: [{ kind: "approve", trip: odd, visibility: {} }],
+    });
+  });
+});
+
 describe("conversationOf (作り直した提案)", () => {
-  test("作り直した提案の前に、前の提案と承認と作り直しの説明が出る", () => {
+  test("作り直した提案の前に、前の提案と承認と組み直しの問いと「組み直して」の写しが出る", () => {
     expect(conversationOf(stateOf(PROPOSED_REVISED))).toStrictEqual({
       bubbles: [
         ...INTRO_BUBBLES,
@@ -870,7 +962,7 @@ describe("conversationOf (作り直した提案)", () => {
   test("作り直した提案を承認した後も経緯が残り、証明の吹き出しは出ない", () => {
     const bubbles = conversationOf(stateOf(APPROVED_REVISED)).bubbles;
 
-    expect(bubbles.slice(3, 8)).toStrictEqual(REVISION_PRELUDE);
+    expect(bubbles.slice(3, 9)).toStrictEqual(REVISION_PRELUDE);
     expect(bubbles.map((bubble) => bubble.line.kind)).toStrictEqual([
       "greeting",
       "ask",
@@ -879,7 +971,8 @@ describe("conversationOf (作り直した提案)", () => {
       "approve",
       "askProof",
       "sendProof",
-      "revised",
+      "ageRejected",
+      "replan",
       "proposal",
       "approve",
       "askPay",

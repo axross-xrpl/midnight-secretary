@@ -55,10 +55,11 @@ be kept private on its own. The demo profile is fixed: the date of birth is
 Pressing **計画を承認する** on a plan that includes an age-restricted place does not call the server yet:
 the secretary first asks whether it may send the age proof, and you answer **証明を送る** or
 **今はやめておく**. The proof is taken as of the departure date. For the earlier trip it does not pass, so
-the secretary rebuilds the plan from the places with no age limit (中之島カフェ here, 30,120 MST) and
-proposes it again; approve that plan and the rest of the path runs with no proof at all. For the trip
-three days later the proof passes and the approval goes through. The date of birth is never passed to the
-AI; it is registered only with the identity lane (in memory in demo mode).
+the secretary asks whether it may rebuild the plan from the places with no age limit; answer
+**組み直す** and it proposes the rebuilt plan (中之島カフェ here, 30,120 MST). Approve that plan and the
+rest of the path runs with no proof at all. For the trip three days later the proof passes and the
+approval goes through. The date of birth is never passed to the AI; it is registered only with the
+identity lane (in memory in demo mode).
 
 The dev sign-in trusts whoever clicks the button, so it only starts when `NEXTAUTH_URL` points at
 localhost, and it forces the calendar to the fake (that session has no Google token).

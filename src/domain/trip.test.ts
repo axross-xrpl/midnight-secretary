@@ -16,7 +16,7 @@ import type { AgeProof } from "./identity";
 import type { Authorization } from "./mandate";
 import type { Money } from "./money";
 import type { TripPlan } from "./plan";
-import type { PlanRevision, ProposedTrip } from "./trip";
+import type { FailedAgeCheck, PlanRevision, ProposedTrip } from "./trip";
 import {
   allPublic,
   markApproved,
@@ -175,6 +175,14 @@ const REVISION: PlanRevision = {
     visibility: allPublic(WITH_DINING),
   },
   revisedAt: at,
+};
+
+// 居酒屋つきの計画の承認で年齢の証明が通らなかったときの記録
+const FAILED_AGE_CHECK: FailedAgeCheck = {
+  ageLimit: 20,
+  cutoffDate: mustParse(parseIsoDate("2006-09-14")),
+  visibility: allPublic(WITH_DINING),
+  checkedAt: at,
 };
 
 describe("allPublic", () => {
@@ -393,5 +401,18 @@ describe("承認以降の状態", () => {
 
     expect("revision" in approved).toBe(false);
     expect("revision" in markPaid(approved, [], at)).toBe(false);
+  });
+
+  test("承認は年齢の証明が通らなかった記録を写さない", () => {
+    const rejected: ProposedTrip = {
+      ...proposedWith(WITH_DINING),
+      revision: REVISION,
+      failedAgeCheck: FAILED_AGE_CHECK,
+    };
+    const approved = markApproved(rejected, at, allPublic(WITH_DINING));
+
+    expect("failedAgeCheck" in approved).toBe(false);
+    expect(approved.revision).toStrictEqual(REVISION);
+    expect("failedAgeCheck" in markPaid(approved, [], at)).toBe(false);
   });
 });

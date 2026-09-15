@@ -63,6 +63,19 @@ export type PlanRevision = {
 };
 
 /**
+ * 年齢の証明が通らなかった記録 (提案済みの trip にだけ付く)
+ *
+ * `visibility` は承認のときに選んでいた公開範囲で、組み直しの `revision.previous.visibility` に写す
+ * 組み直すと新しい提案には付かない
+ */
+export type FailedAgeCheck = {
+  ageLimit: number;
+  cutoffDate: IsoDate;
+  visibility: PaymentVisibility;
+  checkedAt: IsoDateTime;
+};
+
+/**
  * 秘書が提案したプラン
  *
  * まだ何も確定していない
@@ -76,6 +89,9 @@ export type ProposedTrip = {
 
   /** 作り直した提案なら、その記録 */
   revision?: PlanRevision;
+
+  /** 年齢の証明が通らなかったなら、その記録 */
+  failedAgeCheck?: FailedAgeCheck;
 };
 
 /**
@@ -219,6 +235,7 @@ export const visibilityFor = (
  *
  * 計画が年齢制限つきの候補を含むときは、通った成人の証明を `ageProof` として残す
  * 作り直した提案の承認なら、その記録 (`revision`) も引き継ぐ
+ * 承認できるのは証明が通った (または要らない) trip だけなので、`failedAgeCheck` は写さない
  */
 export const markApproved = (
   trip: ProposedTrip,
@@ -226,13 +243,18 @@ export const markApproved = (
   visibility: PaymentVisibility,
   ageProof?: AgeProof,
 ): ApprovedTrip => {
+  // spread は余分なプロパティを型で拒まないので、`failedAgeCheck` を写さないよう項目を並べて組む
   return {
-    ...trip,
     status: "approved",
+    id: trip.id,
+    event: trip.event,
+    plan: trip.plan,
+    proposedAt: trip.proposedAt,
     approvedAt,
     visibility,
     authorizations: [],
     ...(ageProof === undefined ? {} : { ageProof }),
+    ...(trip.revision === undefined ? {} : { revision: trip.revision }),
   };
 };
 

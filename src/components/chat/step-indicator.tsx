@@ -3,8 +3,9 @@
 import { useTranslations } from "next-intl";
 import type { ReactElement } from "react";
 import type { TripResponse } from "@/lib/secretary-response";
+import type { Stage } from "./flow";
 import { STEP_ORDER, stepIndexOf } from "./flow";
-import type { Activity, Step } from "./types";
+import type { Activity } from "./types";
 
 type StepStatus = "done" | "current" | "todo";
 
@@ -33,7 +34,7 @@ const statusOf = (index: number, current: number): StepStatus => {
 };
 
 type StepItemProps = {
-  step: Step;
+  step: Stage;
   index: number;
   status: StepStatus;
 };

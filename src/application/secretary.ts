@@ -15,6 +15,7 @@ import { withoutAgeRestrictedDining } from "@/domain/catalog";
 import { yearsBefore } from "@/domain/dates";
 import type {
   CalendarEventId,
+  IsoDate,
   IsoDateTime,
   MandateId,
   TripId,
@@ -103,27 +104,36 @@ export type ProposeTripInput = {
 
 /**
  * trip を承認するときの入力
- *
- * `locale` と `preferences` は年齢確認が通らなかったときの作り直し (planner の呼び直し) に要る
  */
 export type ApproveTripInput = {
   userId: UserId;
   tripId: TripId;
   requested: PaymentVisibilityInput;
-  locale: Locale;
-  preferences: TravelerPreferences;
   now: IsoDateTime;
 };
 
 /**
  * 承認の結果
  *
- * 証明が要らないか通れば承認済み、通らなければ年齢制限のない候補で作り直した提案
- * 作り直しは失敗ではなく秘書の次の一手なので、Result の ok 側に置く
+ * 証明が要らないか通れば承認済み、通らなければ記録を付けた提案済みのまま (組み直しは別の 1 手)
+ * 証明が通らないことは失敗ではなく秘書の次の問いなので、Result の ok 側に置く
  */
 export type ApprovalOutcome =
   | { kind: "approved"; trip: ApprovedTrip }
-  | { kind: "revised"; trip: ProposedTrip };
+  | { kind: "ageNotVerified"; trip: ProposedTrip };
+
+/**
+ * 年齢の証明が通らなかった trip を、年齢制限のない候補で組み直すときの入力
+ *
+ * `locale` と `preferences` は planner の呼び直しに要る
+ */
+export type ReplanTripInput = {
+  userId: UserId;
+  tripId: TripId;
+  locale: Locale;
+  preferences: TravelerPreferences;
+  now: IsoDateTime;
+};
 
 /**
  * 支払い済みの出張から、カレンダーに書き戻す予定の文言を作る
@@ -454,15 +464,43 @@ const saveApproved = async (
   return ok({ kind: "approved", trip: approved });
 };
 
+// 証明が通らなかったことを trip に記録して、提案済みのまま保存する (計画は変えない)
+// 承認で選んでいた公開範囲は組み直しの記録に写すので、ここで残しておく
+const saveAgeNotVerified = async (
+  trip: ProposedTrip,
+  visibility: PaymentVisibility,
+  requirement: AdultRequirement,
+  cutoffDate: IsoDate,
+  input: ApproveTripInput,
+  deps: SecretaryDeps,
+): Promise<Result<ApprovalOutcome, SecretaryError>> => {
+  const rejected: ProposedTrip = {
+    ...trip,
+    failedAgeCheck: {
+      ageLimit: requirement.ageLimit,
+      cutoffDate,
+      visibility,
+      checkedAt: input.now,
+    },
+  };
+  const saved = await deps.store.putTrip(input.userId, rejected);
+
+  if (!saved.ok) {
+    return err(fromStore(saved.error));
+  }
+
+  return ok({ kind: "ageNotVerified", trip: rejected });
+};
+
 // 飲食から年齢確認を要する候補を除いて計画を作り直し、同じ id の提案として保存する
-// 作り直した計画が再び成人を要することは無いので、証明はやり直さない
+// 作り直した計画が再び成人を要することは無いので、証明の記録は新しい提案に付けない
 const reviseWithoutAgeRestricted = async (
   trip: ProposedTrip,
   visibility: PaymentVisibility,
   reason: PlanRevisionReason,
-  input: ApproveTripInput,
+  input: ReplanTripInput,
   deps: SecretaryDeps,
-): Promise<Result<ApprovalOutcome, SecretaryError>> => {
+): Promise<Result<ProposedTrip, SecretaryError>> => {
   const budget = await budgetOf(input.userId, deps);
 
   if (!budget.ok) {
@@ -515,7 +553,7 @@ const reviseWithoutAgeRestricted = async (
     return err(fromStore(saved.error));
   }
 
-  return ok({ kind: "revised", trip: revised });
+  return ok(revised);
 };
 
 // 証明の生成は直列が前提なので、前の候補の結果を待ってから次の候補を出す
@@ -756,7 +794,7 @@ export const proposeTrip = async (
  * adapter が非公開に対応していないのに非公開があれば `flow.privateSettlementUnsupported` で、trip は提案済みのまま
  * 計画が成人を要する候補を含むなら、出発日の `ageLimit` 年前を cutoff にした証明を取る
  * 通れば証明を trip に残して承認する
- * 通らなければ飲食の候補から年齢確認を要するものを除いて計画を作り直し、同じ id の提案として保存する (`revision` に理由と前の計画を残す)
+ * 通らなければ計画は変えず、`failedAgeCheck` に記録して提案済みのまま保存する (組み直しは `replanTrip`)
  * 生年月日が無ければ `flow.birthDateMissing` で、trip は提案済みのまま
  * 公開範囲の検査は I/O を伴わないので、identity に問い合わせる証明より先に行う
  */
@@ -817,19 +855,63 @@ export const approveTrip = async (
       saveApproved(proposed, visibility, proof, input, deps),
     )
     .with({ kind: "notAdult" }, ({ cutoffDate }) =>
-      reviseWithoutAgeRestricted(
+      saveAgeNotVerified(
         proposed,
         visibility,
-        {
-          kind: "ageNotVerified",
-          ageLimit: requirement.ageLimit,
-          cutoffDate,
-        },
+        requirement,
+        cutoffDate,
         input,
         deps,
       ),
     )
     .exhaustive();
+};
+
+/**
+ * 年齢の証明が通らなかった提案済みの trip を、飲食の候補から年齢確認を要するものを除いて組み直す
+ *
+ * 同じ id の提案として保存し、`revision` に理由と前の計画と承認で選んでいた公開範囲を残す
+ * 提案済みでなければ `flow.wrongStatus`、証明が通らなかった記録が無ければ `flow.replanNotNeeded`
+ */
+export const replanTrip = async (
+  input: ReplanTripInput,
+  deps: SecretaryDeps,
+): Promise<Result<ProposedTrip, SecretaryError>> => {
+  const trip = await loadTrip(input.userId, input.tripId, deps);
+
+  if (!trip.ok) {
+    return trip;
+  }
+
+  if (trip.value.status !== "proposed") {
+    return err(
+      fromFlow({
+        kind: "wrongStatus",
+        tripId: input.tripId,
+        expected: "proposed",
+        actual: trip.value.status,
+      }),
+    );
+  }
+
+  const proposed = trip.value;
+  const failed = proposed.failedAgeCheck;
+
+  if (failed === undefined) {
+    return err(fromFlow({ kind: "replanNotNeeded", tripId: input.tripId }));
+  }
+
+  return reviseWithoutAgeRestricted(
+    proposed,
+    failed.visibility,
+    {
+      kind: "ageNotVerified",
+      ageLimit: failed.ageLimit,
+      cutoffDate: failed.cutoffDate,
+    },
+    input,
+    deps,
+  );
 };
 
 /**

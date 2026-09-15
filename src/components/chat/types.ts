@@ -32,11 +32,12 @@ export type RequestFailure =
   | { code: "schema" };
 
 /**
- * 出張を 1 段進める操作
+ * 出張を 1 手進める操作
  *
  * 最初の `propose` は支払い枠が無ければその作成も兼ねる
+ * `replan` は年齢の証明が通らなかった提案を組み直す 1 手で、ステップ表示では承認の段に含める
  */
-export type Step = "propose" | "approve" | "pay" | "writeBack";
+export type Step = "propose" | "approve" | "replan" | "pay" | "writeBack";
 
 /**
  * いま進行中の 1 手

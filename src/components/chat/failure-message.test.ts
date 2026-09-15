@@ -120,7 +120,7 @@ describe("failureMessageOf", () => {
     ).toStrictEqual({ kind: "plain", key: "schema" });
   });
 
-  test("生年月日の不足と identity / profile の失敗は plain キーになる", () => {
+  test("生年月日の不足、組み直しの不要、identity / profile の失敗は plain キーになる", () => {
     expect(
       failureMessageOf({
         code: "secretary",
@@ -130,6 +130,15 @@ describe("failureMessageOf", () => {
         },
       }),
     ).toStrictEqual({ kind: "plain", key: "flow.birthDateMissing" });
+    expect(
+      failureMessageOf({
+        code: "secretary",
+        error: {
+          source: "flow",
+          error: { kind: "replanNotNeeded", tripId: "trip-1" },
+        },
+      }),
+    ).toStrictEqual({ kind: "plain", key: "flow.replanNotNeeded" });
     expect(
       failureMessageOf({
         code: "secretary",

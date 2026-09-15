@@ -4,6 +4,7 @@ import type { ScanEvent } from "@/lib/calendar-scan-response";
 import type {
   AgeProofResponse,
   AuthorizationResponse,
+  FailedAgeCheckResponse,
   MoneyResponse,
   PaymentVisibilityResponse,
   PlaceOfferResponse,
@@ -56,7 +57,7 @@ export type WorkingStep = Step | "approveWithProof";
  * 秘書の吹き出し 1 つ
  *
  * `askProof` は年齢確認を求める候補があるときの、証明を送ってよいかの問い
- * `revised` は証明が通らず年齢制限のない候補で計画を作り直したときの説明で、`place` は使えなくなった候補
+ * `ageRejected` は証明が通らなかったときの説明と、年齢制限のない候補で組み直してよいかの問いで、`place` は使えない候補
  * `ageVerified` は承認の中で通った成人の証明で、`ageLimit` は計画の候補の年齢の下限
  * `working` の `step` は進行中の手で、承認が年齢の証明を伴うときは `approveWithProof`
  */
@@ -71,7 +72,7 @@ export type SecretaryLine =
     }
   | { kind: "askProof"; place: PlaceOfferResponse; ageLimit: number }
   | {
-      kind: "revised";
+      kind: "ageRejected";
       place: PlaceOfferResponse;
       ageLimit: number;
       cutoffDate: string;
@@ -92,6 +93,7 @@ export type UserLine =
   | { kind: "propose" }
   | { kind: "approve"; privateCount: number }
   | { kind: "sendProof" }
+  | { kind: "replan" }
   | { kind: "pay"; resume: boolean }
   | { kind: "writeBack" };
 
@@ -108,6 +110,7 @@ export type Bubble =
  * いま押せる返答 1 つ
  *
  * `sendProof` は年齢の証明を送って承認まで進める返答、`declineProof` は提案に戻る返答
+ * `replan` は証明が通らなかった提案を年齢制限のない候補で組み直してもらう返答
  */
 export type Reply =
   | { kind: "propose"; eventId: string }
@@ -118,6 +121,7 @@ export type Reply =
       visibility: PaymentVisibilityInput;
     }
   | { kind: "declineProof" }
+  | { kind: "replan"; trip: TripResponse }
   | { kind: "pay"; trip: TripResponse; resume: boolean }
   | { kind: "writeBack"; trip: TripResponse }
   | { kind: "dismiss" };
@@ -278,7 +282,80 @@ const ageVerifiedOf = (
   ];
 };
 
-// 作り直した提案の前に、作り直す前の提案から作り直しの説明までを置く
+// 証明が通らなかったときの説明と、年齢制限のない候補で組み直してよいかの問い
+// 計画に年齢制限つきの候補が無ければ (起こらないはず) undefined
+const ageRejectedOf = (
+  plan: TripPlanResponse,
+  ageLimit: number,
+  cutoffDate: string,
+  at: string,
+): Bubble | undefined => {
+  const requirement = adultRequirementOfResponse(plan);
+
+  if (requirement === undefined) {
+    return undefined;
+  }
+
+  return secretary(
+    { kind: "ageRejected", place: requirement.offer, ageLimit, cutoffDate },
+    at,
+  );
+};
+
+// 提案済みの履歴の、証明が通らなかった記録から導く部分 (承認で選んでいた公開範囲と、組み直しの問い)
+type AgeRejection = {
+  visibility: PaymentVisibilityResponse;
+  asked: Bubble;
+};
+
+// 証明が通らなかった記録があり、計画に年齢制限つきの候補があるときだけ
+// 候補が無ければ (起こらないはず) 記録が無いのと同じに扱う
+const ageRejectionOf = (
+  plan: TripPlanResponse,
+  failedAgeCheck: FailedAgeCheckResponse | undefined,
+): AgeRejection | undefined => {
+  if (failedAgeCheck === undefined) {
+    return undefined;
+  }
+
+  const asked = ageRejectedOf(
+    plan,
+    failedAgeCheck.ageLimit,
+    failedAgeCheck.cutoffDate,
+    failedAgeCheck.checkedAt,
+  );
+
+  if (asked === undefined) {
+    return undefined;
+  }
+
+  return { visibility: failedAgeCheck.visibility, asked };
+};
+
+// 提案済みの履歴
+// 証明が通らなかった提案は、承認で選んだ公開範囲のバッジで出し、承認の写しと組み直しの問いまでを続ける
+// そうでなければ提案だけ (トグルは操作できる)
+const proposedHistory = (
+  state: ChatState,
+  plan: TripPlanResponse,
+  proposedAt: string,
+  rejection: AgeRejection | undefined,
+): readonly Bubble[] => {
+  const event = state.event;
+
+  if (rejection === undefined) {
+    return [proposalOf(event, plan, proposedAt, editorVisibilityOf(state))];
+  }
+
+  return [
+    proposalOf(event, plan, proposedAt, badgesOf(rejection.visibility)),
+    ...approvalEchoOf(plan, privateCountOf(rejection.visibility)),
+    rejection.asked,
+  ];
+};
+
+// 作り直した提案の前に、作り直す前の提案から組み直しの問いと「組み直して」の写しまでを置く
+// 前の提案の証明の記録は残っていないので、問いの値は作り直しの記録から取る (時刻は作り直した時刻)
 // 前の計画に年齢制限つきの候補が無ければ (起こらないはず) 前置きは出さない
 const revisionPreludeOf = (
   event: ScanEvent,
@@ -289,9 +366,14 @@ const revisionPreludeOf = (
   }
 
   const previous = revision.previous;
-  const requirement = adultRequirementOfResponse(previous.plan);
+  const asked = ageRejectedOf(
+    previous.plan,
+    revision.reason.ageLimit,
+    revision.reason.cutoffDate,
+    revision.revisedAt,
+  );
 
-  if (requirement === undefined) {
+  if (asked === undefined) {
     return [];
   }
 
@@ -303,15 +385,8 @@ const revisionPreludeOf = (
       badgesOf(previous.visibility),
     ),
     ...approvalEchoOf(previous.plan, privateCountOf(previous.visibility)),
-    secretary(
-      {
-        kind: "revised",
-        place: requirement.offer,
-        ageLimit: revision.reason.ageLimit,
-        cutoffDate: revision.reason.cutoffDate,
-      },
-      revision.revisedAt,
-    ),
+    asked,
+    user({ kind: "replan" }),
   ];
 };
 
@@ -339,11 +414,11 @@ const historyOf = (state: ChatState, trip: TripResponse): readonly Bubble[] => {
     .returnType<readonly Bubble[]>()
     .with({ status: "proposed" }, (proposed) => [
       ...revisionPreludeOf(event, proposed.revision),
-      proposalOf(
-        event,
+      ...proposedHistory(
+        state,
         proposed.plan,
         proposed.proposedAt,
-        editorVisibilityOf(state),
+        ageRejectionOf(proposed.plan, proposed.failedAgeCheck),
       ),
     ])
     .with({ status: "approved" }, (approved) => [
@@ -434,9 +509,23 @@ const echoOf = (step: Step, state: ChatState): readonly Bubble[] => {
     .returnType<readonly Bubble[]>()
     .with("propose", () => [user({ kind: "propose" })])
     .with("approve", () => approveEchoOf(state))
+    .with("replan", () => [user({ kind: "replan" })])
     .with("pay", () => [user({ kind: "pay", resume: canResume(state.trip) })])
     .with("writeBack", () => [user({ kind: "writeBack" })])
     .exhaustive();
+};
+
+// 証明が通らなかった提案の返答は組み直しだけ (同じ計画は承認できない)、そうでなければ承認
+const proposedReplies = (
+  state: ChatState,
+  trip: TripResponse,
+  rejection: AgeRejection | undefined,
+): readonly Reply[] => {
+  if (rejection === undefined) {
+    return [{ kind: "approve", trip, visibility: chosenVisibility(state) }];
+  }
+
+  return [{ kind: "replan", trip }];
 };
 
 const repliesOf = (state: ChatState): readonly Reply[] => {
@@ -444,12 +533,16 @@ const repliesOf = (state: ChatState): readonly Reply[] => {
     return [{ kind: "propose", eventId: state.event.id }];
   }
 
-  // 作り直しは Wave 1 では出さない (自由入力が無く、同じ計画が返るだけになる)
+  // 自由入力の作り直しは Wave 1 では出さない (同じ計画が返るだけになる)
   return match(state.trip)
     .returnType<readonly Reply[]>()
-    .with({ status: "proposed" }, (proposed) => [
-      { kind: "approve", trip: proposed, visibility: chosenVisibility(state) },
-    ])
+    .with({ status: "proposed" }, (proposed) =>
+      proposedReplies(
+        state,
+        proposed,
+        ageRejectionOf(proposed.plan, proposed.failedAgeCheck),
+      ),
+    )
     .with({ status: "approved" }, (approved) => [
       { kind: "pay", trip: approved, resume: canResume(approved) },
     ])

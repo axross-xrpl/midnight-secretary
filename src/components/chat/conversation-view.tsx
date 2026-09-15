@@ -32,6 +32,7 @@ import {
   requestApproveTrip,
   requestPayForTrip,
   requestProposeTrip,
+  requestReplanTrip,
   requestSetUpMandate,
   requestWriteBackTrip,
 } from "./request-secretary";
@@ -120,6 +121,7 @@ const ReplyButton = ({
     .with({ kind: "approve" }, () => t("replies.approve"))
     .with({ kind: "sendProof" }, () => t("replies.sendProof"))
     .with({ kind: "declineProof" }, () => t("replies.declineProof"))
+    .with({ kind: "replan" }, () => t("replies.replan"))
     .with({ kind: "pay", resume: true }, () => t("replies.resume"))
     .with({ kind: "pay", resume: false }, () => t("replies.pay"))
     .with({ kind: "writeBack" }, () => t("replies.writeBack"))
@@ -127,7 +129,7 @@ const ReplyButton = ({
     .exhaustive();
   const className = match(reply)
     .with(
-      { kind: P.union("approve", "sendProof", "pay") },
+      { kind: P.union("approve", "sendProof", "replan", "pay") },
       () => strongButtonClass,
     )
     .with({ kind: P.union("declineProof", "dismiss") }, () => ghostButtonClass)
@@ -261,7 +263,14 @@ export const Conversation = (props: ConversationProps): ReactElement => {
     visibility: PaymentVisibilityInput,
   ): Promise<void> => {
     return runStep("approve", () =>
-      requestApproveTrip(fetch, tripId, { visibility, locale }),
+      requestApproveTrip(fetch, tripId, { visibility }),
+    );
+  };
+
+  // 証明が通らなかった提案を、年齢制限のない候補で秘書に組み直してもらう
+  const replan = (tripId: string): Promise<void> => {
+    return runStep("replan", () =>
+      requestReplanTrip(fetch, tripId, { locale }),
     );
   };
 
@@ -300,6 +309,7 @@ export const Conversation = (props: ConversationProps): ReactElement => {
       .with({ kind: "declineProof" }, () =>
         dispatch({ type: "declineConsent" }),
       )
+      .with({ kind: "replan" }, ({ trip: target }) => replan(target.id))
       .with({ kind: "pay" }, ({ trip: target }) => pay(target.id))
       .with({ kind: "writeBack" }, ({ trip: target }) => writeBack(target.id))
       .with({ kind: "dismiss" }, () => dispatch({ type: "dismiss" }))

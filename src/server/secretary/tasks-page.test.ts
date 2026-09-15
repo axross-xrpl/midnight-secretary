@@ -243,14 +243,7 @@ const finish = async (context: SecretaryContext): Promise<void> => {
 
   mustOk(
     await approveTrip(
-      {
-        userId: context.userId,
-        tripId,
-        requested: {},
-        locale: "ja",
-        preferences: WAVE1_PREFERENCES,
-        now: context.now,
-      },
+      { userId: context.userId, tripId, requested: {}, now: context.now },
       context.deps,
     ),
   );

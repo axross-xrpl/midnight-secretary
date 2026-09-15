@@ -238,6 +238,23 @@ const APPROVED_REVISED_PAYLOAD = {
   data: { ...APPROVED_PAYLOAD.data, revision: REVISED_PAYLOAD.data.revision },
 };
 
+// 居酒屋つきの提案のまま、年齢の証明が通らなかった記録を付けたもの
+const AGE_REJECTED_PAYLOAD = {
+  data: {
+    status: "proposed",
+    id: APPROVED_PAYLOAD.data.id,
+    event: APPROVED_PAYLOAD.data.event,
+    plan: APPROVED_WITH_PROOF_PAYLOAD.data.plan,
+    proposedAt: "2026-09-10T00:00:00Z",
+    failedAgeCheck: {
+      ageLimit: 20,
+      cutoffDate: "2006-09-15",
+      visibility: { outbound: "public", inbound: "private", dining: "private" },
+      checkedAt: "2026-09-10T00:01:00Z",
+    },
+  },
+};
+
 describe("parseTripResponse", () => {
   test("status の無い応答は拒否する", () => {
     const parsed = parseTripResponse({ data: { id: "trip-1" } });
@@ -324,6 +341,30 @@ describe("parseTripResponse", () => {
             ageLimit: 20,
             cutoffDate: "2006-09-15",
           },
+        },
+      },
+    });
+
+    expect(parsed.ok).toBe(false);
+  });
+
+  test("年齢の証明が通らなかった記録を持つ提案を通す", () => {
+    const parsed = parseTripResponse(AGE_REJECTED_PAYLOAD);
+
+    expect(parsed).toStrictEqual({
+      ok: true,
+      value: AGE_REJECTED_PAYLOAD.data,
+    });
+  });
+
+  test("公開範囲の無い証明の記録は拒否する", () => {
+    const parsed = parseTripResponse({
+      data: {
+        ...AGE_REJECTED_PAYLOAD.data,
+        failedAgeCheck: {
+          ageLimit: 20,
+          cutoffDate: "2006-09-15",
+          checkedAt: "2026-09-10T00:01:00Z",
         },
       },
     });

@@ -6,6 +6,7 @@ import {
   requestApproveTrip,
   requestPayForTrip,
   requestProposeTrip,
+  requestReplanTrip,
   requestSetUpMandate,
   requestWriteBackTrip,
 } from "./request-secretary";
@@ -240,15 +241,12 @@ describe("requestProposeTrip", () => {
 });
 
 describe("requestApproveTrip", () => {
-  test("approve のパスへ公開範囲と locale を body にして POST する", async () => {
+  test("approve のパスへ公開範囲を body にして POST する", async () => {
     const recorder = newRecorder();
     const fetchFn = recordingFetch(recorder, () =>
       jsonResponse({ data: TRIP }),
     );
-    const body = {
-      visibility: { lodging: "private" },
-      locale: "ja",
-    } as const;
+    const body = { visibility: { lodging: "private" } } as const;
 
     expect(await requestApproveTrip(fetchFn, TRIP_ID, body)).toStrictEqual({
       ok: true,
@@ -264,6 +262,59 @@ describe("requestApproveTrip", () => {
         },
       },
     ]);
+  });
+});
+
+describe("requestReplanTrip", () => {
+  test("replan のパスへ locale を body にして POST する", async () => {
+    const recorder = newRecorder();
+    const fetchFn = recordingFetch(recorder, () =>
+      jsonResponse({ data: TRIP }),
+    );
+    const body = { locale: "ja" } as const;
+
+    expect(await requestReplanTrip(fetchFn, TRIP_ID, body)).toStrictEqual({
+      ok: true,
+      value: TRIP,
+    });
+    expect(recorder.calls).toStrictEqual([
+      {
+        url: `/api/secretary/trips/${TRIP_ID}/replan`,
+        init: {
+          method: "POST",
+          headers: JSON_HEADERS,
+          body: JSON.stringify(body),
+        },
+      },
+    ]);
+  });
+
+  test("422 の replanNotNeeded は source と kind を持つ", async () => {
+    const recorder = newRecorder();
+    const fetchFn = recordingFetch(recorder, () =>
+      jsonResponse(
+        failureBody("secretary", {
+          detail: {
+            source: "flow",
+            error: { kind: "replanNotNeeded", tripId: TRIP_ID },
+          },
+        }),
+        422,
+      ),
+    );
+
+    expect(
+      await requestReplanTrip(fetchFn, TRIP_ID, { locale: "ja" }),
+    ).toStrictEqual({
+      ok: false,
+      error: {
+        code: "secretary",
+        error: {
+          source: "flow",
+          error: { kind: "replanNotNeeded", tripId: TRIP_ID },
+        },
+      },
+    });
   });
 });
 

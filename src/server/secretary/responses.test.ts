@@ -138,6 +138,15 @@ describe("statusOf", () => {
     ).toBe(422);
   });
 
+  test("組み直す必要の無い提案の組み直しは 422 になる", () => {
+    expect(
+      statusOf({
+        source: "flow",
+        error: { kind: "replanNotNeeded", tripId: TRIP_ID },
+      }),
+    ).toBe(422);
+  });
+
   test("identity の登録の食い違いは 409、不調は 502 になる", () => {
     expect(
       statusOf({ source: "identity", error: { kind: "notRegistered" } }),

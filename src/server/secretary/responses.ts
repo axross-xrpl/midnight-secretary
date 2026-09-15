@@ -129,7 +129,11 @@ export const statusOf = (error: SecretaryError): number => {
       {
         source: "flow",
         error: {
-          kind: P.union("privateSettlementUnsupported", "birthDateMissing"),
+          kind: P.union(
+            "privateSettlementUnsupported",
+            "birthDateMissing",
+            "replanNotNeeded",
+          ),
         },
       },
       () => 422,

@@ -63,9 +63,9 @@ const SecretaryContent = ({
     .with({ kind: "askProof" }, ({ place, ageLimit }) => (
       <p>{t("lines.askProof", { place: place.name, age: ageLimit })}</p>
     ))
-    .with({ kind: "revised" }, ({ place, ageLimit, cutoffDate }) => (
+    .with({ kind: "ageRejected" }, ({ place, ageLimit, cutoffDate }) => (
       <p>
-        {t("lines.revised", {
+        {t("lines.ageRejected", {
           date: plainSpaces(
             format.dateTime(
               new Date(asOfDateOf(cutoffDate, ageLimit)),
@@ -202,6 +202,7 @@ const UserBubble = ({ line }: UserBubbleProps): ReactElement => {
       t("echo.approvePartlyPrivate", { count: privateCount }),
     )
     .with({ kind: "sendProof" }, () => t("echo.sendProof"))
+    .with({ kind: "replan" }, () => t("echo.replan"))
     .with({ kind: "pay", resume: true }, () => t("echo.resume"))
     .with({ kind: "pay", resume: false }, () => t("echo.pay"))
     .with({ kind: "writeBack" }, () => t("echo.writeBack"))

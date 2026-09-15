@@ -51,6 +51,7 @@ const PLAIN_FAILURE_KEYS = [
   "flow.wrongStatus",
   "flow.privateSettlementUnsupported",
   "flow.birthDateMissing",
+  "flow.replanNotNeeded",
   "identity.notRegistered",
   "identity.alreadyRegistered",
   "identity.proofFailed",

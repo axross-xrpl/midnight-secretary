@@ -17,7 +17,7 @@ import {
   STEP_ORDER,
   stepIndexOf,
 } from "./flow";
-import type { FlowState } from "./flow";
+import type { FlowState, Stage } from "./flow";
 import type { RequestFailure, Step } from "./types";
 
 const TRIP_ID = tripIdAt(1);
@@ -360,10 +360,20 @@ describe("stepIndexOf", () => {
       ),
     ).toBe(3);
   });
+
+  test("組み直しは承認の段", () => {
+    expect(stepIndexOf({ kind: "busy", step: "replan" }, PROPOSED)).toBe(1);
+    expect(
+      stepIndexOf(
+        { kind: "failed", step: "replan", failure: NETWORK_FAILURE },
+        PROPOSED,
+      ),
+    ).toBe(1);
+  });
 });
 
 describe("STATUS_ORDER と STEP_ORDER", () => {
-  test("domain の TripStatus と Step を進む順に並べている", () => {
+  test("domain の TripStatus と段を進む順に並べている", () => {
     expect(STATUS_ORDER).toStrictEqual([
       "proposed",
       "approved",
@@ -377,6 +387,12 @@ describe("STATUS_ORDER と STEP_ORDER", () => {
       "writeBack",
     ]);
     expectTypeOf<(typeof STATUS_ORDER)[number]>().toEqualTypeOf<TripStatus>();
-    expectTypeOf<(typeof STEP_ORDER)[number]>().toEqualTypeOf<Step>();
+    expectTypeOf<(typeof STEP_ORDER)[number]>().toEqualTypeOf<Stage>();
+  });
+
+  test("段はどれも 1 手で、組み直しだけが段に無い", () => {
+    expectTypeOf<Stage>().toExtend<Step>();
+    expectTypeOf<"replan">().toExtend<Step>();
+    expectTypeOf<"replan">().not.toExtend<Stage>();
   });
 });

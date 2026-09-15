@@ -44,7 +44,6 @@ export const visibilitySchema = z.enum(["public", "private"]);
  *
  * 画面は必ず `visibility` を送るので、body が無いことも空のことも許さない
  * 計画に無い候補 (日帰りの宿) の指定は use case が捨てるので、ここでは形だけを見る
- * `locale` は年齢確認が通らなかったときの計画の作り直しに要る
  */
 export const approveTripBodySchema = z
   .object({
@@ -57,9 +56,15 @@ export const approveTripBodySchema = z
         leisure: visibilitySchema.optional(),
       })
       .strict(),
-    locale: localeSchema,
   })
   .strict();
+
+/**
+ * `POST /api/secretary/trips/[tripId]/replan` の body
+ *
+ * `locale` は planner の呼び直しに要る
+ */
+export const replanBodySchema = z.object({ locale: localeSchema }).strict();
 
 /**
  * `POST /api/secretary/trips/[tripId]/write-back` の body
@@ -80,6 +85,11 @@ export type ProposeTripBody = z.infer<typeof proposeTripBodySchema>;
  * `POST /api/secretary/trips/[tripId]/approve` の body
  */
 export type ApproveTripBody = z.infer<typeof approveTripBodySchema>;
+
+/**
+ * `POST /api/secretary/trips/[tripId]/replan` の body
+ */
+export type ReplanBody = z.infer<typeof replanBodySchema>;
 
 /**
  * `POST /api/secretary/trips/[tripId]/write-back` の body

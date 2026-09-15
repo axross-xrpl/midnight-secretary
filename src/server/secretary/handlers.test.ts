@@ -40,6 +40,7 @@ import {
   handleApproveTrip,
   handlePayForTrip,
   handleProposeTrip,
+  handleReplanTrip,
   handleSetUpMandate,
   handleWriteBackTrip,
 } from "./handlers";
@@ -207,10 +208,18 @@ const approveRequest = async (
   visibility: unknown = {},
 ): Promise<Response> => {
   return handleApproveTrip(
-    postRequest(`/api/secretary/trips/${id}/approve`, {
-      visibility,
-      locale: "ja",
-    }),
+    postRequest(`/api/secretary/trips/${id}/approve`, { visibility }),
+    id,
+    state.deps,
+  );
+};
+
+const replanRequest = async (
+  id: string,
+  body: unknown = { locale: "ja" },
+): Promise<Response> => {
+  return handleReplanTrip(
+    postRequest(`/api/secretary/trips/${id}/replan`, body),
     id,
     state.deps,
   );
@@ -272,12 +281,13 @@ const proposedTripId = async (event: string): Promise<string> => {
 };
 
 describe("サインインしていないとき", () => {
-  test("5 つの handler すべてが 401 を返す", async () => {
+  test("6 つの handler すべてが 401 を返す", async () => {
     const deps = signedOutDeps();
     const responses = await Promise.all([
       handleSetUpMandate(postRequest("/api/secretary/mandate", {}), deps),
       handleProposeTrip(postRequest("/api/secretary/trips", {}), deps),
       handleApproveTrip(postRequest("/approve"), UNKNOWN_TRIP_ID, deps),
+      handleReplanTrip(postRequest("/replan", {}), UNKNOWN_TRIP_ID, deps),
       handlePayForTrip(postRequest("/pay"), UNKNOWN_TRIP_ID, deps),
       handleWriteBackTrip(
         postRequest("/write-back", {}),
@@ -287,7 +297,7 @@ describe("サインインしていないとき", () => {
     ]);
 
     expect(responses.map((response) => response.status)).toStrictEqual([
-      401, 401, 401, 401, 401,
+      401, 401, 401, 401, 401, 401,
     ]);
     expect(parseSecretaryFailure(await responses[0].json())).toStrictEqual({
       code: "unauthorized",
@@ -479,7 +489,6 @@ describe("承認から書き戻しまで", () => {
     const response = await handleApproveTrip(
       postRequest(`/api/secretary/trips/${id}/approve`, {
         visibility: { lodging: "private" },
-        locale: "ja",
       }),
       id,
       handlerDepsFor(withoutPrivateSettlement(state.context)),
@@ -514,7 +523,6 @@ describe("承認から書き戻しまで", () => {
 
     const response = await rawApproveRequest(id, {
       visibility: { outbound: "secret" },
-      locale: "ja",
     });
 
     expect(response.status).toBe(422);
@@ -525,11 +533,14 @@ describe("承認から書き戻しまで", () => {
     expect(failure).toHaveProperty("issues");
   });
 
-  test("locale の無い承認は 422 で issues を返す", async () => {
+  test("locale の付いた承認は余分なキーとして 422 になる", async () => {
     await setUpMandateRequest();
     const id = await proposedTripId("seed-2");
 
-    const response = await rawApproveRequest(id, { visibility: {} });
+    const response = await rawApproveRequest(id, {
+      visibility: {},
+      locale: "ja",
+    });
 
     expect(response.status).toBe(422);
 
@@ -564,7 +575,7 @@ describe("承認から書き戻しまで", () => {
 });
 
 describe("年齢確認つきの承認", () => {
-  test("出発日にまだ 20 歳でない出張の承認は 200 で作り直した提案を返し、store も同じ", async () => {
+  test("出発日にまだ 20 歳でない出張の承認は 200 で記録つきの提案を返し、store も同じ", async () => {
     await setUpMandateRequest();
     const id = await proposedTripId("seed-5");
 
@@ -577,13 +588,16 @@ describe("年齢確認つきの承認", () => {
       value: {
         status: "proposed",
         id,
-        plan: { dining: { id: "restaurant-cafe-nakanoshima" } },
-        revision: {
-          reason: {
-            kind: "ageNotVerified",
-            ageLimit: 20,
-            cutoffDate: "2006-09-15",
+        plan: { dining: { id: "restaurant-izakaya-tenma" } },
+        failedAgeCheck: {
+          ageLimit: 20,
+          cutoffDate: "2006-09-15",
+          visibility: {
+            outbound: "public",
+            inbound: "public",
+            dining: "public",
           },
+          checkedAt: NOW,
         },
       },
     });
@@ -594,9 +608,84 @@ describe("年齢確認つきの承認", () => {
     );
 
     expect(stored.ok && stored.value?.status).toBe("proposed");
-    expect(stored.ok && stored.value?.revision?.reason.kind).toBe(
-      "ageNotVerified",
-    );
+    expect(
+      stored.ok &&
+        stored.value?.status === "proposed" &&
+        stored.value.failedAgeCheck?.ageLimit,
+    ).toBe(20);
+  });
+
+  test("記録つきの提案の組み直しは 200 で作り直した提案を返し、もう一度は 422 になる", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-5");
+
+    await approveRequest(id);
+
+    const response = await replanRequest(id);
+
+    expect(response.status).toBe(200);
+    expect(parseTripResponse(await response.json())).toMatchObject({
+      ok: true,
+      value: {
+        status: "proposed",
+        id,
+        plan: { dining: { id: "restaurant-cafe-nakanoshima" } },
+        revision: {
+          reason: {
+            kind: "ageNotVerified",
+            ageLimit: 20,
+            cutoffDate: "2006-09-15",
+          },
+          previous: { plan: { dining: { id: "restaurant-izakaya-tenma" } } },
+        },
+      },
+    });
+
+    const again = await replanRequest(id);
+
+    expect(again.status).toBe(422);
+    expect(parseSecretaryFailure(await again.json())).toStrictEqual({
+      code: "secretary",
+      error: {
+        source: "flow",
+        error: { kind: "replanNotNeeded", tripId: id },
+      },
+    });
+  });
+
+  test("組み直した提案の承認は 200 で approved を返し、証明の記録は残らない", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-5");
+
+    await approveRequest(id);
+    await replanRequest(id);
+
+    const response = await approveRequest(id);
+
+    expect(response.status).toBe(200);
+
+    const trip = parseTripResponse(await response.json());
+
+    expect(trip.ok && trip.value.status).toBe("approved");
+    expect(trip.ok && "ageProof" in trip.value).toBe(false);
+    expect(trip.ok && "failedAgeCheck" in trip.value).toBe(false);
+    expect(trip.ok && trip.value.revision?.reason.kind).toBe("ageNotVerified");
+  });
+
+  test("locale の無い組み直しは 422 で issues を返す", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-5");
+
+    await approveRequest(id);
+
+    const response = await replanRequest(id, {});
+
+    expect(response.status).toBe(422);
+
+    const failure = parseSecretaryFailure(await response.json());
+
+    expect(failure.code).toBe("invalid_request");
+    expect(failure).toHaveProperty("issues");
   });
 
   test("生年月日の無いプロフィールでは 422 で birthDateMissing を返す", async () => {

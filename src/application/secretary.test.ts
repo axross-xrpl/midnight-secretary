@@ -57,6 +57,7 @@ import type {
   ApproveTripInput,
   ProposeTripInput,
   RenderEventText,
+  ReplanTripInput,
 } from "./secretary";
 import {
   approveTrip,
@@ -65,6 +66,7 @@ import {
   loadTrips,
   payForTrip,
   proposeTrip,
+  replanTrip,
   setUpMandate,
   writeBackTrip,
 } from "./secretary";
@@ -271,10 +273,13 @@ const approveInput = (
   id: TripId,
   requested: PaymentVisibilityInput = {},
 ): ApproveTripInput => {
+  return { userId: USER, tripId: id, requested, now: NOW };
+};
+
+const replanInput = (id: TripId): ReplanTripInput => {
   return {
     userId: USER,
     tripId: id,
-    requested,
     locale: "ja",
     preferences: WAVE1_PREFERENCES,
     now: NOW,
@@ -295,19 +300,28 @@ const mustApprove = async (
   return outcome.trip;
 };
 
-// 年齢確認が通らず計画が作り直されたことを前提に、新しい提案を取り出す
-const mustRevise = async (
+// 年齢確認が通らなかったことを前提に、記録つきの提案を取り出す
+const mustFailAgeCheck = async (
   deps: SecretaryDeps,
   id: TripId,
   requested: PaymentVisibilityInput = {},
 ): Promise<ProposedTrip> => {
   const outcome = mustOk(await approveTrip(approveInput(id, requested), deps));
 
-  if (outcome.kind !== "revised") {
-    throw new Error(`test: expected a revision but was ${outcome.kind}`);
+  if (outcome.kind !== "ageNotVerified") {
+    throw new Error(
+      `test: expected a failed age check but was ${outcome.kind}`,
+    );
   }
 
   return outcome.trip;
+};
+
+const mustReplan = async (
+  deps: SecretaryDeps,
+  id: TripId,
+): Promise<ProposedTrip> => {
+  return mustOk(await replanTrip(replanInput(id), deps));
 };
 
 const mustPay = async (deps: SecretaryDeps, id: TripId): Promise<PaidTrip> => {
@@ -841,49 +855,46 @@ describe("approveTrip", () => {
     });
   });
 
-  test("出発日にまだ 20 歳でなければ年齢制限のない候補で作り直し、同じ id の提案として残す", async () => {
+  test("出発日にまだ 20 歳でなければ計画を変えず、証明が通らなかった記録を付けて提案済みのまま残す", async () => {
     const deps = testDeps();
 
     await mustSetUpMandate(deps, ENOUGH_CAP);
     const proposed = await mustPropose(deps, GATHERING_EVENT);
 
-    const revised = await mustRevise(deps, proposed.id, { dining: "private" });
+    const rejected = await mustFailAgeCheck(deps, proposed.id, {
+      dining: "private",
+    });
 
-    expect(revised.id).toBe(proposed.id);
-    expect(revised.proposedAt).toBe(NOW);
-    expect(revised.revision).toStrictEqual({
-      reason: {
-        kind: "ageNotVerified",
+    expect(rejected).toStrictEqual({
+      ...proposed,
+      failedAgeCheck: {
         ageLimit: 20,
         cutoffDate: "2006-09-15",
-      },
-      previous: {
-        plan: proposed.plan,
-        proposedAt: proposed.proposedAt,
         visibility: {
           outbound: "public",
           inbound: "public",
           dining: "private",
         },
+        checkedAt: NOW,
       },
-      revisedAt: NOW,
     });
-    expect(diningOf(revised.plan).id).toBe("restaurant-cafe-nakanoshima");
-    expect(diningOf(revised.plan).requiredVerifications).toStrictEqual([]);
-    expect(revised.plan.total).toStrictEqual(mst(REVISED_GATHERING_TOTAL));
-    expect(await storedTrip(deps, proposed.id)).toStrictEqual(revised);
+    expect(diningOf(rejected.plan).id).toBe("restaurant-izakaya-tenma");
+    expect(await storedTrip(deps, proposed.id)).toStrictEqual(rejected);
   });
 
-  test("作り直した提案は証明なしで承認でき、作り直しの記録を引き継ぐ", async () => {
+  test("組み直した提案は証明なしで承認でき、作り直しの記録を引き継ぐ", async () => {
     const deps = testDeps();
 
     await mustSetUpMandate(deps, ENOUGH_CAP);
     const proposed = await mustPropose(deps, GATHERING_EVENT);
-    const revised = await mustRevise(deps, proposed.id);
+
+    await mustFailAgeCheck(deps, proposed.id);
+    const revised = await mustReplan(deps, proposed.id);
 
     const approved = await mustApprove(deps, proposed.id);
 
     expect("ageProof" in approved).toBe(false);
+    expect("failedAgeCheck" in approved).toBe(false);
     expect(approved.plan).toStrictEqual(revised.plan);
     expect(approved.revision).toStrictEqual(revised.revision);
   });
@@ -922,10 +933,10 @@ describe("approveTrip", () => {
     const gathering = await mustPropose(deps, GATHERING_EVENT);
 
     const approved = await mustApprove(deps, dinner.id);
-    const revised = await mustRevise(deps, gathering.id);
+    const rejected = await mustFailAgeCheck(deps, gathering.id);
 
-    // 2 回目の登録なら unavailable になるので、作り直しまで進むのは登録を飛ばした証
-    expect(revised.revision?.reason.kind).toBe("ageNotVerified");
+    // 2 回目の登録なら unavailable になるので、証明の結果まで進むのは登録を飛ばした証
+    expect(rejected.failedAgeCheck?.ageLimit).toBe(20);
     expect(await deps.identity.readRegistration(USER)).toStrictEqual({
       ok: true,
       value: {
@@ -967,6 +978,116 @@ describe("approveTrip", () => {
           expected: "proposed",
           actual: "approved",
         },
+      },
+    });
+  });
+});
+
+describe("replanTrip", () => {
+  test("証明が通らなかった提案を年齢制限のない候補で組み直し、同じ id の提案として残す", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, GATHERING_EVENT);
+    const rejected = await mustFailAgeCheck(deps, proposed.id, {
+      dining: "private",
+    });
+
+    const revised = await mustReplan(deps, proposed.id);
+
+    expect(revised.id).toBe(proposed.id);
+    expect(revised.proposedAt).toBe(NOW);
+    expect("failedAgeCheck" in revised).toBe(false);
+    expect(revised.revision).toStrictEqual({
+      reason: {
+        kind: "ageNotVerified",
+        ageLimit: 20,
+        cutoffDate: "2006-09-15",
+      },
+      previous: {
+        plan: proposed.plan,
+        proposedAt: proposed.proposedAt,
+        visibility: rejected.failedAgeCheck?.visibility,
+      },
+      revisedAt: NOW,
+    });
+    expect(revised.revision?.previous.visibility).toStrictEqual({
+      outbound: "public",
+      inbound: "public",
+      dining: "private",
+    });
+    expect(diningOf(revised.plan).id).toBe("restaurant-cafe-nakanoshima");
+    expect(diningOf(revised.plan).requiredVerifications).toStrictEqual([]);
+    expect(revised.plan.total).toStrictEqual(mst(REVISED_GATHERING_TOTAL));
+    expect(await storedTrip(deps, proposed.id)).toStrictEqual(revised);
+  });
+
+  test("証明が通らなかった記録の無い提案は replanNotNeeded になり、計画は変わらない", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, GATHERING_EVENT);
+
+    expect(await replanTrip(replanInput(proposed.id), deps)).toStrictEqual({
+      ok: false,
+      error: {
+        source: "flow",
+        error: { kind: "replanNotNeeded", tripId: proposed.id },
+      },
+    });
+    expect(await storedTrip(deps, proposed.id)).toStrictEqual(proposed);
+  });
+
+  test("組み直した提案をもう一度組み直すと replanNotNeeded になる", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, GATHERING_EVENT);
+
+    await mustFailAgeCheck(deps, proposed.id);
+    const revised = await mustReplan(deps, proposed.id);
+
+    expect(await replanTrip(replanInput(proposed.id), deps)).toStrictEqual({
+      ok: false,
+      error: {
+        source: "flow",
+        error: { kind: "replanNotNeeded", tripId: proposed.id },
+      },
+    });
+    expect(await storedTrip(deps, proposed.id)).toStrictEqual(revised);
+  });
+
+  test("承認済みの trip は wrongStatus になる", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, OSAKA_EVENT);
+
+    await mustApprove(deps, proposed.id);
+
+    expect(await replanTrip(replanInput(proposed.id), deps)).toStrictEqual({
+      ok: false,
+      error: {
+        source: "flow",
+        error: {
+          kind: "wrongStatus",
+          tripId: proposed.id,
+          expected: "proposed",
+          actual: "approved",
+        },
+      },
+    });
+  });
+
+  test("知らない trip id は tripNotFound になる", async () => {
+    const deps = testDeps();
+    const unknown = UNKNOWN_TRIP_ID;
+
+    expect(await replanTrip(replanInput(unknown), deps)).toStrictEqual({
+      ok: false,
+      error: {
+        source: "flow",
+        error: { kind: "tripNotFound", tripId: unknown },
       },
     });
   });

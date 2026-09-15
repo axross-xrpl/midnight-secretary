@@ -61,6 +61,13 @@ export const STATUS_ORDER = [
 ] as const satisfies readonly TripStatus[];
 
 /**
+ * ステップ表示の段
+ *
+ * 1 手 (`Step`) のうち組み直しは承認の段の中の 1 手なので、段には無い
+ */
+export type Stage = "propose" | "approve" | "pay" | "writeBack";
+
+/**
  * 段の順 (提案 0、承認 1、支払い 2、カレンダー登録 3)
  */
 export const STEP_ORDER = [
@@ -68,7 +75,7 @@ export const STEP_ORDER = [
   "approve",
   "pay",
   "writeBack",
-] as const satisfies readonly Step[];
+] as const satisfies readonly Stage[];
 
 const IDLE = { kind: "idle" } as const satisfies Activity;
 
@@ -199,11 +206,20 @@ const idleStepIndex = (trip: TripResponse | undefined): number => {
   return STATUS_ORDER.indexOf(trip.status) + 1;
 };
 
+// 組み直しは承認の段の中の 1 手なので、段としては承認に数える
+const stageOf = (step: Step): Stage => {
+  if (step === "replan") {
+    return "approve";
+  }
+
+  return step;
+};
+
 /**
  * ステップ表示で強調する段の添字 (提案 0、承認 1、支払い 2、カレンダー登録 3)
  *
  * 進行中と失敗はその 1 手の段、休止状態は trip の status の次の段 (written は 4 で全段済み)
- * 証明を送るかの返事待ちは承認の段 (承認の 1 手の途中なので)
+ * 証明を送るかの返事待ちと組み直しは承認の段 (承認の 1 手の途中なので)
  */
 export const stepIndexOf = (
   activity: Activity,
@@ -213,7 +229,7 @@ export const stepIndexOf = (
     .with({ kind: "idle" }, () => idleStepIndex(trip))
     .with({ kind: "awaitingConsent" }, () => STEP_ORDER.indexOf("approve"))
     .with({ kind: P.union("busy", "failed") }, ({ step }) =>
-      STEP_ORDER.indexOf(step),
+      STEP_ORDER.indexOf(stageOf(step)),
     )
     .exhaustive();
 };
