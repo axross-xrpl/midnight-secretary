@@ -1,4 +1,23 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Zee-Kwat Private Agent (ZKP Agent)
+
+An AI secretary that arranges business trips off your calendar and pays for them on Midnight.
+Built by Team Gecko for the Midnight Buildathon.
+
+It reads the next 30 days of your Google Calendar, finds the trips nobody has arranged yet, and works
+out a plan for each one -- transport, a hotel if the trip runs overnight, somewhere to eat, somewhere to
+go -- inside the budget and the tastes on your profile. You approve it once. It then settles every
+booking from a spending allowance that lives in a Midnight contract and writes the finished itinerary
+back to the calendar.
+
+Two things run on Midnight rather than beside it:
+
+- **The money.** A trip is paid booking by booking against an allowance the contract enforces, and any
+  booking can be settled privately instead, so what you spent on dinner is not on a public ledger next
+  to the train fare.
+- **Your age.** A restaurant that serves alcohol asks whether you are old enough. The secretary answers
+  with a proof that you were born on or before a cutoff worked out from the date of departure. The
+  answer is a yes or a no; the date of birth is not part of it, and what the chain keeps is a
+  commitment to it rather than the date.
 
 ## Setup
 
@@ -133,38 +152,3 @@ is on the calendar, and reads the Confirmed tab from there, so it needs `DATABAS
 `SECRETARY_CATALOG=real` as well, because each line item points at the service row it was booked from and
 only the real catalog can look those ids up; with the fake catalog the calendar entry still succeeds and
 the conversation says the itinerary could not be saved.
-
-## Getting Started
-
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

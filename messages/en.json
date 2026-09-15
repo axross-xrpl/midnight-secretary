@@ -1,4 +1,7 @@
 {
+  "App": {
+    "description": "An AI secretary that finds the trips on your calendar, arranges them and pays for them. The payments and the age check run on Midnight."
+  },
   "NavBar": {
     "home": "Home",
     "tasks": "Tasks",
