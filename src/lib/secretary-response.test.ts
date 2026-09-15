@@ -4,7 +4,6 @@ import type { Mandate } from "@/domain/mandate";
 import type { ApprovedTrip, Trip } from "@/domain/trip";
 import type { MandateResponse, TripResponse } from "./secretary-response";
 import {
-  parseAgeNotVerified,
   parseMandateOverBudget,
   parsePlanOverBudget,
   parseSecretaryFailure,
@@ -206,6 +205,39 @@ const APPROVED_WITH_LEISURE_PAYLOAD = {
   },
 };
 
+// 年齢確認が通らず、居酒屋の無い計画に作り直した提案
+const REVISED_PAYLOAD = {
+  data: {
+    status: "proposed",
+    id: APPROVED_PAYLOAD.data.id,
+    event: APPROVED_PAYLOAD.data.event,
+    plan: APPROVED_PAYLOAD.data.plan,
+    proposedAt: "2026-09-10T00:01:00Z",
+    revision: {
+      reason: {
+        kind: "ageNotVerified",
+        ageLimit: 20,
+        cutoffDate: "2006-09-15",
+      },
+      previous: {
+        plan: APPROVED_WITH_PROOF_PAYLOAD.data.plan,
+        proposedAt: "2026-09-10T00:00:00Z",
+        visibility: {
+          outbound: "public",
+          inbound: "private",
+          dining: "private",
+        },
+      },
+      revisedAt: "2026-09-10T00:01:00Z",
+    },
+  },
+};
+
+// 作り直した提案を承認したもの (記録は承認以降も残る)
+const APPROVED_REVISED_PAYLOAD = {
+  data: { ...APPROVED_PAYLOAD.data, revision: REVISED_PAYLOAD.data.revision },
+};
+
 describe("parseTripResponse", () => {
   test("status の無い応答は拒否する", () => {
     const parsed = parseTripResponse({ data: { id: "trip-1" } });
@@ -265,42 +297,38 @@ describe("parseTripResponse", () => {
 
     expect(parsed.ok).toBe(false);
   });
-});
 
-describe("parseAgeNotVerified", () => {
-  test("flow.ageNotVerified からは年齢の下限と cutoff を返す", () => {
-    expect(
-      parseAgeNotVerified({
-        source: "flow",
-        error: {
-          kind: "ageNotVerified",
-          tripId: tripIdAt(1),
-          ageLimit: 20,
-          cutoffDate: "2006-09-15",
-        },
-      }),
-    ).toStrictEqual({
+  test("作り直しの記録を持つ提案を通す", () => {
+    const parsed = parseTripResponse(REVISED_PAYLOAD);
+
+    expect(parsed).toStrictEqual({ ok: true, value: REVISED_PAYLOAD.data });
+  });
+
+  test("作り直しの記録は承認済みの応答でも残る", () => {
+    const parsed = parseTripResponse(APPROVED_REVISED_PAYLOAD);
+
+    expect(parsed).toStrictEqual({
       ok: true,
-      value: { ageLimit: 20, cutoffDate: "2006-09-15" },
+      value: APPROVED_REVISED_PAYLOAD.data,
     });
   });
 
-  test("kind が違えばスキーマの失敗", () => {
-    expect(
-      parseAgeNotVerified({
-        source: "flow",
-        error: { kind: "birthDateMissing", tripId: tripIdAt(1) },
-      }).ok,
-    ).toBe(false);
-  });
+  test("知らない作り直しの理由は拒否する", () => {
+    const parsed = parseTripResponse({
+      data: {
+        ...REVISED_PAYLOAD.data,
+        revision: {
+          ...REVISED_PAYLOAD.data.revision,
+          reason: {
+            kind: "overBudget",
+            ageLimit: 20,
+            cutoffDate: "2006-09-15",
+          },
+        },
+      },
+    });
 
-  test("cutoff が無ければスキーマの失敗", () => {
-    expect(
-      parseAgeNotVerified({
-        source: "flow",
-        error: { kind: "ageNotVerified", tripId: tripIdAt(1), ageLimit: 20 },
-      }).ok,
-    ).toBe(false);
+    expect(parsed.ok).toBe(false);
   });
 });
 

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  approveTripBodySchema,
   proposeTripBodySchema,
   setUpMandateBodySchema,
   writeBackBodySchema,
@@ -58,6 +59,42 @@ describe("proposeTripBodySchema", () => {
     const parsed = proposeTripBodySchema.safeParse({
       eventId: "seed-2",
       locale: "fr",
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+});
+
+describe("approveTripBodySchema", () => {
+  test("公開範囲と locale を受け付ける", () => {
+    const parsed = approveTripBodySchema.safeParse({
+      visibility: { lodging: "private" },
+      locale: "ja",
+    });
+
+    expect(parsed.success).toBe(true);
+  });
+
+  test("locale が無ければ拒否する", () => {
+    const parsed = approveTripBodySchema.safeParse({ visibility: {} });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  test("知らない locale は拒否する", () => {
+    const parsed = approveTripBodySchema.safeParse({
+      visibility: {},
+      locale: "fr",
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  test("余分なキーは拒否する", () => {
+    const parsed = approveTripBodySchema.safeParse({
+      visibility: {},
+      locale: "ja",
+      tripId: "trip-1",
     });
 
     expect(parsed.success).toBe(false);

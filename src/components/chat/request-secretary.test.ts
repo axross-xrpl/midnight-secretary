@@ -240,12 +240,15 @@ describe("requestProposeTrip", () => {
 });
 
 describe("requestApproveTrip", () => {
-  test("approve のパスへ公開範囲を body にして POST する", async () => {
+  test("approve のパスへ公開範囲と locale を body にして POST する", async () => {
     const recorder = newRecorder();
     const fetchFn = recordingFetch(recorder, () =>
       jsonResponse({ data: TRIP }),
     );
-    const body = { visibility: { lodging: "private" } } as const;
+    const body = {
+      visibility: { lodging: "private" },
+      locale: "ja",
+    } as const;
 
     expect(await requestApproveTrip(fetchFn, TRIP_ID, body)).toStrictEqual({
       ok: true,

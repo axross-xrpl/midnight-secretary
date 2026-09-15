@@ -7,9 +7,11 @@ import type {
 import type {
   CatalogError,
   LodgingOffer,
+  OfferSet,
   PlaceOffer,
   TransportOffer,
 } from "@/domain/catalog";
+import { withoutAgeRestrictedDining } from "@/domain/catalog";
 import { yearsBefore } from "@/domain/dates";
 import type {
   CalendarEventId,
@@ -19,6 +21,7 @@ import type {
   UserId,
 } from "@/domain/identifiers";
 import type {
+  AdultProofOutcome,
   AgeProof,
   AgeRegistration,
   IdentityError,
@@ -33,15 +36,16 @@ import type {
 } from "@/domain/mandate";
 import { remainingAllowance } from "@/domain/mandate";
 import { paymentRefFor } from "@/domain/mandate.parse";
-import type { MoneyError } from "@/domain/money";
+import type { Money, MoneyError } from "@/domain/money";
 import type {
   AdultRequirement,
   PlanAssemblyError,
   TravelerPreferences,
+  TripIntent,
   TripPlan,
 } from "@/domain/plan";
 import { adultRequirementOf, assemblePlan, offerQueryFor } from "@/domain/plan";
-import type { PlannerError } from "@/domain/planner";
+import type { ChoiceContext, PlannerError } from "@/domain/planner";
 import type { ProfileError } from "@/domain/profile";
 import type { StoreError } from "@/domain/store";
 import type {
@@ -50,6 +54,7 @@ import type {
   PaidTrip,
   PaymentVisibility,
   PaymentVisibilityInput,
+  PlanRevisionReason,
   ProposedTrip,
   Trip,
   WrittenTrip,
@@ -95,6 +100,30 @@ export type ProposeTripInput = {
   preferences: TravelerPreferences;
   now: IsoDateTime;
 };
+
+/**
+ * trip を承認するときの入力
+ *
+ * `locale` と `preferences` は年齢確認が通らなかったときの作り直し (planner の呼び直し) に要る
+ */
+export type ApproveTripInput = {
+  userId: UserId;
+  tripId: TripId;
+  requested: PaymentVisibilityInput;
+  locale: Locale;
+  preferences: TravelerPreferences;
+  now: IsoDateTime;
+};
+
+/**
+ * 承認の結果
+ *
+ * 証明が要らないか通れば承認済み、通らなければ年齢制限のない候補で作り直した提案
+ * 作り直しは失敗ではなく秘書の次の一手なので、Result の ok 側に置く
+ */
+export type ApprovalOutcome =
+  | { kind: "approved"; trip: ApprovedTrip }
+  | { kind: "revised"; trip: ProposedTrip };
 
 /**
  * 支払い済みの出張から、カレンダーに書き戻す予定の文言を作る
@@ -249,6 +278,54 @@ const tripIdForEvent = async (
   return ok(existing.id);
 };
 
+// planner に渡す予算は、ユーザの mandate (支払い枠) の残り
+// mandate が無ければ計画を作れないので、提案でも作り直しでも先に確かめる
+const budgetOf = async (
+  userId: UserId,
+  deps: SecretaryDeps,
+): Promise<Result<Money, SecretaryError>> => {
+  const mandate = await linkedMandate(userId, deps);
+
+  if (!mandate.ok) {
+    return mandate;
+  }
+
+  if (mandate.value === undefined) {
+    return err(fromFlow({ kind: "noMandate" }));
+  }
+
+  const budget = remainingAllowance(mandate.value);
+
+  if (!budget.ok) {
+    return err(fromMoney(budget.error));
+  }
+
+  return ok(budget.value);
+};
+
+// 候補の集合から planner に選ばせ、その選択を候補と突き合わせて計画に組み立てる
+// 最初の提案と、年齢確認が通らなかったときの作り直しで共通の 2 段
+const planFrom = async (
+  intent: TripIntent,
+  offers: OfferSet,
+  context: ChoiceContext,
+  deps: SecretaryDeps,
+): Promise<Result<TripPlan, SecretaryError>> => {
+  const choice = await deps.planner.choosePlan(intent, offers, context);
+
+  if (!choice.ok) {
+    return err(fromPlanner(choice.error));
+  }
+
+  const plan = assemblePlan(intent, offers, choice.value, context.budget);
+
+  if (!plan.ok) {
+    return err(fromPlan(plan.error));
+  }
+
+  return ok(plan.value);
+};
+
 // 支払いの順は往路、復路、あれば宿泊、あれば飲食、あればレジャー
 // 宿、飲食、レジャーの公開範囲は計画にその候補があるときだけ選べるので、無い指定は公開に倒す
 const payablesOf = (
@@ -328,14 +405,14 @@ const ensureRegistered = async (
 };
 
 // 出発日の `ageLimit` 年前を cutoff にして、成人であることを証明する
-// 結果が「成人ではない」のは port の失敗ではなく flow の失敗で、trip は提案済みのまま
+// 「成人ではない」も証明としては成功なので、結果をそのまま呼び出し側に渡す
 const proveForTrip = async (
   userId: UserId,
   trip: ProposedTrip,
   requirement: AdultRequirement,
   now: IsoDateTime,
   deps: SecretaryDeps,
-): Promise<Result<AgeProof, SecretaryError>> => {
+): Promise<Result<AdultProofOutcome, SecretaryError>> => {
   const registered = await ensureRegistered(userId, now, deps);
 
   if (!registered.ok) {
@@ -356,36 +433,89 @@ const proveForTrip = async (
     return err(fromIdentity(outcome.error));
   }
 
-  return match(outcome.value)
-    .returnType<Result<AgeProof, SecretaryError>>()
-    .with({ kind: "adult" }, ({ proof }) => ok(proof))
-    .with({ kind: "notAdult" }, ({ cutoffDate }) =>
-      err(
-        fromFlow({
-          kind: "ageNotVerified",
-          tripId: trip.id,
-          ageLimit: requirement.ageLimit,
-          cutoffDate,
-        }),
-      ),
-    )
-    .exhaustive();
+  return ok(outcome.value);
 };
 
-// 計画が成人を要しなければ証明は要らない (undefined)
-const ageProofFor = async (
-  userId: UserId,
+// 承認を記録して保存する (証明は計画が成人を要したときだけ載る)
+const saveApproved = async (
   trip: ProposedTrip,
-  now: IsoDateTime,
+  visibility: PaymentVisibility,
+  ageProof: AgeProof | undefined,
+  input: ApproveTripInput,
   deps: SecretaryDeps,
-): Promise<Result<AgeProof | undefined, SecretaryError>> => {
-  const requirement = adultRequirementOf(trip.plan);
+): Promise<Result<ApprovalOutcome, SecretaryError>> => {
+  const approved = markApproved(trip, input.now, visibility, ageProof);
+  const saved = await deps.store.putTrip(input.userId, approved);
 
-  if (requirement === undefined) {
-    return ok(undefined);
+  if (!saved.ok) {
+    return err(fromStore(saved.error));
   }
 
-  return proveForTrip(userId, trip, requirement, now, deps);
+  return ok({ kind: "approved", trip: approved });
+};
+
+// 飲食から年齢確認を要する候補を除いて計画を作り直し、同じ id の提案として保存する
+// 作り直した計画が再び成人を要することは無いので、証明はやり直さない
+const reviseWithoutAgeRestricted = async (
+  trip: ProposedTrip,
+  visibility: PaymentVisibility,
+  reason: PlanRevisionReason,
+  input: ApproveTripInput,
+  deps: SecretaryDeps,
+): Promise<Result<ApprovalOutcome, SecretaryError>> => {
+  const budget = await budgetOf(input.userId, deps);
+
+  if (!budget.ok) {
+    return budget;
+  }
+
+  const intent = trip.plan.intent;
+  const offers = await deps.catalog.findOffers(
+    offerQueryFor(intent, input.preferences),
+  );
+
+  if (!offers.ok) {
+    return err(fromCatalog(offers.error));
+  }
+
+  const plan = await planFrom(
+    intent,
+    withoutAgeRestrictedDining(offers.value),
+    {
+      locale: input.locale,
+      preferences: input.preferences,
+      budget: budget.value,
+    },
+    deps,
+  );
+
+  if (!plan.ok) {
+    return plan;
+  }
+
+  const revised: ProposedTrip = {
+    status: "proposed",
+    id: trip.id,
+    event: trip.event,
+    plan: plan.value,
+    proposedAt: input.now,
+    revision: {
+      reason,
+      previous: {
+        plan: trip.plan,
+        proposedAt: trip.proposedAt,
+        visibility,
+      },
+      revisedAt: input.now,
+    },
+  };
+  const saved = await deps.store.putTrip(input.userId, revised);
+
+  if (!saved.ok) {
+    return err(fromStore(saved.error));
+  }
+
+  return ok({ kind: "revised", trip: revised });
 };
 
 // 証明の生成は直列が前提なので、前の候補の結果を待ってから次の候補を出す
@@ -557,20 +687,10 @@ export const proposeTrip = async (
     return err(fromFlow({ kind: "eventNotFound", eventId: input.eventId }));
   }
 
-  const mandate = await linkedMandate(input.userId, deps);
-
-  if (!mandate.ok) {
-    return mandate;
-  }
-
-  if (mandate.value === undefined) {
-    return err(fromFlow({ kind: "noMandate" }));
-  }
-
-  const budget = remainingAllowance(mandate.value);
+  const budget = await budgetOf(input.userId, deps);
 
   if (!budget.ok) {
-    return err(fromMoney(budget.error));
+    return budget;
   }
 
   const destinations = await deps.catalog.listDestinations();
@@ -597,25 +717,19 @@ export const proposeTrip = async (
     return err(fromCatalog(offers.error));
   }
 
-  const choice = await deps.planner.choosePlan(intent.value, offers.value, {
-    locale: input.locale,
-    preferences: input.preferences,
-    budget: budget.value,
-  });
-
-  if (!choice.ok) {
-    return err(fromPlanner(choice.error));
-  }
-
-  const plan = assemblePlan(
+  const plan = await planFrom(
     intent.value,
     offers.value,
-    choice.value,
-    budget.value,
+    {
+      locale: input.locale,
+      preferences: input.preferences,
+      budget: budget.value,
+    },
+    deps,
   );
 
   if (!plan.ok) {
-    return err(fromPlan(plan.error));
+    return plan;
   }
 
   const trip: ProposedTrip = {
@@ -640,20 +754,17 @@ export const proposeTrip = async (
  * プランは store から取り、クライアントからは公開範囲だけを受け取る
  * 計画に無い候補 (日帰りの宿、飲食やレジャーの無い計画のその指定) は捨て、指定の無い候補は公開にする
  * adapter が非公開に対応していないのに非公開があれば `flow.privateSettlementUnsupported` で、trip は提案済みのまま
- * 計画が成人を要する候補を含むなら、出発日の `ageLimit` 年前を cutoff にした証明が通ることを前提にする
- * 未登録なら profile の生年月日で登録してから証明する (登録は 1 回だけ)
- * 通れば証明を trip に残す
- * 落ちれば `flow.ageNotVerified`、生年月日が無ければ `flow.birthDateMissing` で、trip は提案済みのまま
+ * 計画が成人を要する候補を含むなら、出発日の `ageLimit` 年前を cutoff にした証明を取る
+ * 通れば証明を trip に残して承認する
+ * 通らなければ飲食の候補から年齢確認を要するものを除いて計画を作り直し、同じ id の提案として保存する (`revision` に理由と前の計画を残す)
+ * 生年月日が無ければ `flow.birthDateMissing` で、trip は提案済みのまま
  * 公開範囲の検査は I/O を伴わないので、identity に問い合わせる証明より先に行う
  */
 export const approveTrip = async (
-  userId: UserId,
-  tripId: TripId,
-  requested: PaymentVisibilityInput,
-  now: IsoDateTime,
+  input: ApproveTripInput,
   deps: SecretaryDeps,
-): Promise<Result<ApprovedTrip, SecretaryError>> => {
-  const trip = await loadTrip(userId, tripId, deps);
+): Promise<Result<ApprovalOutcome, SecretaryError>> => {
+  const trip = await loadTrip(input.userId, input.tripId, deps);
 
   if (!trip.ok) {
     return trip;
@@ -663,33 +774,62 @@ export const approveTrip = async (
     return err(
       fromFlow({
         kind: "wrongStatus",
-        tripId,
+        tripId: input.tripId,
         expected: "proposed",
         actual: trip.value.status,
       }),
     );
   }
 
-  const visibility = visibilityFor(trip.value.plan, requested);
+  const proposed = trip.value;
+  const visibility = visibilityFor(proposed.plan, input.requested);
 
   if (hasPrivate(visibility) && !deps.mandate.capabilities.privateSettlement) {
-    return err(fromFlow({ kind: "privateSettlementUnsupported", tripId }));
+    return err(
+      fromFlow({
+        kind: "privateSettlementUnsupported",
+        tripId: input.tripId,
+      }),
+    );
   }
 
-  const ageProof = await ageProofFor(userId, trip.value, now, deps);
+  const requirement = adultRequirementOf(proposed.plan);
 
-  if (!ageProof.ok) {
-    return ageProof;
+  if (requirement === undefined) {
+    return saveApproved(proposed, visibility, undefined, input, deps);
   }
 
-  const approved = markApproved(trip.value, now, visibility, ageProof.value);
-  const saved = await deps.store.putTrip(userId, approved);
+  const outcome = await proveForTrip(
+    input.userId,
+    proposed,
+    requirement,
+    input.now,
+    deps,
+  );
 
-  if (!saved.ok) {
-    return err(fromStore(saved.error));
+  if (!outcome.ok) {
+    return outcome;
   }
 
-  return ok(approved);
+  return match(outcome.value)
+    .returnType<Promise<Result<ApprovalOutcome, SecretaryError>>>()
+    .with({ kind: "adult" }, ({ proof }) =>
+      saveApproved(proposed, visibility, proof, input, deps),
+    )
+    .with({ kind: "notAdult" }, ({ cutoffDate }) =>
+      reviseWithoutAgeRestricted(
+        proposed,
+        visibility,
+        {
+          kind: "ageNotVerified",
+          ageLimit: requirement.ageLimit,
+          cutoffDate,
+        },
+        input,
+        deps,
+      ),
+    )
+    .exhaustive();
 };
 
 /**

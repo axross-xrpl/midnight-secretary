@@ -1,4 +1,4 @@
-import { match } from "ts-pattern";
+import { match, P } from "ts-pattern";
 import type { PaymentVisibilityInput } from "@/domain/trip";
 import type { ScanEvent } from "@/lib/calendar-scan-response";
 import type {
@@ -6,6 +6,8 @@ import type {
   AuthorizationResponse,
   MoneyResponse,
   PaymentVisibilityResponse,
+  PlaceOfferResponse,
+  PlanRevisionResponse,
   TripPlanResponse,
   TripResponse,
 } from "@/lib/secretary-response";
@@ -53,6 +55,8 @@ export type WorkingStep = Step | "approveWithProof";
 /**
  * 秘書の吹き出し 1 つ
  *
+ * `askProof` は年齢確認を求める候補があるときの、証明を送ってよいかの問い
+ * `revised` は証明が通らず年齢制限のない候補で計画を作り直したときの説明で、`place` は使えなくなった候補
  * `ageVerified` は承認の中で通った成人の証明で、`ageLimit` は計画の候補の年齢の下限
  * `working` の `step` は進行中の手で、承認が年齢の証明を伴うときは `approveWithProof`
  */
@@ -64,6 +68,13 @@ export type SecretaryLine =
       title: string;
       plan: TripPlanResponse;
       visibility?: PlanVisibility;
+    }
+  | { kind: "askProof"; place: PlaceOfferResponse; ageLimit: number }
+  | {
+      kind: "revised";
+      place: PlaceOfferResponse;
+      ageLimit: number;
+      cutoffDate: string;
     }
   | { kind: "ageVerified"; proof: AgeProofResponse; ageLimit: number }
   | { kind: "askPay" }
@@ -80,6 +91,7 @@ export type SecretaryLine =
 export type UserLine =
   | { kind: "propose" }
   | { kind: "approve"; privateCount: number }
+  | { kind: "sendProof" }
   | { kind: "pay"; resume: boolean }
   | { kind: "writeBack" };
 
@@ -94,10 +106,18 @@ export type Bubble =
 
 /**
  * いま押せる返答 1 つ
+ *
+ * `sendProof` は年齢の証明を送って承認まで進める返答、`declineProof` は提案に戻る返答
  */
 export type Reply =
   | { kind: "propose"; eventId: string }
   | { kind: "approve"; trip: TripResponse; visibility: PaymentVisibilityInput }
+  | {
+      kind: "sendProof";
+      trip: TripResponse;
+      visibility: PaymentVisibilityInput;
+    }
+  | { kind: "declineProof" }
   | { kind: "pay"; trip: TripResponse; resume: boolean }
   | { kind: "writeBack"; trip: TripResponse }
   | { kind: "dismiss" };
@@ -118,6 +138,7 @@ type PaidFacts = {
   visibility: PaymentVisibilityResponse;
   authorizations: readonly AuthorizationResponse[];
   ageProof?: AgeProofResponse;
+  revision?: PlanRevisionResponse;
   paidAt: string;
 };
 
@@ -154,17 +175,17 @@ const chosenVisibility = (state: ChatState): PaymentVisibilityInput => {
 };
 
 // 提案済みの計画は、adapter が非公開を扱えるときだけトグルを出す
-// 進行中は返答ボタンと同じく操作を止める
+// 承認を押した後 (証明の返事待ちと進行中) は、返答ボタンと同じく操作を止める
 const editorVisibilityOf = (state: ChatState): PlanVisibility | undefined => {
   if (!state.capabilities.privateSettlement) {
     return undefined;
   }
 
-  return {
-    mode: "editor",
-    value: state.visibility,
-    disabled: state.activity.kind === "busy",
-  };
+  const frozen = match(state.activity)
+    .with({ kind: P.union("awaitingConsent", "busy") }, () => true)
+    .otherwise(() => false);
+
+  return { mode: "editor", value: state.visibility, disabled: frozen };
 };
 
 const badgesOf = (visibility: PaymentVisibilityResponse): PlanVisibility => {
@@ -186,6 +207,42 @@ const proposalOf = (
     },
     proposedAt,
   );
+};
+
+// ユーザが承認を押したときの写し (非公開に選んだ件数を持つ)
+const approveEcho = (privateCount: number): Bubble => {
+  return user({ kind: "approve", privateCount });
+};
+
+// 成人を要する計画なら、承認の後に「証明を送ってよいか」の問いが 1 つ挟まる
+const askProofOf = (plan: TripPlanResponse): readonly Bubble[] => {
+  const requirement = adultRequirementOfResponse(plan);
+
+  if (requirement === undefined) {
+    return [];
+  }
+
+  return [
+    secretary({
+      kind: "askProof",
+      place: requirement.offer,
+      ageLimit: requirement.ageLimit,
+    }),
+  ];
+};
+
+// 承認の 1 手の写し (成人を要する計画では、証明の問いと「証明を送って」の写しまでが 1 手)
+const approvalEchoOf = (
+  plan: TripPlanResponse,
+  privateCount: number,
+): readonly Bubble[] => {
+  const asked = askProofOf(plan);
+
+  if (asked.length === 0) {
+    return [approveEcho(privateCount)];
+  }
+
+  return [approveEcho(privateCount), ...asked, user({ kind: "sendProof" })];
 };
 
 // 支払いの途中で失敗していれば済んだ候補が残っているので、askPay の代わりに partiallyPaid を出す
@@ -221,10 +278,48 @@ const ageVerifiedOf = (
   ];
 };
 
+// 作り直した提案の前に、作り直す前の提案から作り直しの説明までを置く
+// 前の計画に年齢制限つきの候補が無ければ (起こらないはず) 前置きは出さない
+const revisionPreludeOf = (
+  event: ScanEvent,
+  revision: PlanRevisionResponse | undefined,
+): readonly Bubble[] => {
+  if (revision === undefined) {
+    return [];
+  }
+
+  const previous = revision.previous;
+  const requirement = adultRequirementOfResponse(previous.plan);
+
+  if (requirement === undefined) {
+    return [];
+  }
+
+  return [
+    proposalOf(
+      event,
+      previous.plan,
+      previous.proposedAt,
+      badgesOf(previous.visibility),
+    ),
+    ...approvalEchoOf(previous.plan, privateCountOf(previous.visibility)),
+    secretary(
+      {
+        kind: "revised",
+        place: requirement.offer,
+        ageLimit: revision.reason.ageLimit,
+        cutoffDate: revision.reason.cutoffDate,
+      },
+      revision.revisedAt,
+    ),
+  ];
+};
+
 const paidHistory = (event: ScanEvent, trip: PaidFacts): readonly Bubble[] => {
   return [
+    ...revisionPreludeOf(event, trip.revision),
     proposalOf(event, trip.plan, trip.proposedAt, badgesOf(trip.visibility)),
-    user({ kind: "approve", privateCount: privateCountOf(trip.visibility) }),
+    ...approvalEchoOf(trip.plan, privateCountOf(trip.visibility)),
     ...ageVerifiedOf(trip.plan, trip.ageProof),
     secretary({ kind: "askPay" }, trip.approvedAt),
     user({ kind: "pay", resume: false }),
@@ -243,6 +338,7 @@ const historyOf = (state: ChatState, trip: TripResponse): readonly Bubble[] => {
   return match(trip)
     .returnType<readonly Bubble[]>()
     .with({ status: "proposed" }, (proposed) => [
+      ...revisionPreludeOf(event, proposed.revision),
       proposalOf(
         event,
         proposed.plan,
@@ -251,16 +347,14 @@ const historyOf = (state: ChatState, trip: TripResponse): readonly Bubble[] => {
       ),
     ])
     .with({ status: "approved" }, (approved) => [
+      ...revisionPreludeOf(event, approved.revision),
       proposalOf(
         event,
         approved.plan,
         approved.proposedAt,
         badgesOf(approved.visibility),
       ),
-      user({
-        kind: "approve",
-        privateCount: privateCountOf(approved.visibility),
-      }),
+      ...approvalEchoOf(approved.plan, privateCountOf(approved.visibility)),
       ...ageVerifiedOf(approved.plan, approved.ageProof),
       afterApproval(approved.authorizations, approved.approvedAt),
     ])
@@ -323,17 +417,25 @@ const workingStepOf = (
   return "approveWithProof";
 };
 
+// 承認の写しは、計画が成人を要するなら証明の問いと同意の写しまでを含む
+const approveEchoOf = (state: ChatState): readonly Bubble[] => {
+  const privateCount = privateCountOf(chosenVisibility(state));
+
+  if (state.trip === undefined) {
+    return [approveEcho(privateCount)];
+  }
+
+  return approvalEchoOf(state.trip.plan, privateCount);
+};
+
 // 進行中の 1 手をユーザの吹き出しとして写す
-const echoOf = (step: Step, state: ChatState): UserLine => {
+const echoOf = (step: Step, state: ChatState): readonly Bubble[] => {
   return match(step)
-    .returnType<UserLine>()
-    .with("propose", () => ({ kind: "propose" }))
-    .with("approve", () => ({
-      kind: "approve",
-      privateCount: privateCountOf(chosenVisibility(state)),
-    }))
-    .with("pay", () => ({ kind: "pay", resume: canResume(state.trip) }))
-    .with("writeBack", () => ({ kind: "writeBack" }))
+    .returnType<readonly Bubble[]>()
+    .with("propose", () => [user({ kind: "propose" })])
+    .with("approve", () => approveEchoOf(state))
+    .with("pay", () => [user({ kind: "pay", resume: canResume(state.trip) })])
+    .with("writeBack", () => [user({ kind: "writeBack" })])
     .exhaustive();
 };
 
@@ -356,11 +458,38 @@ const repliesOf = (state: ChatState): readonly Reply[] => {
     .exhaustive();
 };
 
+// 証明を送るかの返事待ちは、承認の写しと証明の問いまでを出し、返答は送るかやめるかの 2 つ
+// 提案済みで成人を要する計画でなければ (起こらないはず) 休止状態と同じ出力にする
+const consentOf = (state: ChatState, idle: readonly Bubble[]): Conversation => {
+  const trip = state.trip;
+
+  if (trip?.status !== "proposed") {
+    return { bubbles: idle, replies: repliesOf(state) };
+  }
+
+  const asked = askProofOf(trip.plan);
+
+  if (asked.length === 0) {
+    return { bubbles: idle, replies: repliesOf(state) };
+  }
+
+  const visibility = chosenVisibility(state);
+
+  return {
+    bubbles: [...idle, approveEcho(privateCountOf(visibility)), ...asked],
+    replies: [
+      { kind: "sendProof", trip, visibility },
+      { kind: "declineProof" },
+    ],
+  };
+};
+
 /**
  * 状態から会話ログと返答を作る
  *
  * 毎回の描画で作り直し、保存しない
  * 進行中は休止列の後にユーザの写しと `working` を足して返答を空にし、失敗は `working` の代わりに `failed` を出して `dismiss` だけを返す
+ * 証明を送るかの返事待ちはサーバを呼んでいないので、休止列の後に承認の写しと問いだけを足す
  */
 export const conversationOf = (state: ChatState): Conversation => {
   const idle = idleOf(state);
@@ -370,7 +499,7 @@ export const conversationOf = (state: ChatState): Conversation => {
     .with({ kind: "busy" }, ({ step }) => ({
       bubbles: [
         ...idle,
-        user(echoOf(step, state)),
+        ...echoOf(step, state),
         secretary({
           kind: "working",
           step: workingStepOf(step, state.trip),
@@ -382,11 +511,12 @@ export const conversationOf = (state: ChatState): Conversation => {
     .with({ kind: "failed" }, ({ step, failure }) => ({
       bubbles: [
         ...idle,
-        user(echoOf(step, state)),
+        ...echoOf(step, state),
         secretary({ kind: "failed", failure }),
       ],
       replies: [{ kind: "dismiss" }],
     }))
+    .with({ kind: "awaitingConsent" }, () => consentOf(state, idle))
     .with({ kind: "idle" }, () => ({
       bubbles: idle,
       replies: repliesOf(state),

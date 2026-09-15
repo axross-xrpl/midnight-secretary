@@ -242,7 +242,17 @@ const finish = async (context: SecretaryContext): Promise<void> => {
   const tripId = tripIdOf(1);
 
   mustOk(
-    await approveTrip(context.userId, tripId, {}, context.now, context.deps),
+    await approveTrip(
+      {
+        userId: context.userId,
+        tripId,
+        requested: {},
+        locale: "ja",
+        preferences: WAVE1_PREFERENCES,
+        now: context.now,
+      },
+      context.deps,
+    ),
   );
   mustOk(await payForTrip(context.userId, tripId, context.now, context.deps));
   mustOk(

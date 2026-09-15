@@ -7,6 +7,7 @@ import type {
   AuthorizationResponse,
   MoneyResponse,
   PaymentVisibilityResponse,
+  PlanRevisionResponse,
   TripPlanResponse,
   TripResponse,
 } from "@/lib/secretary-response";
@@ -83,6 +84,24 @@ const GATHERING_PLAN: TripPlanResponse = {
   intent: { ...PLAN.intent, purpose: "取引先と懇親会" },
   dining: IZAKAYA,
   total: mst(32440),
+};
+
+const CAFE = {
+  id: "restaurant-cafe-nakanoshima",
+  kind: "restaurant",
+  payee: "wallet-service",
+  name: "中之島カフェ",
+  city: "大阪",
+  genre: "カフェ",
+  price: mst(1200),
+  requiredVerifications: [],
+} as const;
+
+// 年齢確認が通らず、居酒屋をカフェに置き換えた計画
+const REVISED_PLAN: TripPlanResponse = {
+  ...GATHERING_PLAN,
+  dining: CAFE,
+  total: mst(30640),
 };
 
 const TOUR = {
@@ -220,7 +239,39 @@ const PAID_WITH_PROOF: TripResponse = {
   paidAt: "2026-09-10T00:02:00Z",
 };
 
+// 居酒屋つきの提案を承認したが証明が通らず、カフェの計画に作り直した記録
+const REVISION: PlanRevisionResponse = {
+  reason: { kind: "ageNotVerified", ageLimit: 20, cutoffDate: "2006-09-15" },
+  previous: {
+    plan: GATHERING_PLAN,
+    proposedAt: "2026-09-10T00:00:00Z",
+    visibility: GATHERING_ALL_PUBLIC,
+  },
+  revisedAt: "2026-09-10T00:01:00Z",
+};
+
+const PROPOSED_REVISED: TripResponse = {
+  status: "proposed",
+  ...BASE,
+  plan: REVISED_PLAN,
+  proposedAt: "2026-09-10T00:01:00Z",
+  revision: REVISION,
+};
+
+const APPROVED_REVISED: TripResponse = {
+  status: "approved",
+  ...BASE,
+  plan: REVISED_PLAN,
+  proposedAt: "2026-09-10T00:01:00Z",
+  approvedAt: "2026-09-10T00:02:00Z",
+  visibility: { outbound: "public", inbound: "public", dining: "public" },
+  authorizations: [],
+  revision: REVISION,
+};
+
 const IDLE: Activity = { kind: "idle" };
+
+const AWAITING_CONSENT: Activity = { kind: "awaitingConsent" };
 
 const CAN_KEEP_PRIVATE: MandateCapabilities = { privateSettlement: true };
 
@@ -266,8 +317,8 @@ const EDITOR_PROPOSAL_BUBBLE = proposalBubble({
   disabled: false,
 });
 
-// 進行中はトグルを止める
-const BUSY_EDITOR_PROPOSAL_BUBBLE = proposalBubble({
+// 承認を押した後 (証明の返事待ちと進行中) はトグルを止める
+const FROZEN_EDITOR_PROPOSAL_BUBBLE = proposalBubble({
   mode: "editor",
   value: {},
   disabled: true,
@@ -281,17 +332,75 @@ const APPROVE_BUBBLE: Bubble = {
   line: { kind: "approve", privateCount: 0 },
 };
 
+const gatheringProposalBubble = (visibility: PlanVisibility): Bubble => {
+  return {
+    speaker: "secretary",
+    line: {
+      kind: "proposal",
+      title: OSAKA.title,
+      plan: GATHERING_PLAN,
+      visibility,
+    },
+    at: "2026-09-10T00:00:00Z",
+  };
+};
+
 // 居酒屋つきの計画の承認済み以降 (飲食も公開のバッジ)
-const GATHERING_PROPOSAL_BUBBLE: Bubble = {
+const GATHERING_PROPOSAL_BUBBLE = gatheringProposalBubble({
+  mode: "badges",
+  value: GATHERING_ALL_PUBLIC,
+});
+
+// 居酒屋つきの提案のまま承認を押した後 (トグルは止まった editor のまま)
+const FROZEN_GATHERING_PROPOSAL_BUBBLE = gatheringProposalBubble({
+  mode: "editor",
+  value: {},
+  disabled: true,
+});
+
+const revisedProposalBubble = (visibility: PlanVisibility): Bubble => {
+  return {
+    speaker: "secretary",
+    line: {
+      kind: "proposal",
+      title: OSAKA.title,
+      plan: REVISED_PLAN,
+      visibility,
+    },
+    at: "2026-09-10T00:01:00Z",
+  };
+};
+
+const ASK_PROOF_BUBBLE: Bubble = {
+  speaker: "secretary",
+  line: { kind: "askProof", place: IZAKAYA, ageLimit: 20 },
+};
+
+// 成人を要する計画の承認の 1 手は、承認の写し、証明の問い、証明を送る写しの 3 つ
+const GATHERING_APPROVE_BUBBLES: readonly Bubble[] = [
+  APPROVE_BUBBLE,
+  ASK_PROOF_BUBBLE,
+
+  { speaker: "user", line: { kind: "sendProof" } },
+];
+
+const REVISED_BUBBLE: Bubble = {
   speaker: "secretary",
   line: {
-    kind: "proposal",
-    title: OSAKA.title,
-    plan: GATHERING_PLAN,
-    visibility: { mode: "badges", value: GATHERING_ALL_PUBLIC },
+    kind: "revised",
+    place: IZAKAYA,
+    ageLimit: 20,
+    cutoffDate: "2006-09-15",
   },
-  at: "2026-09-10T00:00:00Z",
+  at: "2026-09-10T00:01:00Z",
 };
+
+// 作り直した提案の前に出る、前の提案から作り直しの説明まで
+const REVISION_PRELUDE: readonly Bubble[] = [
+  GATHERING_PROPOSAL_BUBBLE,
+  ...GATHERING_APPROVE_BUBBLES,
+  REVISED_BUBBLE,
+];
 
 const AGE_VERIFIED_BUBBLE: Bubble = {
   speaker: "secretary",
@@ -411,12 +520,12 @@ describe("conversationOf (休止状態)", () => {
     });
   });
 
-  test("approved に ageProof があれば approve の写しと askPay の間に ageVerified が入る", () => {
+  test("approved に ageProof があれば証明を送る写しと askPay の間に ageVerified が入る", () => {
     expect(conversationOf(stateOf(APPROVED_WITH_PROOF))).toStrictEqual({
       bubbles: [
         ...INTRO_BUBBLES,
         GATHERING_PROPOSAL_BUBBLE,
-        APPROVE_BUBBLE,
+        ...GATHERING_APPROVE_BUBBLES,
         AGE_VERIFIED_BUBBLE,
         ASK_PAY_BUBBLE,
       ],
@@ -424,12 +533,12 @@ describe("conversationOf (休止状態)", () => {
     });
   });
 
-  test("paid でも ageVerified は approve の写しの直後に残る", () => {
+  test("paid でも ageVerified は承認の 1 手の直後に残る", () => {
     const bubbles = conversationOf(stateOf(PAID_WITH_PROOF)).bubbles;
 
-    expect(bubbles.slice(3, 6)).toStrictEqual([
+    expect(bubbles.slice(3, 8)).toStrictEqual([
       GATHERING_PROPOSAL_BUBBLE,
-      APPROVE_BUBBLE,
+      ...GATHERING_APPROVE_BUBBLES,
       AGE_VERIFIED_BUBBLE,
     ]);
     expect(bubbles.map((bubble) => bubble.line.kind)).toStrictEqual([
@@ -438,6 +547,8 @@ describe("conversationOf (休止状態)", () => {
       "propose",
       "proposal",
       "approve",
+      "askProof",
+      "sendProof",
       "ageVerified",
       "askPay",
       "pay",
@@ -462,6 +573,8 @@ describe("conversationOf (休止状態)", () => {
       "propose",
       "proposal",
       "approve",
+      "askProof",
+      "sendProof",
       "askPay",
     ]);
   });
@@ -491,7 +604,7 @@ describe("conversationOf (進行中)", () => {
       conversationOf(stateOf(PROPOSED, busy("approve"))).bubbles,
     ).toStrictEqual([
       ...INTRO_BUBBLES,
-      BUSY_EDITOR_PROPOSAL_BUBBLE,
+      FROZEN_EDITOR_PROPOSAL_BUBBLE,
       APPROVE_BUBBLE,
 
       {
@@ -505,22 +618,13 @@ describe("conversationOf (進行中)", () => {
     ]);
   });
 
-  test("成人を要する計画の承認は年齢の証明つきの working になる", () => {
+  test("成人を要する計画の承認は証明の問いまで写し、年齢の証明つきの working になる", () => {
     expect(
       conversationOf(stateOf(PROPOSED_GATHERING, busy("approve"))).bubbles,
     ).toStrictEqual([
       ...INTRO_BUBBLES,
-      // 提案済みのまま進行中なので、トグルは止まった editor のまま
-      {
-        ...GATHERING_PROPOSAL_BUBBLE,
-        line: {
-          kind: "proposal",
-          title: OSAKA.title,
-          plan: GATHERING_PLAN,
-          visibility: { mode: "editor", value: {}, disabled: true },
-        },
-      },
-      APPROVE_BUBBLE,
+      FROZEN_GATHERING_PROPOSAL_BUBBLE,
+      ...GATHERING_APPROVE_BUBBLES,
 
       {
         speaker: "secretary",
@@ -660,7 +764,8 @@ describe("conversationOf (公開範囲)", () => {
       { dining: "private" },
     );
 
-    expect(conversationOf(state).bubbles.at(-2)).toStrictEqual({
+    // 成人を要する計画なので、承認の写しの後に証明の問いと同意の写しが続く
+    expect(conversationOf(state).bubbles.at(-4)).toStrictEqual({
       speaker: "user",
       line: { kind: "approve", privateCount: 1 },
     });
@@ -674,7 +779,7 @@ describe("conversationOf (公開範囲)", () => {
       { dining: "private", leisure: "private" },
     );
 
-    expect(conversationOf(state).bubbles.at(-2)).toStrictEqual({
+    expect(conversationOf(state).bubbles.at(-4)).toStrictEqual({
       speaker: "user",
       line: { kind: "approve", privateCount: 2 },
     });
@@ -698,6 +803,95 @@ describe("conversationOf (公開範囲)", () => {
       speaker: "user",
       line: { kind: "approve", privateCount: 1 },
     });
+  });
+});
+
+describe("conversationOf (証明の同意)", () => {
+  test("返事待ちは承認の写しと証明の問いを足し、返答は証明を送るかやめるかの 2 つ", () => {
+    expect(
+      conversationOf(stateOf(PROPOSED_GATHERING, AWAITING_CONSENT)),
+    ).toStrictEqual({
+      bubbles: [
+        ...INTRO_BUBBLES,
+        FROZEN_GATHERING_PROPOSAL_BUBBLE,
+        APPROVE_BUBBLE,
+        ASK_PROOF_BUBBLE,
+      ],
+      replies: [
+        { kind: "sendProof", trip: PROPOSED_GATHERING, visibility: {} },
+
+        { kind: "declineProof" },
+      ],
+    });
+  });
+
+  test("選んだ非公開は返事待ちの写しにも返答にも載る", () => {
+    const conversation = conversationOf(
+      stateOf(PROPOSED_GATHERING, AWAITING_CONSENT, CAN_KEEP_PRIVATE, {
+        dining: "private",
+      }),
+    );
+
+    expect(conversation.bubbles.at(-2)).toStrictEqual({
+      speaker: "user",
+      line: { kind: "approve", privateCount: 1 },
+    });
+    expect(conversation.replies).toStrictEqual([
+      {
+        kind: "sendProof",
+        trip: PROPOSED_GATHERING,
+        visibility: { dining: "private" },
+      },
+
+      { kind: "declineProof" },
+    ]);
+  });
+
+  test("成人を要しない計画の返事待ちでは、承認の写しを出さず承認の返答に戻る", () => {
+    expect(conversationOf(stateOf(PROPOSED, AWAITING_CONSENT))).toStrictEqual({
+      bubbles: [...INTRO_BUBBLES, FROZEN_EDITOR_PROPOSAL_BUBBLE],
+      replies: [{ kind: "approve", trip: PROPOSED, visibility: {} }],
+    });
+  });
+});
+
+describe("conversationOf (作り直した提案)", () => {
+  test("作り直した提案の前に、前の提案と承認と作り直しの説明が出る", () => {
+    expect(conversationOf(stateOf(PROPOSED_REVISED))).toStrictEqual({
+      bubbles: [
+        ...INTRO_BUBBLES,
+        ...REVISION_PRELUDE,
+        revisedProposalBubble({ mode: "editor", value: {}, disabled: false }),
+      ],
+      replies: [{ kind: "approve", trip: PROPOSED_REVISED, visibility: {} }],
+    });
+  });
+
+  test("作り直した提案を承認した後も経緯が残り、証明の吹き出しは出ない", () => {
+    const bubbles = conversationOf(stateOf(APPROVED_REVISED)).bubbles;
+
+    expect(bubbles.slice(3, 8)).toStrictEqual(REVISION_PRELUDE);
+    expect(bubbles.map((bubble) => bubble.line.kind)).toStrictEqual([
+      "greeting",
+      "ask",
+      "propose",
+      "proposal",
+      "approve",
+      "askProof",
+      "sendProof",
+      "revised",
+      "proposal",
+      "approve",
+      "askPay",
+    ]);
+  });
+
+  test("作り直していない提案には前置きが出ない", () => {
+    expect(
+      conversationOf(stateOf(PROPOSED_GATHERING)).bubbles.map(
+        (bubble) => bubble.line.kind,
+      ),
+    ).toStrictEqual(["greeting", "ask", "propose", "proposal"]);
   });
 });
 

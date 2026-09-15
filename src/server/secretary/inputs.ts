@@ -31,6 +31,16 @@ export type ProposeTripRequest = {
 };
 
 /**
+ * `approveTrip` に渡す、body から読める分の入力
+ *
+ * `locale` は年齢確認が通らなかったときの計画の作り直しに要る
+ */
+export type ApproveTripRequest = {
+  visibility: PaymentVisibilityInput;
+  locale: Locale;
+};
+
+/**
  * `writeBackTrip` に渡す、brand 付きの入力
  */
 export type WriteBackRequest = {
@@ -101,20 +111,20 @@ export const parseProposeTripInput = (
 };
 
 /**
- * `POST /api/secretary/trips/[tripId]/approve` の body を公開範囲の指定にする
+ * `POST /api/secretary/trips/[tripId]/approve` の body を承認の入力にする
  *
  * 計画に合わせるのは use case の仕事なので、ここは形だけを見る
  */
 export const parseApproveTripInput = (
   raw: unknown,
-): Result<PaymentVisibilityInput, SchemaError> => {
+): Result<ApproveTripRequest, SchemaError> => {
   const body = fromZod(approveTripBodySchema.safeParse(raw));
 
   if (!body.ok) {
     return body;
   }
 
-  return ok(body.value.visibility);
+  return ok({ visibility: body.value.visibility, locale: body.value.locale });
 };
 
 /**

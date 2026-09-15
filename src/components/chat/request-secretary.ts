@@ -110,6 +110,8 @@ export const requestProposeTrip = (
  * `POST /api/secretary/trips/[tripId]/approve`
  *
  * `body.visibility` は候補ごとの公開範囲で、指定の無い候補は公開になる
+ * `body.locale` は年齢確認が通らなかったときの計画の作り直しに使われる
+ * 年齢確認が通らなければ承認済みではなく、作り直した提案が返る
  */
 export const requestApproveTrip = (
   fetchFn: FetchLike,

@@ -150,6 +150,8 @@ export const handleProposeTrip = async (
 
 /**
  * 提案済みの出張を、候補ごとの公開範囲つきで承認する
+ *
+ * 年齢確認が通らなかったときは秘書が計画を作り直すので、承認済みでも作り直した提案でも 200 で trip を返す
  */
 export const handleApproveTrip = async (
   request: NextRequest,
@@ -180,19 +182,23 @@ export const handleApproveTrip = async (
     return invalidRequestResponse(input.error.issues);
   }
 
-  const approved = await approveTrip(
-    context.value.userId,
-    parsedTripId.value,
-    input.value,
-    context.value.now,
+  const outcome = await approveTrip(
+    {
+      userId: context.value.userId,
+      tripId: parsedTripId.value,
+      requested: input.value.visibility,
+      locale: input.value.locale,
+      preferences: WAVE1_PREFERENCES,
+      now: context.value.now,
+    },
     context.value.deps,
   );
 
-  if (!approved.ok) {
-    return secretaryErrorResponse(approved.error);
+  if (!outcome.ok) {
+    return secretaryErrorResponse(outcome.error);
   }
 
-  return dataResponse(approved.value, 200);
+  return dataResponse(outcome.value.trip, 200);
 };
 
 /**

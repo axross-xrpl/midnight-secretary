@@ -53,7 +53,11 @@ import type { Result } from "@/lib/result";
 import { err } from "@/lib/result";
 import type { SecretaryDeps } from "./deps";
 import { WAVE1_PREFERENCES } from "./preferences";
-import type { ProposeTripInput, RenderEventText } from "./secretary";
+import type {
+  ApproveTripInput,
+  ProposeTripInput,
+  RenderEventText,
+} from "./secretary";
 import {
   approveTrip,
   loadDashboard,
@@ -119,6 +123,9 @@ const OSAKA_TOTAL = 14400 + 14520;
 const OVERNIGHT_TOTAL = 14400 + 14520 + 12500;
 
 const GATHERING_TOTAL = 14400 + 14520 + 3000;
+
+// 年齢確認が通らず作り直した懇親会の合計 (居酒屋を除くと飲食の先頭は 中之島カフェ)
+const REVISED_GATHERING_TOTAL = 14400 + 14520 + 1200;
 
 const INSPECTION_TOTAL = 14400 + 14520 + 12500 + 3000 + 2700;
 
@@ -260,12 +267,47 @@ const mustPropose = async (
   return mustOk(await proposeTrip(proposeInput(event), deps));
 };
 
+const approveInput = (
+  id: TripId,
+  requested: PaymentVisibilityInput = {},
+): ApproveTripInput => {
+  return {
+    userId: USER,
+    tripId: id,
+    requested,
+    locale: "ja",
+    preferences: WAVE1_PREFERENCES,
+    now: NOW,
+  };
+};
+
 const mustApprove = async (
   deps: SecretaryDeps,
   id: TripId,
   requested: PaymentVisibilityInput = {},
 ): Promise<ApprovedTrip> => {
-  return mustOk(await approveTrip(USER, id, requested, NOW, deps));
+  const outcome = mustOk(await approveTrip(approveInput(id, requested), deps));
+
+  if (outcome.kind !== "approved") {
+    throw new Error(`test: expected an approval but was ${outcome.kind}`);
+  }
+
+  return outcome.trip;
+};
+
+// 年齢確認が通らず計画が作り直されたことを前提に、新しい提案を取り出す
+const mustRevise = async (
+  deps: SecretaryDeps,
+  id: TripId,
+  requested: PaymentVisibilityInput = {},
+): Promise<ProposedTrip> => {
+  const outcome = mustOk(await approveTrip(approveInput(id, requested), deps));
+
+  if (outcome.kind !== "revised") {
+    throw new Error(`test: expected a revision but was ${outcome.kind}`);
+  }
+
+  return outcome.trip;
 };
 
 const mustPay = async (deps: SecretaryDeps, id: TripId): Promise<PaidTrip> => {
@@ -728,10 +770,7 @@ describe("approveTrip", () => {
 
     expect(
       await approveTrip(
-        USER,
-        proposed.id,
-        { lodging: "private" },
-        NOW,
+        approveInput(proposed.id, { lodging: "private" }),
         limited,
       ),
     ).toStrictEqual({
@@ -788,7 +827,7 @@ describe("approveTrip", () => {
     await mustSetUpMandate(deps, ENOUGH_CAP);
     const proposed = await mustPropose(deps, GATHERING_EVENT);
 
-    expect(await approveTrip(USER, proposed.id, {}, NOW, deps)).toStrictEqual({
+    expect(await approveTrip(approveInput(proposed.id), deps)).toStrictEqual({
       ok: false,
       error: {
         source: "flow",
@@ -802,25 +841,51 @@ describe("approveTrip", () => {
     });
   });
 
-  test("出発日にまだ 20 歳でなければ ageNotVerified で、trip は提案済みのまま", async () => {
+  test("出発日にまだ 20 歳でなければ年齢制限のない候補で作り直し、同じ id の提案として残す", async () => {
     const deps = testDeps();
 
     await mustSetUpMandate(deps, ENOUGH_CAP);
     const proposed = await mustPropose(deps, GATHERING_EVENT);
 
-    expect(await approveTrip(USER, proposed.id, {}, NOW, deps)).toStrictEqual({
-      ok: false,
-      error: {
-        source: "flow",
-        error: {
-          kind: "ageNotVerified",
-          tripId: proposed.id,
-          ageLimit: 20,
-          cutoffDate: "2006-09-15",
+    const revised = await mustRevise(deps, proposed.id, { dining: "private" });
+
+    expect(revised.id).toBe(proposed.id);
+    expect(revised.proposedAt).toBe(NOW);
+    expect(revised.revision).toStrictEqual({
+      reason: {
+        kind: "ageNotVerified",
+        ageLimit: 20,
+        cutoffDate: "2006-09-15",
+      },
+      previous: {
+        plan: proposed.plan,
+        proposedAt: proposed.proposedAt,
+        visibility: {
+          outbound: "public",
+          inbound: "public",
+          dining: "private",
         },
       },
+      revisedAt: NOW,
     });
-    expect(await storedTrip(deps, proposed.id)).toStrictEqual(proposed);
+    expect(diningOf(revised.plan).id).toBe("restaurant-cafe-nakanoshima");
+    expect(diningOf(revised.plan).requiredVerifications).toStrictEqual([]);
+    expect(revised.plan.total).toStrictEqual(mst(REVISED_GATHERING_TOTAL));
+    expect(await storedTrip(deps, proposed.id)).toStrictEqual(revised);
+  });
+
+  test("作り直した提案は証明なしで承認でき、作り直しの記録を引き継ぐ", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, GATHERING_EVENT);
+    const revised = await mustRevise(deps, proposed.id);
+
+    const approved = await mustApprove(deps, proposed.id);
+
+    expect("ageProof" in approved).toBe(false);
+    expect(approved.plan).toStrictEqual(revised.plan);
+    expect(approved.revision).toStrictEqual(revised.revision);
   });
 
   test("出発日に 20 歳以上なら ageProof 付きで承認し、identity に登録が 1 件できる", async () => {
@@ -857,20 +922,10 @@ describe("approveTrip", () => {
     const gathering = await mustPropose(deps, GATHERING_EVENT);
 
     const approved = await mustApprove(deps, dinner.id);
+    const revised = await mustRevise(deps, gathering.id);
 
-    // 2 回目の登録なら unavailable になるので、ageNotVerified まで進むのは登録を飛ばした証
-    expect(await approveTrip(USER, gathering.id, {}, NOW, deps)).toStrictEqual({
-      ok: false,
-      error: {
-        source: "flow",
-        error: {
-          kind: "ageNotVerified",
-          tripId: gathering.id,
-          ageLimit: 20,
-          cutoffDate: "2006-09-15",
-        },
-      },
-    });
+    // 2 回目の登録なら unavailable になるので、作り直しまで進むのは登録を飛ばした証
+    expect(revised.revision?.reason.kind).toBe("ageNotVerified");
     expect(await deps.identity.readRegistration(USER)).toStrictEqual({
       ok: true,
       value: {
@@ -885,7 +940,7 @@ describe("approveTrip", () => {
     const deps = testDeps();
     const unknown = UNKNOWN_TRIP_ID;
 
-    expect(await approveTrip(USER, unknown, {}, NOW, deps)).toStrictEqual({
+    expect(await approveTrip(approveInput(unknown), deps)).toStrictEqual({
       ok: false,
       error: {
         source: "flow",
@@ -902,7 +957,7 @@ describe("approveTrip", () => {
 
     await mustApprove(deps, proposed.id);
 
-    expect(await approveTrip(USER, proposed.id, {}, NOW, deps)).toStrictEqual({
+    expect(await approveTrip(approveInput(proposed.id), deps)).toStrictEqual({
       ok: false,
       error: {
         source: "flow",

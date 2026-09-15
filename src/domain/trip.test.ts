@@ -16,7 +16,7 @@ import type { AgeProof } from "./identity";
 import type { Authorization } from "./mandate";
 import type { Money } from "./money";
 import type { TripPlan } from "./plan";
-import type { ProposedTrip } from "./trip";
+import type { PlanRevision, ProposedTrip } from "./trip";
 import {
   allPublic,
   markApproved,
@@ -160,6 +160,21 @@ const AGE_PROOF: AgeProof = {
   cutoffDate: mustParse(parseIsoDate("2006-09-14")),
   proofRef: "proof-1",
   provedAt: at,
+};
+
+// 居酒屋つきの計画で年齢確認が通らず、居酒屋の無い計画に作り直したときの記録
+const REVISION: PlanRevision = {
+  reason: {
+    kind: "ageNotVerified",
+    ageLimit: 20,
+    cutoffDate: mustParse(parseIsoDate("2006-09-14")),
+  },
+  previous: {
+    plan: WITH_DINING,
+    proposedAt: at,
+    visibility: allPublic(WITH_DINING),
+  },
+  revisedAt: at,
 };
 
 describe("allPublic", () => {
@@ -349,5 +364,34 @@ describe("承認以降の状態", () => {
     );
 
     expect("ageProof" in paid).toBe(false);
+  });
+
+  test("承認、支払い、書き戻しは作り直しの記録を引き継ぐ", () => {
+    const revised: ProposedTrip = {
+      ...proposedWith(ONE_NIGHT),
+      revision: REVISION,
+    };
+    const approved = markApproved(revised, at, allPublic(ONE_NIGHT));
+    const paid = markPaid(approved, [AUTHORIZATION], at);
+    const written = markWritten(
+      paid,
+      mustParse(parseCalendarEventId("written-1")),
+      at,
+    );
+
+    expect(approved.revision).toStrictEqual(REVISION);
+    expect(paid.revision).toStrictEqual(REVISION);
+    expect(written.revision).toStrictEqual(REVISION);
+  });
+
+  test("作り直していない提案からは revision が生えない", () => {
+    const approved = markApproved(
+      proposedWith(SAME_DAY),
+      at,
+      allPublic(SAME_DAY),
+    );
+
+    expect("revision" in approved).toBe(false);
+    expect("revision" in markPaid(approved, [], at)).toBe(false);
   });
 });

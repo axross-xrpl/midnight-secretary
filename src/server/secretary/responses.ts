@@ -126,13 +126,11 @@ export const statusOf = (error: SecretaryError): number => {
       () => 409,
     )
     .with(
-      { source: "flow", error: { kind: "privateSettlementUnsupported" } },
-      () => 422,
-    )
-    .with(
       {
         source: "flow",
-        error: { kind: P.union("birthDateMissing", "ageNotVerified") },
+        error: {
+          kind: P.union("privateSettlementUnsupported", "birthDateMissing"),
+        },
       },
       () => 422,
     )

@@ -207,7 +207,10 @@ const approveRequest = async (
   visibility: unknown = {},
 ): Promise<Response> => {
   return handleApproveTrip(
-    postRequest(`/api/secretary/trips/${id}/approve`, { visibility }),
+    postRequest(`/api/secretary/trips/${id}/approve`, {
+      visibility,
+      locale: "ja",
+    }),
     id,
     state.deps,
   );
@@ -476,6 +479,7 @@ describe("承認から書き戻しまで", () => {
     const response = await handleApproveTrip(
       postRequest(`/api/secretary/trips/${id}/approve`, {
         visibility: { lodging: "private" },
+        locale: "ja",
       }),
       id,
       handlerDepsFor(withoutPrivateSettlement(state.context)),
@@ -510,7 +514,22 @@ describe("承認から書き戻しまで", () => {
 
     const response = await rawApproveRequest(id, {
       visibility: { outbound: "secret" },
+      locale: "ja",
     });
+
+    expect(response.status).toBe(422);
+
+    const failure = parseSecretaryFailure(await response.json());
+
+    expect(failure.code).toBe("invalid_request");
+    expect(failure).toHaveProperty("issues");
+  });
+
+  test("locale の無い承認は 422 で issues を返す", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-2");
+
+    const response = await rawApproveRequest(id, { visibility: {} });
 
     expect(response.status).toBe(422);
 
@@ -545,22 +564,26 @@ describe("承認から書き戻しまで", () => {
 });
 
 describe("年齢確認つきの承認", () => {
-  test("出発日にまだ 20 歳でない出張の承認は 422 で ageNotVerified を返し、trip は提案済みのまま", async () => {
+  test("出発日にまだ 20 歳でない出張の承認は 200 で作り直した提案を返し、store も同じ", async () => {
     await setUpMandateRequest();
     const id = await proposedTripId("seed-5");
 
     const response = await approveRequest(id);
 
-    expect(response.status).toBe(422);
-    expect(parseSecretaryFailure(await response.json())).toStrictEqual({
-      code: "secretary",
-      error: {
-        source: "flow",
-        error: {
-          kind: "ageNotVerified",
-          tripId: id,
-          ageLimit: 20,
-          cutoffDate: "2006-09-15",
+    expect(response.status).toBe(200);
+
+    expect(parseTripResponse(await response.json())).toMatchObject({
+      ok: true,
+      value: {
+        status: "proposed",
+        id,
+        plan: { dining: { id: "restaurant-cafe-nakanoshima" } },
+        revision: {
+          reason: {
+            kind: "ageNotVerified",
+            ageLimit: 20,
+            cutoffDate: "2006-09-15",
+          },
         },
       },
     });
@@ -571,6 +594,9 @@ describe("年齢確認つきの承認", () => {
     );
 
     expect(stored.ok && stored.value?.status).toBe("proposed");
+    expect(stored.ok && stored.value?.revision?.reason.kind).toBe(
+      "ageNotVerified",
+    );
   });
 
   test("生年月日の無いプロフィールでは 422 で birthDateMissing を返す", async () => {

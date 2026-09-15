@@ -283,6 +283,8 @@
       "greeting": "Hello. I can help arrange \"{title}\". The spending allowance covers up to {cap}.",
       "ask": "Shall I arrange this event as a business trip?",
       "proposal": "Here is my plan. The total is {total}.",
+      "askProof": "{place} asks for age verification ({age}+). May I send the age proof? Your birth date stays private; the proof only shows that you are {age} or older.",
+      "revised": "You are not yet {age} as of {date}, so {place} is not available. I have rebuilt the plan with places that have no age limit.",
       "ageVerified": "Proved that you are {age} or older as of {date}.",
       "askPay": "Shall I pay for it from the allowance?",
       "partiallyPaid": "{count, plural, one {# item is} other {# items are}} already paid. Shall I pay for the rest?",
@@ -302,6 +304,8 @@
     "replies": {
       "propose": "Propose a plan",
       "approve": "Approve the plan",
+      "sendProof": "Send the proof",
+      "declineProof": "Not now",
       "pay": "Pay from the allowance",
       "resume": "Resume the payment",
       "writeBack": "Add to calendar",
@@ -311,6 +315,7 @@
       "propose": "Please propose a plan.",
       "approve": "I approve the plan.",
       "approvePartlyPrivate": "I approve the plan ({count, plural, one {# payment} other {# payments}} kept private).",
+      "sendProof": "Please send the proof.",
       "pay": "Please pay from the allowance.",
       "resume": "Please resume the payment.",
       "writeBack": "Please add it to my calendar."
@@ -436,8 +441,7 @@
       "tripNotFound": "That trip was not found.",
       "wrongStatus": "The trip is not at the step this action needs; reload the page.",
       "privateSettlementUnsupported": "This allowance cannot settle payments privately. Approve with every payment public.",
-      "birthDateMissing": "To prove your age, register your date of birth in your profile.",
-      "ageNotVerified": "You are not yet {age} as of {date}, so a plan that includes an age-restricted place cannot be approved."
+      "birthDateMissing": "To prove your age, register your date of birth in your profile."
     },
     "identity": {
       "notRegistered": "Your date of birth is not registered for age verification yet.",

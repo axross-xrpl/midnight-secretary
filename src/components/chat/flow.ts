@@ -38,6 +38,8 @@ export type FlowState = {
  */
 export type FlowAction =
   | { type: "start"; step: Step }
+  | { type: "askConsent" }
+  | { type: "declineConsent" }
   | { type: "succeed"; trip: TripResponse }
   | { type: "fail"; failure: RequestFailure }
   | { type: "dismiss" }
@@ -70,6 +72,10 @@ export const STEP_ORDER = [
 
 const IDLE = { kind: "idle" } as const satisfies Activity;
 
+const AWAITING_CONSENT = {
+  kind: "awaitingConsent",
+} as const satisfies Activity;
+
 /**
  * 何もしていない最初の状態
  */
@@ -88,6 +94,24 @@ const onStart = (state: FlowState, step: Step): FlowState => {
   }
 
   return { ...state, activity: { kind: "busy", step } };
+};
+
+// 同意の問いはユーザが承認を押した後の返事待ちなので、休止中からだけ入る
+const onAskConsent = (state: FlowState): FlowState => {
+  if (state.activity.kind !== "idle") {
+    return state;
+  }
+
+  return { ...state, activity: AWAITING_CONSENT };
+};
+
+// 「今はやめておく」は提案に戻るだけで、選んだ公開範囲はそのまま残す
+const onDeclineConsent = (state: FlowState): FlowState => {
+  if (state.activity.kind !== "awaitingConsent") {
+    return state;
+  }
+
+  return { ...state, activity: IDLE };
 };
 
 // 1 手が済めばその計画に対する選択は用済みなので、次の提案に持ち越さない
@@ -142,6 +166,8 @@ const onSetVisibility = (
 export const reduceFlow = (state: FlowState, action: FlowAction): FlowState => {
   return match(action)
     .with({ type: "start" }, ({ step }) => onStart(state, step))
+    .with({ type: "askConsent" }, () => onAskConsent(state))
+    .with({ type: "declineConsent" }, () => onDeclineConsent(state))
     .with({ type: "succeed" }, ({ trip }) => onSucceed(state, trip))
     .with({ type: "fail" }, ({ failure }) => onFail(state, failure))
     .with({ type: "dismiss" }, () => onDismiss(state))
@@ -177,6 +203,7 @@ const idleStepIndex = (trip: TripResponse | undefined): number => {
  * ステップ表示で強調する段の添字 (提案 0、承認 1、支払い 2、カレンダー登録 3)
  *
  * 進行中と失敗はその 1 手の段、休止状態は trip の status の次の段 (written は 4 で全段済み)
+ * 証明を送るかの返事待ちは承認の段 (承認の 1 手の途中なので)
  */
 export const stepIndexOf = (
   activity: Activity,
@@ -184,6 +211,7 @@ export const stepIndexOf = (
 ): number => {
   return match(activity)
     .with({ kind: "idle" }, () => idleStepIndex(trip))
+    .with({ kind: "awaitingConsent" }, () => STEP_ORDER.indexOf("approve"))
     .with({ kind: P.union("busy", "failed") }, ({ step }) =>
       STEP_ORDER.indexOf(step),
     )

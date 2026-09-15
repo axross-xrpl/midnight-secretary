@@ -1,10 +1,10 @@
 "use client";
 
-import { useFormatter, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import type { ReactElement } from "react";
 import { match } from "ts-pattern";
 import { failureMessageOf } from "./failure-message";
-import { asOfDateOf, DATE_OPTIONS, moneyText, plainSpaces } from "./format";
+import { moneyText } from "./format";
 import { dangerBoxClass } from "./styles";
 import type { RequestFailure } from "./types";
 import { useFormatNumber } from "./use-format-number";
@@ -23,7 +23,6 @@ export const FailureNotice = ({
   failure,
 }: FailureNoticeProps): ReactElement => {
   const t = useTranslations("SecretaryError");
-  const format = useFormatter();
   const formatNumber = useFormatNumber();
   const text = match(failureMessageOf(failure))
     .with({ kind: "plain" }, ({ key }) => t(key))
@@ -38,17 +37,6 @@ export const FailureNotice = ({
         cap: moneyText(cap, formatNumber),
         spent: moneyText(spent, formatNumber),
         requested: moneyText(requested, formatNumber),
-      }),
-    )
-    .with({ kind: "ageNotVerified" }, ({ ageLimit, cutoffDate }) =>
-      t("flow.ageNotVerified", {
-        date: plainSpaces(
-          format.dateTime(
-            new Date(asOfDateOf(cutoffDate, ageLimit)),
-            DATE_OPTIONS,
-          ),
-        ),
-        age: ageLimit,
       }),
     )
     .exhaustive();

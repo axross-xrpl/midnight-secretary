@@ -120,36 +120,6 @@ describe("failureMessageOf", () => {
     ).toStrictEqual({ kind: "plain", key: "schema" });
   });
 
-  test("flow.ageNotVerified は年齢の下限と cutoff を持つ variant になる", () => {
-    expect(
-      failureMessageOf({
-        code: "secretary",
-        error: {
-          source: "flow",
-          error: {
-            kind: "ageNotVerified",
-            tripId: "trip-1",
-            ageLimit: 20,
-            cutoffDate: "2006-09-15",
-          },
-        },
-      }),
-    ).toStrictEqual({
-      kind: "ageNotVerified",
-      ageLimit: 20,
-      cutoffDate: "2006-09-15",
-    });
-  });
-
-  test("ageNotVerified なのに cutoff が読めなければ schema になる", () => {
-    expect(
-      failureMessageOf({
-        code: "secretary",
-        error: { source: "flow", error: { kind: "ageNotVerified" } },
-      }),
-    ).toStrictEqual({ kind: "plain", key: "schema" });
-  });
-
   test("生年月日の不足と identity / profile の失敗は plain キーになる", () => {
     expect(
       failureMessageOf({
@@ -185,12 +155,9 @@ describe("failureMessageOf", () => {
 });
 
 describe("メッセージのキー", () => {
-  test("plain キーと 2 つの overBudget と ageNotVerified で SecretaryError と封筒の失敗をすべて覆う", () => {
+  test("plain キーと 2 つの overBudget で SecretaryError と封筒の失敗をすべて覆う", () => {
     expectTypeOf<
-      | PlainFailureKey
-      | "plan.overBudget"
-      | "mandate.overBudget"
-      | "flow.ageNotVerified"
+      PlainFailureKey | "plan.overBudget" | "mandate.overBudget"
     >().toEqualTypeOf<ExpectedFailureKey>();
   });
 });

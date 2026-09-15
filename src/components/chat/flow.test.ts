@@ -118,6 +118,11 @@ const busyState = (step: Step): FlowState => {
   return { ...INITIAL_FLOW_STATE, activity: { kind: "busy", step } };
 };
 
+const CONSENT_STATE: FlowState = {
+  ...INITIAL_FLOW_STATE,
+  activity: { kind: "awaitingConsent" },
+};
+
 describe("reduceFlow", () => {
   test("一本道では 1 手ごとに fresh が進む", () => {
     const proposing = reduceFlow(INITIAL_FLOW_STATE, {
@@ -261,6 +266,44 @@ describe("reduceFlow", () => {
     });
   });
 
+  test("askConsent は休止中からだけ返事待ちに入る", () => {
+    expect(
+      reduceFlow(INITIAL_FLOW_STATE, { type: "askConsent" }),
+    ).toStrictEqual({ activity: { kind: "awaitingConsent" }, visibility: {} });
+
+    const busy = busyState("approve");
+
+    expect(reduceFlow(busy, { type: "askConsent" })).toBe(busy);
+    expect(reduceFlow(CONSENT_STATE, { type: "askConsent" })).toBe(
+      CONSENT_STATE,
+    );
+  });
+
+  test("declineConsent は返事待ちからだけ休止中に戻り、選択は残る", () => {
+    const chosen = reduceFlow(CONSENT_STATE, {
+      type: "setVisibility",
+      category: "dining",
+      value: "private",
+    });
+
+    expect(reduceFlow(chosen, { type: "declineConsent" })).toStrictEqual({
+      activity: { kind: "idle" },
+      visibility: { dining: "private" },
+    });
+    expect(reduceFlow(INITIAL_FLOW_STATE, { type: "declineConsent" })).toBe(
+      INITIAL_FLOW_STATE,
+    );
+  });
+
+  test("返事待ちからは start で承認が進む", () => {
+    expect(
+      reduceFlow(CONSENT_STATE, { type: "start", step: "approve" }),
+    ).toStrictEqual({
+      activity: { kind: "busy", step: "approve" },
+      visibility: {},
+    });
+  });
+
   test("succeed は次の計画に選択を持ち越さない", () => {
     const chosen = reduceFlow(busyState("approve"), {
       type: "setVisibility",
@@ -301,6 +344,10 @@ describe("stepIndexOf", () => {
     expect(stepIndexOf({ kind: "idle" }, APPROVED)).toBe(2);
     expect(stepIndexOf({ kind: "idle" }, PAID)).toBe(3);
     expect(stepIndexOf({ kind: "idle" }, WRITTEN)).toBe(4);
+  });
+
+  test("証明を送るかの返事待ちは承認の段", () => {
+    expect(stepIndexOf({ kind: "awaitingConsent" }, PROPOSED)).toBe(1);
   });
 
   test("進行中と失敗はその 1 手の段", () => {

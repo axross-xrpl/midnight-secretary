@@ -1,11 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { SecretaryError } from "@/application/errors";
 import type { TripId } from "@/domain/identifiers";
-import {
-  mustParse,
-  parseIsoDate,
-  parseTripId,
-} from "@/domain/identifiers.parse";
+import { mustParse, parseTripId } from "@/domain/identifiers.parse";
 import {
   describeCause,
   serializableSecretaryError,
@@ -133,18 +129,7 @@ describe("statusOf", () => {
     ).toBe(502);
   });
 
-  test("年齢の証明が通らないことと生年月日が無いことは 422 になる", () => {
-    expect(
-      statusOf({
-        source: "flow",
-        error: {
-          kind: "ageNotVerified",
-          tripId: TRIP_ID,
-          ageLimit: 20,
-          cutoffDate: mustParse(parseIsoDate("2006-09-15")),
-        },
-      }),
-    ).toBe(422);
+  test("生年月日が無いことは 422 になる", () => {
     expect(
       statusOf({
         source: "flow",

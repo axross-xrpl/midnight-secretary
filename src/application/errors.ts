@@ -1,11 +1,6 @@
 import type { CalendarError } from "@/domain/calendar";
 import type { CatalogError } from "@/domain/catalog";
-import type {
-  CalendarEventId,
-  IsoDate,
-  MandateId,
-  TripId,
-} from "@/domain/identifiers";
+import type { CalendarEventId, MandateId, TripId } from "@/domain/identifiers";
 import type { IdentityError } from "@/domain/identity";
 import type { MandateError } from "@/domain/mandate";
 import type { MoneyError } from "@/domain/money";
@@ -19,7 +14,7 @@ import type { TripStatus } from "@/domain/trip";
  * use case 自身が検出する失敗 (状態の順序、見つからないもの、承認の前提)
  *
  * `birthDateMissing` はプロフィールに生年月日が無くて年齢を証明できないとき
- * `ageNotVerified` は証明の結果が「成人ではない」で、`cutoffDate` は出発日の `ageLimit` 年前
+ * 証明の結果が「成人ではない」ことは失敗ではなく、年齢制限のない候補での作り直しになる
  */
 export type FlowError =
   | { kind: "noMandate" }
@@ -34,13 +29,7 @@ export type FlowError =
       actual: TripStatus;
     }
   | { kind: "privateSettlementUnsupported"; tripId: TripId }
-  | { kind: "birthDateMissing"; tripId: TripId }
-  | {
-      kind: "ageNotVerified";
-      tripId: TripId;
-      ageLimit: number;
-      cutoffDate: IsoDate;
-    };
+  | { kind: "birthDateMissing"; tripId: TripId };
 
 /**
  * use case で起こりうる期待される失敗を、発生元のタグ付きで表す

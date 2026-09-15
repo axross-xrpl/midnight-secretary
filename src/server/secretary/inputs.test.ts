@@ -82,54 +82,77 @@ describe("parseProposeTripInput", () => {
 });
 
 describe("parseApproveTripInput", () => {
-  test("候補ごとの公開範囲を取り出す", () => {
+  test("候補ごとの公開範囲と locale を取り出す", () => {
     expect(
       parseApproveTripInput({
         visibility: { outbound: "public", lodging: "private" },
+        locale: "ja",
       }),
     ).toStrictEqual({
       ok: true,
-      value: { outbound: "public", lodging: "private" },
+      value: {
+        visibility: { outbound: "public", lodging: "private" },
+        locale: "ja",
+      },
     });
   });
 
   test("すべて省いた指定も通す (指定の無い候補は use case が公開にする)", () => {
-    expect(parseApproveTripInput({ visibility: {} })).toStrictEqual({
-      ok: true,
-      value: {},
-    });
+    expect(
+      parseApproveTripInput({ visibility: {}, locale: "en" }),
+    ).toStrictEqual({ ok: true, value: { visibility: {}, locale: "en" } });
   });
 
   test("visibility が無い body は schema の失敗になる", () => {
-    expect(parseApproveTripInput({}).ok).toBe(false);
+    expect(parseApproveTripInput({ locale: "ja" }).ok).toBe(false);
+  });
+
+  test("locale が無い body は schema の失敗になる", () => {
+    expect(parseApproveTripInput({ visibility: {} }).ok).toBe(false);
   });
 
   test("知らない公開範囲は schema の失敗になる", () => {
     expect(
-      parseApproveTripInput({ visibility: { outbound: "secret" } }).ok,
+      parseApproveTripInput({
+        visibility: { outbound: "secret" },
+        locale: "ja",
+      }).ok,
     ).toBe(false);
   });
 
   test("飲食の公開範囲も取り出す", () => {
     expect(
-      parseApproveTripInput({ visibility: { dining: "private" } }),
-    ).toStrictEqual({ ok: true, value: { dining: "private" } });
+      parseApproveTripInput({
+        visibility: { dining: "private" },
+        locale: "ja",
+      }),
+    ).toStrictEqual({
+      ok: true,
+      value: { visibility: { dining: "private" }, locale: "ja" },
+    });
   });
 
   test("レジャーの公開範囲も取り出す", () => {
     expect(
       parseApproveTripInput({
         visibility: { dining: "private", leisure: "private" },
+        locale: "ja",
       }),
     ).toStrictEqual({
       ok: true,
-      value: { dining: "private", leisure: "private" },
+      value: {
+        visibility: { dining: "private", leisure: "private" },
+        locale: "ja",
+      },
     });
   });
 
   test("知らない候補は schema の失敗になる", () => {
     expect(
-      parseApproveTripInput({ visibility: { breakfast: "private" } }).ok,
+      parseApproveTripInput({
+        visibility: { breakfast: "private" },
+        locale: "ja",
+      }).ok,
     ).toBe(false);
   });
 });
