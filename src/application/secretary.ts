@@ -688,6 +688,26 @@ export const loadConfirmedTrips = async (
 };
 
 /**
+ * 確定旅程を DB から消す
+ *
+ * 動作確認とデモのための操作で、消した行は戻らない
+ * 手配中の trip (メモリ) には触れない
+ */
+export const deleteConfirmedTrip = async (
+  userId: UserId,
+  tripId: TripId,
+  deps: SecretaryDeps,
+): Promise<Result<void, SecretaryError>> => {
+  const deleted = await deps.store.deleteConfirmedTrip(userId, tripId);
+
+  if (!deleted.ok) {
+    return err(fromStore(deleted.error));
+  }
+
+  return ok(undefined);
+};
+
+/**
  * ユーザの mandate を作ってリンクする
  *
  * ユーザがすでに mandate を持っていれば失敗する

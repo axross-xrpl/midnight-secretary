@@ -11,6 +11,7 @@ import {
 } from "@/components/chat/styles";
 import type { ConfirmedTrip } from "@/domain/store";
 import { Link } from "@/i18n/navigation";
+import { DeleteConfirmedButton } from "./delete-confirmed-button";
 import { chatHref } from "./query";
 
 type ItemProps = {
@@ -88,6 +89,7 @@ const ConfirmedTripItem = async ({
       </div>
       <span className={okPillClass}>{t("status.written")}</span>
       <OpenLink trip={trip} />
+      <DeleteConfirmedButton tripId={trip.id} />
     </li>
   );
 };
@@ -97,7 +99,7 @@ type Props = {
 };
 
 /**
- * 確定旅程の一覧 (題名、経路と件数、期間、合計、「登録済み」、「会話を見る」)
+ * 確定旅程の一覧 (題名、経路と件数、期間、合計、「登録済み」、「会話を見る」、「削除」)
  *
  * 行は `confirmedTripsOf` が並べたものをその順序で出す
  * 0 件なら空の箱

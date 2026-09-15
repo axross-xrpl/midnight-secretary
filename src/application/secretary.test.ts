@@ -62,6 +62,7 @@ import type {
 } from "./secretary";
 import {
   approveTrip,
+  deleteConfirmedTrip,
   loadConfirmedTrips,
   loadDashboard,
   loadLedgerViews,
@@ -1543,6 +1544,42 @@ describe("loadConfirmedTrips", () => {
         store: {
           ...deps.store,
           listConfirmedTrips: async () =>
+            err({ kind: "unavailable", cause: "stub" }),
+        },
+      }),
+    ).toStrictEqual({
+      ok: false,
+      error: { source: "store", error: { kind: "unavailable", cause: "stub" } },
+    });
+  });
+});
+
+describe("deleteConfirmedTrip", () => {
+  test("消すと確定旅程から消え、手配中の出張は残る", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const written = await mustWriteBack(deps, OSAKA_EVENT);
+
+    expect(await deleteConfirmedTrip(USER, written.id, deps)).toStrictEqual({
+      ok: true,
+      value: undefined,
+    });
+    expect(mustOk(await loadConfirmedTrips(USER, deps))).toStrictEqual([]);
+    expect(
+      mustOk(await loadTrips(USER, deps)).map((trip) => trip.id),
+    ).toStrictEqual([written.id]);
+  });
+
+  test("store の削除が失敗したらその失敗を返す", async () => {
+    const deps = testDeps();
+
+    expect(
+      await deleteConfirmedTrip(USER, UNKNOWN_TRIP_ID, {
+        ...deps,
+        store: {
+          ...deps.store,
+          deleteConfirmedTrip: async () =>
             err({ kind: "unavailable", cause: "stub" }),
         },
       }),

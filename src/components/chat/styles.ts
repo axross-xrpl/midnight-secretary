@@ -44,6 +44,18 @@ export const smallPrimaryButtonClass =
   "cursor-pointer rounded-[9px] bg-accent px-3.5 py-1.5 text-[12px] font-semibold text-white disabled:cursor-default disabled:opacity-50";
 
 /**
+ * 一覧の行に置く、取り消せない操作を切り出すボタン (薄い赤地に赤い字)
+ */
+export const smallDangerGhostButtonClass =
+  "cursor-pointer rounded-[9px] bg-danger-bg px-3.5 py-1.5 text-[12px] font-semibold text-danger disabled:cursor-default disabled:opacity-50";
+
+/**
+ * 一覧の行に置く、取り消せない操作を確かめるボタン (赤く塗る)
+ */
+export const smallDangerButtonClass =
+  "cursor-pointer rounded-[9px] bg-danger px-3.5 py-1.5 text-[12px] font-semibold text-white disabled:cursor-default disabled:opacity-50";
+
+/**
  * 一覧の行に置く控えめなボタン (`ghostButtonClass` を行の大きさに合わせたもの)
  */
 export const smallGhostButtonClass =

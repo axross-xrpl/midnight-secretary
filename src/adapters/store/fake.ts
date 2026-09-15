@@ -39,6 +39,16 @@ const putUser = (
   state.users = { ...state.users, [userId]: user };
 };
 
+// delete 演算子は使わないので、残す分だけを集めた新しい Record を作る
+const withoutTrip = (
+  confirmed: Readonly<Record<TripId, ConfirmedTrip>>,
+  tripId: TripId,
+): Readonly<Record<TripId, ConfirmedTrip>> => {
+  return Object.fromEntries(
+    Object.entries(confirmed).filter(([id]) => id !== tripId),
+  );
+};
+
 const byProposedAtDesc = (a: Trip, b: Trip): number => {
   return Date.parse(b.proposedAt) - Date.parse(a.proposedAt);
 };
@@ -96,6 +106,16 @@ export const createFakeStore = (): SecretaryStore => {
           ...user.confirmed,
           [trip.id]: confirmedTripOfWritten(trip),
         },
+      });
+
+      return ok(undefined);
+    },
+    deleteConfirmedTrip: async (userId, tripId) => {
+      const user = userOf(state, userId);
+
+      putUser(state, userId, {
+        ...user,
+        confirmed: withoutTrip(user.confirmed, tripId),
       });
 
       return ok(undefined);

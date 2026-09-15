@@ -221,6 +221,26 @@ const insertConfirmed = async (
   return ok(undefined);
 };
 
+const deleteConfirmed = async (
+  db: Db,
+  userId: UserId,
+  tripId: TripId,
+): Promise<Result<void, StoreError>> => {
+  // trip_items は user_id を持たないので、先に持ち主を確かめてから消す (他人の明細を消せないようにする)
+  if (!(await isStored(db, userId, tripId))) {
+    return ok(undefined);
+  }
+
+  // 明細を先に消してからヘッダを消す (参照の順序)
+  // 途中で落ちても明細だけが残らないよう、putConfirmedTrip と同じく 1 つの batch にする
+  await db.batch([
+    db.delete(tripItems).where(eq(tripItems.tripId, tripId)),
+    db.delete(trips).where(and(eq(trips.id, tripId), eq(trips.userId, userId))),
+  ]);
+
+  return ok(undefined);
+};
+
 /**
  * 確定旅程だけを NeonDB に写す store
  *
@@ -247,6 +267,14 @@ export const createNeonStore = (deps: NeonStoreDeps): SecretaryStore => {
     putConfirmedTrip: async (userId, trip, resolveServiceId) => {
       try {
         return await insertConfirmed(getDb(), userId, trip, resolveServiceId);
+      } catch (cause) {
+        return err(unavailable(cause));
+      }
+    },
+
+    deleteConfirmedTrip: async (userId, tripId) => {
+      try {
+        return await deleteConfirmed(getDb(), userId, tripId);
       } catch (cause) {
         return err(unavailable(cause));
       }

@@ -143,6 +143,17 @@ export type PutConfirmedTrip = (
 ) => Promise<Result<void, StoreError>>;
 
 /**
+ * 確定旅程を DB から消す
+ *
+ * 行ごと消すので取り消せない (動作確認とデモのための操作)
+ * 無い id を渡しても成功にする (二重に押されても壊れない)
+ */
+export type DeleteConfirmedTrip = (
+  userId: UserId,
+  tripId: TripId,
+) => Promise<Result<void, StoreError>>;
+
+/**
  * サーバ側の永続化 (NeonDB)
  *
  * すべての呼び出しはユーザ id で範囲が絞られる
@@ -155,4 +166,5 @@ export type SecretaryStore = {
   putMandateLink: PutMandateLink;
   listConfirmedTrips: ListConfirmedTrips;
   putConfirmedTrip: PutConfirmedTrip;
+  deleteConfirmedTrip: DeleteConfirmedTrip;
 };

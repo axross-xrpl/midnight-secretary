@@ -77,6 +77,7 @@ const stubStore = (): SecretaryStore => {
     putMandateLink: async () => ok(undefined),
     listConfirmedTrips: async () => ok([]),
     putConfirmedTrip: async () => ok(undefined),
+    deleteConfirmedTrip: async () => ok(undefined),
   };
 };
 

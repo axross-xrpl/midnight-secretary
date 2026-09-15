@@ -248,6 +248,58 @@ describe("createFakeStore", () => {
     ]);
   });
 
+  test("確定旅程を消すと一覧から消え、無い id でも成功する", async () => {
+    const store = createFakeStore();
+    const trip = writtenTrip(TRIP_1, "2026-09-09T09:00:00+09:00");
+
+    await store.putConfirmedTrip(ALICE, trip, failingResolve);
+
+    expect(await store.deleteConfirmedTrip(ALICE, TRIP_1)).toStrictEqual({
+      ok: true,
+      value: undefined,
+    });
+    expect(await store.listConfirmedTrips(ALICE)).toStrictEqual({
+      ok: true,
+      value: [],
+    });
+    expect(await store.deleteConfirmedTrip(ALICE, TRIP_2)).toStrictEqual({
+      ok: true,
+      value: undefined,
+    });
+  });
+
+  test("確定旅程を消しても他のユーザーの分は残る", async () => {
+    const store = createFakeStore();
+    const trip = writtenTrip(TRIP_1, "2026-09-09T09:00:00+09:00");
+
+    await store.putConfirmedTrip(ALICE, trip, failingResolve);
+    await store.putConfirmedTrip(BOB, trip, failingResolve);
+    await store.deleteConfirmedTrip(ALICE, TRIP_1);
+
+    expect(await store.listConfirmedTrips(ALICE)).toStrictEqual({
+      ok: true,
+      value: [],
+    });
+    expect(await store.listConfirmedTrips(BOB)).toStrictEqual({
+      ok: true,
+      value: [confirmedTripOfWritten(trip)],
+    });
+  });
+
+  test("確定旅程を消しても進行中の trip は残る", async () => {
+    const store = createFakeStore();
+    const trip = writtenTrip(TRIP_1, "2026-09-09T09:00:00+09:00");
+
+    await store.putTrip(ALICE, trip);
+    await store.putConfirmedTrip(ALICE, trip, failingResolve);
+    await store.deleteConfirmedTrip(ALICE, TRIP_1);
+
+    expect(await store.getTrip(ALICE, TRIP_1)).toStrictEqual({
+      ok: true,
+      value: trip,
+    });
+  });
+
   test("リンクを保存しても trip は残る", async () => {
     const store = createFakeStore();
     const trip = proposedTrip(TRIP_1, "2026-09-09T09:00:00+09:00");
