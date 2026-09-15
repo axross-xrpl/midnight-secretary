@@ -529,6 +529,62 @@ async function main() {
       return sendJson(res, 200, result);
     }
 
+    if (req.method === "POST" && url.pathname === "/shielded-token/pay") {
+      if (!shielded) {
+        return sendJson(res, 503, {
+          error:
+            "Shielded-token is not configured (set SHIELDED_TOKEN_ADDRESS)",
+        });
+      }
+      const { shieldedContract, shieldedProviders } = shielded;
+      const body = await readJsonBody(req);
+      const recipientArg = String(body.recipient ?? "");
+      const amountArg = String(body.amount ?? "");
+      if (!recipientArg || !amountArg) {
+        return sendJson(res, 400, {
+          error: "Missing recipient or amount",
+        });
+      }
+      let amount: bigint;
+      try {
+        amount = BigInt(amountArg);
+      } catch {
+        return sendJson(res, 400, { error: "amount must be an integer" });
+      }
+      const result = await serialize(async () => {
+        const resolved = resolveRecipient(recipientArg, networkId);
+        const recipient = { bytes: resolved.coinPublicKey };
+        // See /shielded-token/request above for why this mapping is needed.
+        const additionalCoinEncPublicKeyMappings =
+          resolved.encryptionPublicKeyHex
+            ? new Map([
+                [
+                  Buffer.from(resolved.coinPublicKey).toString("hex"),
+                  resolved.encryptionPublicKeyHex,
+                ],
+              ])
+            : undefined;
+        const finalized = await withContractScopedTransaction(
+          shieldedProviders,
+          async (txCtx) => {
+            await shieldedContract.callTx.mint_and_send(
+              txCtx,
+              recipient,
+              amount,
+              0n,
+            );
+          },
+          { additionalCoinEncPublicKeyMappings },
+        );
+        return {
+          blockHeight: finalized.public.blockHeight,
+          txId: finalized.public.txId,
+          amount: amount.toString(),
+        };
+      });
+      return sendJson(res, 200, result);
+    }
+
     sendJson(res, 404, { error: "Not found" });
   }
 

@@ -13,6 +13,7 @@ import type {
   MandateError,
   MandatePort,
   PaymentRequest,
+  Settlement,
 } from "@/domain/mandate";
 import type { Result } from "@/lib/result";
 import { err, fromPromise, ok } from "@/lib/result";
@@ -20,7 +21,8 @@ import { err, fromPromise, ok } from "@/lib/result";
 /**
  * real が実際のトークン送金に使うもの
  *
- * 本番は `@/lib/dev-contracts/token` の `payToken` (contract-server 経由で `sendToken` を呼ぶ) を渡す
+ * 本番は `@/lib/dev-contracts/token`/`shielded-token` の `payToken`/`payShieldedToken`
+ * (contract-server 経由で `sendToken`/`mint_and_send` を呼ぶ) を渡す
  */
 export type RealMandateDeps = {
   payToken: (
@@ -29,6 +31,12 @@ export type RealMandateDeps = {
   ) => Promise<{ txId: string }>;
   // MANDATE_SETTLEMENT_RECIPIENT を読む。未設定なら undefined
   settlementRecipient: () => string | undefined;
+  payShieldedToken: (
+    recipientShieldedAddressOrCoinPublicKey: string,
+    amount: string,
+  ) => Promise<{ txId: string }>;
+  // MANDATE_SETTLEMENT_RECIPIENT_SHIELDED を読む。未設定なら undefined
+  shieldedSettlementRecipient: () => string | undefined;
 };
 
 /**
@@ -36,8 +44,8 @@ export type RealMandateDeps = {
  *
  * カタログの payee (`transport_services`/`place_services` の wallet_address) はまだ
  * 本物の Midnight アドレスではないプレースホルダ文字列 (`mn_shield-addr_test1demo-...`) なので、
- * `sendToken` の送り先には使えない。カタログが本物のアドレスを持つようになるまでの暫定として、
- * すべての real な支払いは `MANDATE_SETTLEMENT_RECIPIENT` の固定デモ受取アドレスへ送る。
+ * `sendToken`/`mint_and_send` の送り先には使えない。カタログが本物のアドレスを持つようになるまでの暫定として、
+ * すべての real な支払いは `MANDATE_SETTLEMENT_RECIPIENT`/`_SHIELDED` の固定デモ受取アドレスへ送る。
  * `Authorization.settlement.recipient` にはリクエストの payee (カタログの値) をそのまま記録し、
  * 実際の on-chain 送金先とは意図的に区別している。
  */
@@ -65,6 +73,23 @@ const settlementRecipientOf = (
   return ok(value);
 };
 
+const shieldedSettlementRecipientOf = (
+  deps: RealMandateDeps,
+): Result<string, MandateError> => {
+  const value = deps.shieldedSettlementRecipient();
+
+  if (!value) {
+    return err({
+      kind: "unavailable",
+      cause: new Error(
+        "MANDATE_SETTLEMENT_RECIPIENT_SHIELDED is not configured (see .env.example)",
+      ),
+    });
+  }
+
+  return ok(value);
+};
+
 const sendOnChain = async (
   deps: RealMandateDeps,
   recipient: string,
@@ -74,6 +99,38 @@ const sendOnChain = async (
     kind: "unavailable",
     cause,
   }));
+};
+
+const sendShieldedOnChain = async (
+  deps: RealMandateDeps,
+  recipient: string,
+  amount: number,
+): Promise<Result<{ txId: string }, MandateError>> => {
+  return fromPromise(
+    deps.payShieldedToken(recipient, amount.toString()),
+    (cause) => ({ kind: "unavailable", cause }),
+  );
+};
+
+const finalizeAuthorization = (
+  state: MandateLedgerState,
+  ids: MandateIds,
+  mandate: Mandate,
+  request: PaymentRequest,
+  settlement: Settlement,
+): Authorization => {
+  const authorization: Authorization = {
+    mandateId: request.mandateId,
+    paymentRef: request.paymentRef,
+    amount: request.amount,
+    authorizedAt: request.now,
+    publicHash: ids.hashAuthorization(request.mandateId, request.paymentRef),
+    settlement,
+  };
+
+  commitPayment(state, authorization, mandate);
+
+  return authorization;
 };
 
 const authorizePayment = async (
@@ -88,6 +145,32 @@ const authorizePayment = async (
     return validated;
   }
 
+  if (request.visibility === "private") {
+    const recipient = shieldedSettlementRecipientOf(deps);
+
+    if (!recipient.ok) {
+      return recipient;
+    }
+
+    const sent = await sendShieldedOnChain(
+      deps,
+      recipient.value,
+      request.amount.amount,
+    );
+
+    if (!sent.ok) {
+      return sent;
+    }
+
+    return ok(
+      finalizeAuthorization(state, ids, validated.value, request, {
+        kind: "shieldedTransfer",
+        transactionId: sent.value.txId,
+        recipient: request.recipient,
+      }),
+    );
+  }
+
   const recipient = settlementRecipientOf(deps);
 
   if (!recipient.ok) {
@@ -100,31 +183,25 @@ const authorizePayment = async (
     return sent;
   }
 
-  const authorization: Authorization = {
-    mandateId: request.mandateId,
-    paymentRef: request.paymentRef,
-    amount: request.amount,
-    authorizedAt: request.now,
-    publicHash: ids.hashAuthorization(request.mandateId, request.paymentRef),
-    settlement: {
+  return ok(
+    finalizeAuthorization(state, ids, validated.value, request, {
       kind: "tokenTransfer",
       transactionId: sent.value.txId,
       recipient: request.recipient,
-    },
-  };
-
-  commitPayment(state, authorization, validated.value);
-
-  return ok(authorization);
+    }),
+  );
 };
 
 /**
- * `contract/src/token.compact` の `sendToken` に裏打ちされた mandate
+ * `contract/src/token.compact` の `sendToken` と `shielded-token.compact` の
+ * `mint_and_send` に裏打ちされた mandate
  *
  * mandate 自体の上限・使用済み・期限・commitment はプロセスのメモリ上でのみ管理する
- * (token.compact に mandate という概念が無いため) 。fake との違いは
+ * (token.compact / shielded-token.compact に mandate という概念が無いため) 。fake との違いは
  * `authorizePayment` が実際に on-chain のトークン送金を行う一点のみ
- * 送金は unshielded (`sendToken`) だけなので `privateSettlement` は false で、契約サーバが shielded 送金を持ったら true にする
+ * `visibility: "private"` は shielded (`mint_and_send`)、`"public"` は unshielded (`sendToken`) を使う。
+ * `privateSettlement` は `MANDATE_SETTLEMENT_RECIPIENT_SHIELDED` が設定されているときだけ true
+ * (adapter を作った時点で決まる -- `MandateCapabilities` の規約どおり)
  */
 export const createRealMandate = (seed: RealMandateSeed): MandatePort => {
   const state: MandateLedgerState = {
@@ -133,9 +210,11 @@ export const createRealMandate = (seed: RealMandateSeed): MandatePort => {
     ),
     authorizations: [],
   };
+  const privateSettlement =
+    seed.deps.shieldedSettlementRecipient() !== undefined;
 
   return {
-    capabilities: { privateSettlement: false },
+    capabilities: { privateSettlement },
     createMandate: async (draft) => ok(createMandateIn(state, seed.ids, draft)),
     authorizePayment: (request) =>
       authorizePayment(state, seed.ids, seed.deps, request),

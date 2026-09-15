@@ -4,6 +4,11 @@
     "tasks": "タスク",
     "settings": "設定"
   },
+  "ContractServerStatus": {
+    "checking": "契約サーバを確認中...",
+    "ready": "契約サーバ 準備完了",
+    "unreachable": "契約サーバに接続できません"
+  },
   "Home": {
     "title": "ホーム",
     "signedOut": "サインインすると、MST残高と確定した旅程が表示されます。",

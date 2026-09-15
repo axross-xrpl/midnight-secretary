@@ -48,3 +48,24 @@ export async function contractServerPost<T>(
   if (!res.ok) throw new Error(await readErrorMessage(res));
   return res.json() as Promise<T>;
 }
+
+export type ContractServerHealth =
+  | { status: "ready" }
+  | { status: "unreachable"; message: string };
+
+/**
+ * Never throws -- "unreachable" (server not started yet, still mid wallet
+ * sync, or crashed) is an expected, ordinary state here, not a failure of
+ * this function. Used to drive a status indicator, not to gate a request.
+ */
+export async function getContractServerHealth(): Promise<ContractServerHealth> {
+  try {
+    await contractServerGet<{ ok: boolean }>("/health");
+    return { status: "ready" };
+  } catch (cause) {
+    return {
+      status: "unreachable",
+      message: cause instanceof Error ? cause.message : String(cause),
+    };
+  }
+}

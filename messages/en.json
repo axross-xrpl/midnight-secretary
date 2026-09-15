@@ -4,6 +4,11 @@
     "tasks": "Tasks",
     "settings": "Settings"
   },
+  "ContractServerStatus": {
+    "checking": "Checking contract server...",
+    "ready": "Contract server ready",
+    "unreachable": "Contract server unreachable"
+  },
   "Home": {
     "title": "Home",
     "signedOut": "Sign in to see your MST balance and confirmed itineraries.",

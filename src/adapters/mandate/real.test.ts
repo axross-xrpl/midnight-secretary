@@ -59,14 +59,19 @@ const testIds = (): MandateIds => {
 };
 
 // 実際の on-chain 送金は行わず、渡された引数を記録するだけの deps
+// public/private それぞれの送金先を別に記録する
 const recordingDeps = (): RealMandateDeps & {
   calls: { recipient: string; amount: string }[];
+  shieldedCalls: { recipient: string; amount: string }[];
 } => {
   const calls: { recipient: string; amount: string }[] = [];
+  const shieldedCalls: { recipient: string; amount: string }[] = [];
   let sent = 0;
+  let shieldedSent = 0;
 
   return {
     calls,
+    shieldedCalls,
     payToken: async (recipient, amount) => {
       calls.push({ recipient, amount });
       sent = sent + 1;
@@ -74,6 +79,14 @@ const recordingDeps = (): RealMandateDeps & {
       return { txId: `tx-${sent}` };
     },
     settlementRecipient: () => "mn_addr_undeployed1demo-settlement",
+    payShieldedToken: async (recipient, amount) => {
+      shieldedCalls.push({ recipient, amount });
+      shieldedSent = shieldedSent + 1;
+
+      return { txId: `shielded-tx-${shieldedSent}` };
+    },
+    shieldedSettlementRecipient: () =>
+      "mn_shield-addr_undeployed1demo-settlement",
   };
 };
 
@@ -99,6 +112,24 @@ const setUp = async (
 
   return mandate;
 };
+
+describe("capabilities", () => {
+  test("shielded の決済受取アドレスが設定されていれば privateSettlement は true", () => {
+    const mandate = emptyMandate(recordingDeps());
+    expect(mandate.capabilities).toStrictEqual({ privateSettlement: true });
+  });
+
+  test("shielded の決済受取アドレスが未設定なら privateSettlement は false", () => {
+    const deps: RealMandateDeps = {
+      payToken: async () => ({ txId: "tx-1" }),
+      settlementRecipient: () => "mn_addr_undeployed1demo-settlement",
+      payShieldedToken: async () => ({ txId: "shielded-tx-1" }),
+      shieldedSettlementRecipient: () => undefined,
+    };
+    const mandate = emptyMandate(deps);
+    expect(mandate.capabilities).toStrictEqual({ privateSettlement: false });
+  });
+});
 
 describe("createMandate", () => {
   test("id と commitment を採番し、spent 0 で保存する (on-chain 呼び出しは無い)", async () => {
@@ -162,6 +193,72 @@ describe("authorizePayment", () => {
     expect(read.ok && read.value?.spent).toStrictEqual(mst(14720));
   });
 
+  test("private を承認すると shielded の固定決済受取アドレスへ送金し、tx id が settlement に載る", async () => {
+    const deps = recordingDeps();
+    const mandate = await setUp(deps, 50000);
+
+    const authorized = await mandate.authorizePayment({
+      mandateId: mandateId("mandate-1"),
+      paymentRef: paymentRef("trip:1"),
+      amount: mst(14720),
+      recipient: PAYEE,
+      visibility: "private",
+      now: at("2026-09-09T09:00:00+09:00"),
+    });
+
+    expect(authorized).toStrictEqual({
+      ok: true,
+      value: {
+        mandateId: "mandate-1",
+        paymentRef: "trip:1",
+        amount: mst(14720),
+        authorizedAt: "2026-09-09T09:00:00+09:00",
+        publicHash: "hash:mandate-1:trip:1",
+        settlement: {
+          kind: "shieldedTransfer",
+          transactionId: "shielded-tx-1",
+          recipient: PAYEE,
+        },
+      },
+    });
+    // public 側の送金は試みず、shielded の固定受取アドレスへだけ送金する
+    expect(deps.calls).toStrictEqual([]);
+    expect(deps.shieldedCalls).toStrictEqual([
+      {
+        recipient: "mn_shield-addr_undeployed1demo-settlement",
+        amount: "14720",
+      },
+    ]);
+  });
+
+  test("MANDATE_SETTLEMENT_RECIPIENT_SHIELDED が未設定なら private は unavailable になり、送金は試みない", async () => {
+    const deps: RealMandateDeps = {
+      payToken: async () => {
+        throw new Error("should not be called for a private payment");
+      },
+      settlementRecipient: () => "mn_addr_undeployed1demo-settlement",
+      payShieldedToken: async () => {
+        throw new Error("should not be reached");
+      },
+      shieldedSettlementRecipient: () => undefined,
+    };
+    // capabilities.privateSettlement は作成時点の値なので、shielded 受取先が
+    // 無くても mandate 自体は作れる (fake との違いは無い) が、private を承認しようとすると unavailable になる
+    const mandate = await setUp(deps, 50000);
+
+    const authorized = await mandate.authorizePayment({
+      mandateId: mandateId("mandate-1"),
+      paymentRef: paymentRef("trip:1"),
+      amount: mst(14720),
+      recipient: PAYEE,
+      visibility: "private",
+      now: at("2026-09-09T09:00:00+09:00"),
+    });
+
+    expect(authorized.ok).toBe(false);
+    expect(!authorized.ok && authorized.error.kind).toBe("unavailable");
+  });
+
   test("上限を超えると overBudget になり、on-chain 送金は試みない", async () => {
     const deps = recordingDeps();
     const mandate = await setUp(deps, 10000);
@@ -214,6 +311,11 @@ describe("authorizePayment", () => {
         throw new Error("proof server unreachable");
       },
       settlementRecipient: () => "mn_addr_undeployed1demo-settlement",
+      payShieldedToken: async () => {
+        throw new Error("proof server unreachable");
+      },
+      shieldedSettlementRecipient: () =>
+        "mn_shield-addr_undeployed1demo-settlement",
     };
     const mandate = await setUp(deps, 50000);
 
@@ -241,6 +343,12 @@ describe("authorizePayment", () => {
         return { txId: "tx-1" };
       },
       settlementRecipient: () => undefined,
+      payShieldedToken: async () => {
+        called = true;
+        return { txId: "shielded-tx-1" };
+      },
+      shieldedSettlementRecipient: () =>
+        "mn_shield-addr_undeployed1demo-settlement",
     };
     const mandate = await setUp(deps, 50000);
 
