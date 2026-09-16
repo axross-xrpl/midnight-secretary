@@ -21,6 +21,8 @@ import {
   setNetworkId,
   getNetworkId,
 } from "@midnight-ntwrk/midnight-js-network-id";
+import { syncWallet } from "./sync.js";
+import { readWalletCache, installShutdownHandler } from "./wallet-cache.js";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -64,6 +66,16 @@ async function main() {
   const dustSecretKey = ledger.DustSecretKey.fromSeed(keys.dust);
   const keystore = createKeystore(keys.nightExternal, networkId);
 
+  // Shared with sync.ts and the deploy scripts: same (networkId, seedHex)
+  // key means whichever of them last ran leaves this seed's sync progress
+  // for the next one, instead of each replaying from genesis separately.
+  const cache = readWalletCache(NETWORK_ID, SEED_HEX);
+  console.log(
+    cache
+      ? "Found a saved sync cache -- resuming instead of replaying from genesis."
+      : "No saved sync cache -- this will replay from genesis.",
+  );
+
   console.log("Initializing wallet...");
   const facade = await WalletFacade.init({
     configuration: {
@@ -78,24 +90,36 @@ async function main() {
       txHistoryStorage: new InMemoryTransactionHistoryStorage(
         WalletEntrySchema,
       ),
+      // Default batch size (10) makes shielded/dust's replay of a long
+      // preview/preprod history very slow -- see
+      // https://github.com/midnightntwrk/midnight-wallet/issues/425.
+      batchUpdates: { size: 5000 },
     },
     shielded: (cfg) =>
-      ShieldedWallet(cfg).startWithSecretKeys(shieldedSecretKeys),
+      cache?.shielded
+        ? ShieldedWallet(cfg).restore(cache.shielded)
+        : ShieldedWallet(cfg).startWithSecretKeys(shieldedSecretKeys),
     unshielded: (cfg) =>
-      UnshieldedWallet(cfg).startWithPublicKey(
-        PublicKey.fromKeyStore(keystore),
-      ),
+      cache?.unshielded
+        ? UnshieldedWallet(cfg).restore(cache.unshielded)
+        : UnshieldedWallet(cfg).startWithPublicKey(
+            PublicKey.fromKeyStore(keystore),
+          ),
     dust: (cfg) =>
-      DustWallet(cfg).startWithSecretKey(
-        dustSecretKey,
-        ledger.LedgerParameters.initialParameters().dust,
-      ),
+      cache?.dust
+        ? DustWallet(cfg).restore(cache.dust)
+        : DustWallet(cfg).startWithSecretKey(
+            dustSecretKey,
+            ledger.LedgerParameters.initialParameters().dust,
+          ),
   });
+
+  const cleanup = installShutdownHandler(NETWORK_ID, SEED_HEX, facade);
 
   try {
     await facade.start(shieldedSecretKeys, dustSecretKey);
     console.log("Syncing (this is fast on local devnet)...");
-    const state = await facade.waitForSyncedState();
+    const state = await syncWallet(console, facade, 2_000);
 
     const unshieldedAddress = MidnightBech32m.encode(
       networkId,
@@ -128,7 +152,8 @@ async function main() {
       `NIGHT UTXOs registered for DUST: ${registeredCount} / ${state.unshielded.availableCoins.length}`,
     );
   } finally {
-    await facade.stop();
+    console.log("Saving sync cache...");
+    await cleanup();
   }
 }
 
