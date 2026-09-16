@@ -60,7 +60,11 @@ import {
   createShieldedTokenPrivateState,
   deriveMinterSecret,
 } from "./shielded-token/witnesses.js";
-import { Contract as AgeVerificationContract } from "./managed/age-verification/contract/index.js";
+import {
+  Contract as AgeVerificationContract,
+  ledger as ageVerificationLedger,
+  pureCircuits as ageVerificationPureCircuits,
+} from "./managed/age-verification/contract/index.js";
 import {
   witnesses as ageVerificationWitnesses,
   createAgeVerificationPrivateState,
@@ -85,11 +89,18 @@ import {
  * one submission gets rejected by the node.
  *
  * age-verification/* is different in kind, not just another owner-gated
- * contract: it registers/proves ONE FIXED TEST IDENTITY for the whole
- * process (see setUpAgeVerification below), not a real per-user flow -- a
- * real flow needs the identity secret and date of birth to stay client-side
- * and never reach this server at all, which is exactly what makes this
- * contract privacy-preserving in the first place.
+ * contract: register()/proveAdult() have no owner role at all (see
+ * age-verification.compact) and the DEPLOYER_SEED wallet here only pays
+ * fees, on behalf of whichever accountRef the caller names. accountRef is an
+ * opaque per-user pseudonym (see identityIds.identityOf in
+ * src/adapters/runtime.ts) that deterministically derives that user's own
+ * identitySecret/dobSalt (see age-verification/witnesses.ts) and partitions
+ * their private state in the local LevelDB store, so many distinct users can
+ * register/prove against the one deployment this server is connected to.
+ * This is still a stand-in, not the real shape: the date of birth and the
+ * derived identity secret both pass through this server (over loopback
+ * HTTP, from the app's real identity adapter) instead of staying on the
+ * traveler's own device -- the real version proves from a connected wallet.
  */
 
 function requireEnv(name: string): string {
@@ -112,14 +123,6 @@ const TOKEN_ADDRESS = requireEnv("TOKEN_ADDRESS");
 const SHIELDED_TOKEN_ADDRESS = process.env.SHIELDED_TOKEN_ADDRESS;
 // Optional, same reasoning as SHIELDED_TOKEN_ADDRESS above.
 const AGE_VERIFICATION_ADDRESS = process.env.AGE_VERIFICATION_ADDRESS;
-// The identity register()/proveAdult() run as -- deliberately NOT tied to
-// DEPLOYER_SEED's role as token/shielded-token's owner/minter (see
-// age-verification/witnesses.ts: this contract has no owner). Falls back to
-// DEPLOYER_SEED so a single devnet wallet is enough to smoke-test the route.
-// The WALLET that signs/pays fees is still always the one DEPLOYER_SEED
-// facade below -- only the WITNESS identity (identitySecret/dobSalt) and the
-// registered date of birth come from this seed.
-const AGE_VERIFICATION_SEED = process.env.AGE_VERIFICATION_SEED;
 const PORT = Number(process.env.CONTRACT_SERVER_PORT ?? 4900);
 
 type TokenCircuitId = ContractNS.ProvableCircuitId<
@@ -155,22 +158,6 @@ function deriveKeys(seed: string) {
 function hexToBytes(hex: string): Uint8Array {
   const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
   return new Uint8Array(Buffer.from(clean, "hex"));
-}
-
-// Decrements just the year digits of a YYYYMMDD string -- no Date object, no
-// timezone conversion, matching age-verification.compact's own treatment of
-// dates as plain YYYYMMDD integers (see its comment on why lexicographic
-// order on that shape already matches chronological order). The caller
-// supplies "today" rather than this trusting its own system clock, since the
-// eventual frontend caller is the one deciding what "today" means for its
-// own age check.
-function twentyYearsBefore(todayYYYYMMDD: string): bigint {
-  if (!/^\d{8}$/.test(todayYYYYMMDD)) {
-    throw new Error("today must be an 8-digit YYYYMMDD string");
-  }
-  const year = Number(todayYYYYMMDD.slice(0, 4));
-  const monthDay = todayYYYYMMDD.slice(4);
-  return BigInt(`${year - 20}${monthDay}`);
 }
 
 // See interact-shielded-token.ts for why this bypasses MidnightBech32m.parse's
@@ -408,29 +395,22 @@ async function main() {
 
   const shielded = await setUpShielded(SHIELDED_TOKEN_ADDRESS);
 
-  // Optional, same reasoning as setUpShielded above. This is ONE fixed test
-  // identity for the whole process -- not a real per-user flow (that would
-  // need the identity secret and date of birth to stay client-side, never
-  // touch this server; see age-verification/witnesses.ts and the plan this
-  // was scoped down from). register() is one-shot per identity, so the DOB
-  // is baked in once here via AGE_VERIFICATION_DOB, not taken per-request.
-  async function setUpAgeVerification(
-    ageVerificationAddress: string | undefined,
-  ) {
+  // Optional, same reasoning as setUpShielded above. Unlike token/
+  // shielded-token, register()/proveAdult() have no owner role (see
+  // age-verification.compact), so what's shared across every accountRef
+  // here is only the network-facing half: the DEPLOYER_SEED wallet (pays
+  // fees, same as every other route in this file), the indexer, the proof
+  // server and the compiled contract. The private-state half -- identity
+  // secret, DOB salt, and the LevelDB partition they live in -- is specific
+  // to each accountRef, so connectAgeVerification (below) builds that part
+  // fresh per call instead of once here.
+  function setUpAgeVerification(ageVerificationAddress: string | undefined) {
     if (!ageVerificationAddress) {
       console.log(
         "AGE_VERIFICATION_ADDRESS not set -- skipping age-verification",
       );
       return undefined;
     }
-
-    const seedHex = AGE_VERIFICATION_SEED ?? DEPLOYER_SEED;
-    const dobStr = requireEnv("AGE_VERIFICATION_DOB");
-    if (!/^\d{8}$/.test(dobStr)) {
-      throw new Error("AGE_VERIFICATION_DOB must be an 8-digit YYYYMMDD value");
-    }
-    const identitySecret = deriveIdentitySecret(seedHex);
-    const dobSalt = deriveDobSalt(seedHex);
 
     const ageVerificationZkConfigPath = path.resolve(
       __dirname,
@@ -440,24 +420,6 @@ async function main() {
       new NodeZkConfigProvider<AgeVerificationCircuitId>(
         ageVerificationZkConfigPath,
       );
-    const ageVerificationProviders = {
-      walletProvider: walletAndMidnightProvider,
-      midnightProvider: walletAndMidnightProvider,
-      publicDataProvider: indexerPublicDataProvider(INDEXER_HTTP, INDEXER_WS),
-      // Keyed by this identity's own secret, not a fixed "deployer" id --
-      // see age-verification/deploy.ts's comment on why (no persistent
-      // owner role here, unlike token.compact/shielded-token.compact).
-      privateStateProvider: levelPrivateStateProvider({
-        privateStateStoreName: "age-verification-private-state",
-        privateStoragePasswordProvider: () => "AgeVerification-Dev-Pa55word!",
-        accountId: Buffer.from(identitySecret).toString("hex"),
-      }),
-      zkConfigProvider: ageVerificationZkConfigProvider,
-      proofProvider: httpClientProofProvider(
-        PROOF_SERVER,
-        ageVerificationZkConfigProvider,
-      ),
-    };
     const ageVerificationCompiledContract = CompiledContract.make(
       "age-verification",
       AgeVerificationContract,
@@ -466,28 +428,90 @@ async function main() {
       CompiledContract.withCompiledFileAssets(ageVerificationZkConfigPath),
     );
 
-    console.log(
-      `Finding deployed age-verification contract at ${ageVerificationAddress}...`,
-    );
-    const ageVerificationContract = await findDeployedContract(
-      ageVerificationProviders,
-      {
-        contractAddress: ageVerificationAddress,
-        compiledContract: ageVerificationCompiledContract,
-        privateStateId: "age-verification-private-state",
-        initialPrivateState: createAgeVerificationPrivateState(
-          identitySecret,
-          dobSalt,
-          BigInt(dobStr),
+    return {
+      ageVerificationAddress,
+      ageVerificationCompiledContract,
+      sharedProviders: {
+        walletProvider: walletAndMidnightProvider,
+        midnightProvider: walletAndMidnightProvider,
+        publicDataProvider: indexerPublicDataProvider(INDEXER_HTTP, INDEXER_WS),
+        zkConfigProvider: ageVerificationZkConfigProvider,
+        proofProvider: httpClientProofProvider(
+          PROOF_SERVER,
+          ageVerificationZkConfigProvider,
         ),
       },
-    );
-    console.log("Age-verification contract found!");
-
-    return { ageVerificationContract };
+    };
   }
 
-  const ageVerification = await setUpAgeVerification(AGE_VERIFICATION_ADDRESS);
+  const ageVerification = setUpAgeVerification(AGE_VERIFICATION_ADDRESS);
+
+  // accountRef is an opaque per-user pseudonym the app derives once per
+  // userId (see identityIds.identityOf in src/adapters/runtime.ts) and
+  // passes on every register/prove call. It doubles as: (1) the LevelDB
+  // accountId that partitions this user's private state from every other
+  // accountRef's in the one shared store, and (2) the input this server
+  // derives identitySecret/dobSalt from, standing in for a per-user wallet
+  // seed (see age-verification/witnesses.ts -- deriveIdentitySecret/
+  // deriveDobSalt hash whatever hex string they're given, seed or not).
+  //
+  // Pass `dateOfBirth` only when registering for the first time -- it seeds
+  // this accountRef's private state. Omit it (as prove does) to reconnect
+  // against whatever was stored by that earlier register call instead:
+  // findDeployedContract OVERWRITES stored private state whenever
+  // `initialPrivateState` is given, even on a call that isn't deploying, so
+  // proveAdult must never pass a guessed-at DOB here -- that would blow away
+  // the real one before the circuit ever sees it.
+  async function connectAgeVerification(
+    accountRef: string,
+    dateOfBirth?: bigint,
+  ) {
+    if (!ageVerification) {
+      throw new Error("age-verification is not configured");
+    }
+    const {
+      ageVerificationAddress,
+      ageVerificationCompiledContract,
+      sharedProviders,
+    } = ageVerification;
+    const identitySecret = deriveIdentitySecret(accountRef);
+    const dobSalt = deriveDobSalt(accountRef);
+    const providers = {
+      ...sharedProviders,
+      privateStateProvider: levelPrivateStateProvider({
+        privateStateStoreName: "age-verification-private-state",
+        privateStoragePasswordProvider: () => "AgeVerification-Dev-Pa55word!",
+        accountId: accountRef,
+      }),
+    };
+
+    return findDeployedContract(providers, {
+      contractAddress: ageVerificationAddress,
+      compiledContract: ageVerificationCompiledContract,
+      privateStateId: "age-verification-private-state",
+      ...(dateOfBirth === undefined
+        ? {}
+        : {
+            initialPrivateState: createAgeVerificationPrivateState(
+              identitySecret,
+              dobSalt,
+              dateOfBirth,
+            ),
+          }),
+    });
+  }
+
+  // The on-chain pseudonym (age-verification.compact's deriveIdentity(sk)),
+  // hex-encoded for JSON -- not accountRef itself. accountRef never appears
+  // on chain; this is the Map key every register()/proveAdult() call
+  // discloses, so it's what a caller can actually look up in the indexer.
+  function ageVerificationIdentityHex(accountRef: string): string {
+    return Buffer.from(
+      ageVerificationPureCircuits.deriveIdentity(
+        deriveIdentitySecret(accountRef),
+      ),
+    ).toString("hex");
+  }
 
   async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const url = new URL(req.url ?? "/", "http://localhost");
@@ -711,21 +735,83 @@ async function main() {
     }
 
     if (
+      req.method === "GET" &&
+      url.pathname === "/age-verification/registration"
+    ) {
+      if (!ageVerification) {
+        return sendJson(res, 503, {
+          error:
+            "age-verification is not configured (set AGE_VERIFICATION_ADDRESS)",
+        });
+      }
+      const accountRef = url.searchParams.get("accountRef") ?? "";
+      if (!accountRef) {
+        return sendJson(res, 400, { error: "Missing accountRef" });
+      }
+      const { ageVerificationAddress, sharedProviders } = ageVerification;
+      // A plain ledger read, no proving or private state involved -- safe to
+      // do outside serialize() (nothing here touches the wallet's nonce).
+      const state = await sharedProviders.publicDataProvider.queryContractState(
+        ageVerificationAddress,
+      );
+      if (!state) {
+        return sendJson(res, 503, {
+          error: "age-verification contract state is unavailable",
+        });
+      }
+      const identityBytes = ageVerificationPureCircuits.deriveIdentity(
+        deriveIdentitySecret(accountRef),
+      );
+      const { registrations } = ageVerificationLedger(state.data);
+      const registered = registrations.member(identityBytes);
+      return sendJson(res, 200, {
+        identity: ageVerificationIdentityHex(accountRef),
+        registered,
+        ...(registered
+          ? {
+              dobCommitment: Buffer.from(
+                registrations.lookup(identityBytes),
+              ).toString("hex"),
+            }
+          : {}),
+        contractAddress: ageVerificationAddress,
+      });
+    }
+
+    if (
       req.method === "POST" &&
       url.pathname === "/age-verification/register"
     ) {
       if (!ageVerification) {
         return sendJson(res, 503, {
           error:
-            "age-verification is not configured (set AGE_VERIFICATION_ADDRESS and AGE_VERIFICATION_DOB)",
+            "age-verification is not configured (set AGE_VERIFICATION_ADDRESS)",
         });
       }
-      const { ageVerificationContract } = ageVerification;
+      const body = await readJsonBody(req);
+      const accountRef = String(body.accountRef ?? "");
+      const dobStr = String(body.dateOfBirth ?? "");
+      if (!accountRef) {
+        return sendJson(res, 400, { error: "Missing accountRef" });
+      }
+      if (!/^\d{8}$/.test(dobStr)) {
+        return sendJson(res, 400, {
+          error: "dateOfBirth must be an 8-digit YYYYMMDD value",
+        });
+      }
       const result = await serialize(async () => {
-        // Fails with "Identity already registered" if AGE_VERIFICATION_SEED
-        // (or DEPLOYER_SEED) already registered against this deployment.
-        const txResult = await ageVerificationContract.callTx.register();
-        return { blockHeight: txResult.public.blockHeight };
+        const contract = await connectAgeVerification(
+          accountRef,
+          BigInt(dobStr),
+        );
+        // Fails with "Identity already registered" if this accountRef
+        // already registered against this deployment.
+        const txResult = await contract.callTx.register();
+        return {
+          identity: ageVerificationIdentityHex(accountRef),
+          txId: txResult.public.txId,
+          blockHeight: txResult.public.blockHeight,
+        };
       });
       return sendJson(res, 200, result);
     }
@@ -734,31 +820,46 @@ async function main() {
       if (!ageVerification) {
         return sendJson(res, 503, {
           error:
-            "age-verification is not configured (set AGE_VERIFICATION_ADDRESS and AGE_VERIFICATION_DOB)",
+            "age-verification is not configured (set AGE_VERIFICATION_ADDRESS)",
         });
       }
-      const { ageVerificationContract } = ageVerification;
       const body = await readJsonBody(req);
-      const today = String(body.today ?? "");
-      if (!today) {
-        return sendJson(res, 400, { error: "Missing today (YYYYMMDD)" });
+      const accountRef = String(body.accountRef ?? "");
+      const cutoffStr = String(body.cutoffDate ?? "");
+      if (!accountRef) {
+        return sendJson(res, 400, { error: "Missing accountRef" });
       }
-      let cutoffDate: bigint;
-      try {
-        cutoffDate = twentyYearsBefore(today);
-      } catch (cause) {
+      if (!/^\d{8}$/.test(cutoffStr)) {
         return sendJson(res, 400, {
-          error: cause instanceof Error ? cause.message : String(cause),
+          error: "cutoffDate must be an 8-digit YYYYMMDD value",
         });
       }
       const result = await serialize(async () => {
-        // Fails with "Identity not registered" if this identity hasn't
+        // No dateOfBirth here -- reconnects against whatever register()
+        // already stored for this accountRef (see connectAgeVerification's
+        // comment on why passing one here would overwrite it with a guess).
+        const contract = await connectAgeVerification(accountRef).catch(
+          (cause) => {
+            // This accountRef has never registered against this server's
+            // private-state store -- report it the same way the circuit's
+            // own assertion would, so real.ts's error mapping still applies.
+            if (
+              cause instanceof Error &&
+              cause.message.includes("No private state found")
+            ) {
+              throw new Error("Identity not registered");
+            }
+            throw cause;
+          },
+        );
+        // Fails with "Identity not registered" if this accountRef hasn't
         // called /age-verification/register yet.
-        const txResult =
-          await ageVerificationContract.callTx.proveAdult(cutoffDate);
+        const txResult = await contract.callTx.proveAdult(BigInt(cutoffStr));
         return {
+          identity: ageVerificationIdentityHex(accountRef),
+          txId: txResult.public.txId,
           blockHeight: txResult.public.blockHeight,
-          cutoffDate: cutoffDate.toString(),
+          cutoffDate: cutoffStr,
           isAdult: txResult.private.result,
         };
       });
