@@ -10,7 +10,7 @@ import type {
 } from "@/lib/secretary-response";
 import type { PlanVisibility } from "./conversation";
 import type { VisibilityCategory } from "./flow";
-import type { PlanRow } from "./format";
+import type { PlanDiff, PlanRow } from "./format";
 import {
   DATE_OPTIONS,
   moneyText,
@@ -240,25 +240,40 @@ const TripItemBody = ({ row }: TripItemBodyProps): ReactElement => {
     .exhaustive();
 };
 
+// 前の提案から変わった行と合計に付ける背景 (吹き出しの px-4 の中で左右に 8px はみ出させ、背景を文字より広く見せる)
+const changedRowClass = "-mx-2 rounded-md bg-note-bg px-2";
+
+const rowClass = "flex flex-wrap items-center gap-2.5 py-2";
+
+const totalClass =
+  "mt-0.5 flex flex-wrap items-baseline justify-end gap-2 border-t-2 border-divider-strong pt-2.5";
+
 type TripItemRowProps = {
   row: PlanRow;
+  changed: boolean;
   visibility?: PlanVisibility;
   onVisibilityChange: VisibilityChangeHandler;
 };
 
 const TripItemRow = ({
   row,
+  changed,
   visibility,
   onVisibilityChange,
 }: TripItemRowProps): ReactElement => {
+  const t = useTranslations("Conversation");
   const formatNumber = useFormatNumber();
 
   return (
-    <li className="flex flex-wrap items-center gap-2.5 py-2">
+    <li className={changed ? `${rowClass} ${changedRowClass}` : rowClass}>
       <TripItemBody row={row} />
       <span className="text-[13px] font-bold tabular-nums">
         {moneyText(row.offer.price, formatNumber)}
       </span>
+      {/* 色だけに頼らないよう、変わった行には読み上げ用の文言を置く */}
+      {changed ? (
+        <span className="sr-only">{t("plan.changed")}</span>
+      ) : undefined}
       {visibility === undefined ? undefined : (
         <RowVisibility
           category={row.category}
@@ -270,9 +285,15 @@ const TripItemRow = ({
   );
 };
 
+// 差分があり、その行の category が変わった行に入っていれば変わった行 (差分が無ければ変わっていない)
+const isChangedRow = (diff: PlanDiff | undefined, row: PlanRow): boolean => {
+  return diff?.rows.includes(row.category) ?? false;
+};
+
 type PlanDetailsProps = {
   plan: TripPlanResponse;
   visibility?: PlanVisibility;
+  diff?: PlanDiff;
   onVisibilityChange: VisibilityChangeHandler;
 };
 
@@ -281,10 +302,12 @@ type PlanDetailsProps = {
  *
  * 提案の吹き出しの中に置く
  * `visibility` があれば候補ごとに公開範囲のトグルかバッジを並べる
+ * `diff` があれば前の提案から変わった行と合計に背景色を付ける
  */
 export const PlanDetails = ({
   plan,
   visibility,
+  diff,
   onVisibilityChange,
 }: PlanDetailsProps): ReactElement => {
   const t = useTranslations("Conversation");
@@ -297,12 +320,17 @@ export const PlanDetails = ({
           <TripItemRow
             key={row.offer.id}
             row={row}
+            changed={isChangedRow(diff, row)}
             visibility={visibility}
             onVisibilityChange={onVisibilityChange}
           />
         ))}
       </ul>
-      <div className="mt-0.5 flex flex-wrap items-baseline justify-end gap-2 border-t-2 border-divider-strong pt-2.5">
+      <div
+        className={
+          diff?.total === true ? `${totalClass} ${changedRowClass}` : totalClass
+        }
+      >
         <span className="text-xs text-muted">{t("plan.total")}</span>
         <span className="text-[19px] font-bold tabular-nums">
           {moneyText(plan.total, formatNumber)}

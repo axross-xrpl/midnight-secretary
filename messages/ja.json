@@ -399,7 +399,8 @@
       "leisure": "{name} ({genre})",
       "ageLimit": "{age} 歳以上",
       "total": "合計",
-      "rationale": "この計画の理由"
+      "rationale": "この計画の理由",
+      "changed": "前の提案から変更"
     },
     "authorization": {
       "publicHash": "公開ハッシュ",

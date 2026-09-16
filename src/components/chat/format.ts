@@ -1,4 +1,5 @@
 import type { DateTimeFormatOptions } from "next-intl";
+import { match } from "ts-pattern";
 import type {
   LodgingOfferResponse,
   MandateResponse,
@@ -7,6 +8,7 @@ import type {
   TransportOfferResponse,
   TripPlanResponse,
 } from "@/lib/secretary-response";
+import type { VisibilityCategory } from "./flow";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -200,6 +202,53 @@ export const planRows = (plan: TripPlanResponse): readonly PlanRow[] => {
     ...leisureRowOf(plan.leisure),
     { kind: "transport", category: "inbound", offer: plan.inbound },
   ];
+};
+
+/**
+ * 組み直した提案が前の提案からどこが変わったか
+ *
+ * `rows` は候補が変わった行の category で、`planRows` と同じ順 (前の提案に無かった行を含む。前にあって無くなった行は新しい提案に出ないので持たない)
+ * `total` は合計が変わったか
+ */
+export type PlanDiff = {
+  rows: readonly VisibilityCategory[];
+  total: boolean;
+};
+
+// 計画の同じ category の候補の id (候補が無ければ undefined)
+const offerIdOf = (
+  plan: TripPlanResponse,
+  category: VisibilityCategory,
+): string | undefined => {
+  return match(category)
+    .with("outbound", () => plan.outbound.id)
+    .with("inbound", () => plan.inbound.id)
+    .with("lodging", () => plan.lodging?.id)
+    .with("dining", () => plan.dining?.id)
+    .with("leisure", () => plan.leisure?.id)
+    .exhaustive();
+};
+
+/**
+ * 前の提案と新しい提案を行ごとに比べる
+ *
+ * 行は同じ category の候補の `id` で比べる (id が同じなら同じ候補とみなし、金額は比べない)
+ * 合計は `amount` で比べる
+ */
+export const diffPlans = (
+  previous: TripPlanResponse,
+  plan: TripPlanResponse,
+): PlanDiff => {
+  const isChangedRow = (row: PlanRow): boolean => {
+    return offerIdOf(previous, row.category) !== row.offer.id;
+  };
+
+  return {
+    rows: planRows(plan)
+      .filter(isChangedRow)
+      .map((row) => row.category),
+    total: previous.total.amount !== plan.total.amount,
+  };
 };
 
 /**

@@ -375,6 +375,7 @@ const FROZEN_GATHERING_PROPOSAL_BUBBLE = gatheringProposalBubble({
   disabled: true,
 });
 
+// 組み直した提案は、前の提案 (居酒屋) から変わった飲食の行と合計の差分を持つ
 const revisedProposalBubble = (visibility: PlanVisibility): Bubble => {
   return {
     speaker: "secretary",
@@ -383,6 +384,7 @@ const revisedProposalBubble = (visibility: PlanVisibility): Bubble => {
       title: OSAKA.title,
       plan: REVISED_PLAN,
       visibility,
+      diff: { rows: ["dining"], total: true },
     },
     at: "2026-09-10T00:01:00Z",
   };
@@ -986,6 +988,9 @@ describe("conversationOf (作り直した提案)", () => {
     const bubbles = conversationOf(stateOf(APPROVED_REVISED)).bubbles;
 
     expect(bubbles.slice(3, 9)).toStrictEqual(REVISION_PRELUDE);
+    expect(bubbles[9]).toStrictEqual(
+      revisedProposalBubble({ mode: "badges", value: GATHERING_ALL_PUBLIC }),
+    );
     expect(bubbles.map((bubble) => bubble.line.kind)).toStrictEqual([
       "greeting",
       "ask",
