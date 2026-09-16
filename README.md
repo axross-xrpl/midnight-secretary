@@ -3,36 +3,168 @@
 An AI secretary that arranges business trips off your calendar and pays for them on Midnight.
 Built by Team Gecko for the Midnight Buildathon.
 
-It reads the next 30 days of your Google Calendar, finds the trips nobody has arranged yet, and works
-out a plan for each one -- transport, a hotel if the trip runs overnight, somewhere to eat, somewhere to
-go -- inside the budget and the tastes on your profile. You approve it once. It then settles every
-booking from a spending allowance that lives in a Midnight contract and writes the finished itinerary
-back to the calendar.
+It reads the next 30 days of your Google Calendar, spots the trips nobody has arranged yet, and puts a
+plan together for each one -- transport, a hotel if you're staying over, somewhere to eat, somewhere to
+go -- within your budget and tastes. You approve once. It pays each booking out of an allowance held in
+a Midnight contract and writes the itinerary back to your calendar.
 
-Two things run on Midnight rather than beside it:
+Two things run on Midnight, not just next to it:
 
-- **The money.** A trip is paid booking by booking against an allowance the contract enforces, and any
-  booking can be settled privately instead, so what you spent on dinner is not on a public ledger next
-  to the train fare.
-- **Your age.** A restaurant that serves alcohol asks whether you are old enough. The secretary answers
-  with a proof that you were born on or before a cutoff worked out from the date of departure. The
-  answer is a yes or a no; the date of birth is not part of it, and what the chain keeps is a
-  commitment to it rather than the date.
+- **Paying.** You give the secretary a spending limit once. A Midnight contract holds that limit and
+  pays each booking from it, and it refuses anything over the limit -- the app can't talk it into
+  more. A booking you mark "keep private" is paid with a shielded token, so the ledger doesn't show
+  who got paid for dinner.
+- **Proving your age.** An izakaya needs to know you're 20 or over. Instead of showing your date of
+  birth, the secretary sends a zero-knowledge proof that answers one question -- "born on or before
+  this date?" -- with a yes or a no. Your date of birth stays with you; the chain only holds a
+  commitment to it.
+
+## Start here
+
+| To see | Go to | Takes |
+| --- | --- | --- |
+| The whole flow, every port real | TODO: demo video URL | 5 min |
+| It running on your machine, nothing else set up | [Demo](#demo-no-google-project-database-llm-key-or-midnight-node) | 5 min |
+| What the contracts hold and hide | [Midnight integration](#midnight-integration), then `contract/compact/` | 10 min |
+| What the tests and CI prove | [Tests and CI](#tests-and-ci) | 2 min |
+| A real settlement on a local devnet | [With a Midnight devnet](#with-a-midnight-devnet-real-payments) | 30 min |
+
+## What's real and what's a stand-in
+
+Every port has a real adapter and an in-process fake. `SECRETARY_MODE=demo` picks every fake; unset
+picks every real adapter; a per-port variable overrides either ([table](#source-variables) below).
+Each page of the app says which fakes it's running on.
+
+| Port | Real | Fake (demo) |
+| --- | --- | --- |
+| auth | Google sign-in | dev sign-in button (localhost only) |
+| calendar | Google Calendar API | seeded events in memory |
+| catalog | NeonDB service tables | the same shape, seeded in memory |
+| planner | Gemini picks the trips and the offers | a deterministic planner that reads the event title |
+| mandate | `token.compact` / `shielded-token.compact` via the contract server | an in-memory ledger with the same public/private split |
+| store | NeonDB `trips` / `trip_items` | in memory |
+| profile | NeonDB `user_profiles`, wallet address from a connected Midnight wallet | one fixed profile |
+| identity | `age-verification.compact` via the contract server, one pseudonym per traveler | an in-memory credential registry |
+
+In demo mode the age check and the private payment happen in the fakes: they show the flow but prove
+nothing. `SECRETARY_MANDATE=real` makes the payments real transactions on a devnet.
+`SECRETARY_IDENTITY=real` makes the circuit, the proof and the on-chain record real, with one catch
+described under [What we don't claim](#what-we-dont-claim).
+
+## Architecture
+
+![Architecture: the browser talks to the Next.js server, whose use cases go through seven ports wired to real adapters or in-memory fakes; the contract server talks to the Midnight devnet](docs/architecture.svg)
+
+The use cases are pure functions over the ports; I/O, the clock and ids come in as arguments. That's
+what lets the same code run against the fakes in tests and demo mode, and against Google, Neon, Gemini
+and Midnight otherwise. `SECRETARY_*` is read once at start, and a bad combination refuses to boot.
+
+The Next.js server never imports the Midnight SDK. A small contract server in `contract/` keeps one
+wallet synced and the three contracts connected, and the app calls it over loopback. The wallet sync
+is paid once at start instead of per request, and the SDK's module graph stays out of the app's. The
+only Midnight package in the app is the DApp Connector API, used in the browser to read the connected
+wallet's address.
+
+## Midnight integration
+
+Three Compact contracts, compiled with Compact 0.31.1 (`contract/scripts/compile.sh`, same version in
+CI). For each: what stays private, what the ledger holds, which calls are transactions.
+
+### `token.compact`: the allowance and public payments
+
+| | |
+| --- | --- |
+| Witness | `getOwnerSecretKey()`. The ledger holds only `contractOwner`, a hash of it |
+| Ledger | `_name`, `_symbol`, `tokenColor`, `supplyMinted`, `sendAllowance` (the remaining budget) |
+| Transactions | `mintSupply` (owner, once), `setSendAllowance` (owner), `sendToken(recipient, amount)` (owner: asserts `amount <= sendAllowance`, subtracts, sends unshielded -- one circuit) |
+| Reads | `getTokenInfo` bundles the getters into one call |
+
+Each public payment is one `sendToken`. The owner check, the budget check, the decrement and the
+transfer are one circuit, so a payment can't be authorized without being paid, or paid without
+counting against the budget. The transaction id comes back to the conversation as the payment's
+public hash. A fresh deployment has an allowance of 0 on purpose: a leaked agent process on a new
+contract has no budget rather than the whole supply (`SEND_ALLOWANCE` in `contract/.env`,
+`npm run set-allowance`).
+
+### `shielded-token.compact`: private payments
+
+| | |
+| --- | --- |
+| Witnesses | `minterSecretKey()` (ledger holds only the derived `minter`), `localNonceSeed()` (each coin's nonce comes from it, never published) |
+| Ledger | `token_color`, `initialized`, `mints`, `minter`, `mintAllowance` |
+| Transactions | `setMintAllowance` (minter), `mint_and_send(recipient, amount, nonceIndex)` (minter: asserts `amount <= mintAllowance`, mints a shielded coin, sends it) |
+
+A booking marked "keep private" settles with `mint_and_send` instead of `sendToken`. What reaches the
+public transcript is written above the circuit in the source: the amount is public (every mint feeds
+the supply count), the recipient isn't (only a hash of the coin and the recipient key is, and the nonce
+inside it comes from the witness). The real mandate adapter says whether it supports private
+settlement, and the toggle hides when it doesn't.
+
+### `age-verification.compact`: an age without the date of birth
+
+| | |
+| --- | --- |
+| Witnesses | `dateOfBirth()` (`YYYYMMDD` in a `Uint<32>`), `dobSalt()` (about 40,000 plausible birthdates, so an unsalted hash would be brute-forced), `identitySecret()` |
+| Ledger | `registrations: Map<identity, commitment>` |
+| Transactions | `register()` (once per identity: stores `persistentCommit(dob, secret, salt)`; no re-registration, so a birthdate can't be swapped once a cutoff is known), `proveAdult(cutoffDate)` (checks the witness against the commitment, returns `disclose(dateOfBirth() <= cutoffDate)`) |
+
+| The verifier learns | The chain keeps | Stays with the holder |
+| --- | --- | --- |
+| yes or no for one cutoff date, and which identity answered | the commitment, the identity (a hash of the secret, not a wallet address), the transaction | the date of birth, the salt, the identity secret |
+
+`proveAdult` returns the answer instead of asserting on it, so a "no" is a result a merchant can see,
+not a failed transaction that looks like a network error. The circuit has no clock; the cutoff comes
+from the verifier. The secretary uses the departure date minus the place's age limit (20 for an
+izakaya).
+
+In the app: you issue a credential from the profile page (`register`). When a plan includes an
+age-restricted place, approving it first asks whether the secretary may send the proof. If the proof
+fails, the secretary offers to rebuild the plan without that place rather than dropping the trip. The
+date of birth is never shown to the AI planner.
+
+## What we don't claim
+
+So the video and this README can't promise more than the code does.
+
+- **Who holds the age secrets.** With `SECRETARY_IDENTITY=real`, the app names you by an opaque
+  pseudonym, and the contract server derives your identity secret and salt from it and receives your
+  date of birth over loopback when the credential is issued. The proof is real and per traveler, but
+  the holder is the server, not you. The real shape keeps the secrets on your side and proves from the
+  connected wallet.
+- **Public payments are public.** `sendAllowance` and every `sendToken`'s amount and recipient are
+  readable on chain. The ledger panel's picture (count public, cap and spent private) is exact for the
+  in-memory ledger, not for real public payments. "Keep private" hides the recipient; the minted
+  amount is still public.
+- **One fixed payee.** The catalog's payees are placeholder strings, so every real payment goes to
+  `MANDATE_SETTLEMENT_RECIPIENT` (or its shielded twin). The conversation records the catalog's payee
+  separately.
+- **One owner, one allowance.** A `token.compact` deployment has one owner key and one
+  `sendAllowance`. The cap you grant the secretary is checked by the mandate adapter in the app, not
+  by the contract.
+- **Which identity proved is visible.** The registration map's key is a public argument to its
+  `member()` / `lookup()`, so repeated proofs by the same pseudonym are linkable. A Merkle tree of
+  commitments would hide it; noted in the circuit's comments, not built.
+- **Devnet only.** Nothing is on a public Midnight network yet. The settlement numbers under
+  [Tests and CI](#tests-and-ci) are from a local devnet.
+- **Demo mode's clock.** The demo profile's date of birth is fixed at server start, so a demo server
+  left running past midnight lets the wrong trip pass. Restart it for a new day.
+- **Not audited.** Three weeks of hackathon.
 
 ## Setup
 
-Node.js 24 is pinned with [mise](https://mise.jdx.dev/). Install mise, then run:
+Node.js 24 is pinned with [mise](https://mise.jdx.dev/):
 
 ```bash
 mise trust     # trust this repository's mise.toml
 mise install   # install the pinned Node.js
-npm install    # install dependencies (this also installs the git hooks)
+npm install    # dependencies and git hooks
 ```
 
 ## Run it
 
-Every port (calendar, fare catalog, planner, spending allowance, storage) can be served either by the
-real system or by an in-process fake, so the app runs with nothing else set up.
+The demo video is recorded with every port real: Google Calendar, NeonDB, Gemini, and a Midnight
+devnet for both the payments and the age proof. You can walk the same path on your machine in demo
+mode, where everything is faked and nothing else needs setting up.
 
 ### Demo: no Google project, database, LLM key, or Midnight node
 
@@ -43,112 +175,141 @@ npm run build
 npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) and sign in with the dev sign-in button. Every page
-carries a line naming the ports that are stand-ins. The source variables are read when the server
-starts, so `SECRETARY_MODE=demo npm start` works as well; a misconfiguration stops the server there
-instead of degrading at runtime.
+Open [http://localhost:3000](http://localhost:3000) and use the dev sign-in button. Then open
+**Tasks** ([/en/tasks](http://localhost:3000/en/tasks)), press **Scan the calendar**, and open
+大阪出張 (取引先訪問) (an Osaka trip to visit a client) with **Ask the secretary**. From the reply
+buttons: propose (the first proposal also sets up an allowance), approve, pay, add to the calendar.
+Back in **Tasks** the trip moves from **Trips in progress** to **Confirmed trips**, and the written-back
+event no longer shows up in a scan.
 
-Then open **Tasks** ([http://localhost:3000/ja/tasks](http://localhost:3000/ja/tasks)) and press
-**カレンダーをスキャン** on the 検知 tab. The next 30 days of the calendar are read and the events that are
-not arranged yet are listed, and **秘書に相談** on a row opens that event's conversation with the
-secretary. Start with 大阪出張 (取引先訪問) and walk the one path: press **計画を提案して** (the first
-proposal sets up a 200,000 MST spending allowance for you), then approve, pay, and add the trip to the
-calendar from the reply buttons. Back in **Tasks**, a trip that is still under way sits under
-**手配中の出張** with its status, a trip that has reached the calendar moves to the **確定旅程** tab, and
-the event the secretary wrote back does not appear in the scan results.
-大阪出張 (展示会) is a one-night trip that adds lodging and draws on the same allowance; チーム定例 shows
-the secretary declining an event that is not a trip. In demo mode each payment can be kept private
-before approval (a shielded transfer in the fake ledger); the real mandate adapter declares whether it
-supports that, and the toggle is hidden when it does not.
-The ledger panel in the sidebar of the conversation
-(below it on a narrow window) counts each payment on the public side while the cap and the spent amount
-stay on the private side. Everything lives in memory, so restarting the server starts over.
-
-大阪出張 (取引先と懇親会) and 大阪出張 (パートナー会食) each include an izakaya (age 20 or over), so the
-plan totals 31,920 MST and the payment is three bookings; the izakaya row carries the same "keep private"
-switch as the transport rows. 大阪出張 (工場視察と懇親会) is the one-night trip where every category
-meets: lodging, the izakaya and a leisure place (the first one for the destination that asks for no
-verification, 海遊館 here), so the plan totals 47,120 MST, the payment is five bookings, and each row can
-be kept private on its own. The demo profile is fixed: the date of birth is
-20 years before the server start date plus 7 days (2006-09-21 for a server started on 2026-09-14).
-Pressing **計画を承認する** on a plan that includes an age-restricted place does not call the server yet:
-the secretary first asks whether it may send the age proof, and you answer **証明を送る** or
-**今はやめておく**. The proof is taken as of the departure date. For the earlier trip it does not pass, so
-the secretary asks whether it may rebuild the plan from the places with no age limit; answer
-**組み直す** and it proposes the rebuilt plan (中之島カフェ here, 30,120 MST). Approve that plan and the
-rest of the path runs with no proof at all. For the trip three days later the proof passes and the
-approval goes through. The date of birth is never passed to the AI; it is registered only with the
-identity lane (in memory in demo mode).
-
-The dev sign-in trusts whoever clicks the button, so it only starts when `NEXTAUTH_URL` points at
-localhost, and it forces the calendar to the fake (that session has no Google token).
+The ledger panel next to the conversation counts each payment on the public side while the cap and
+the spent amount stay private. Everything lives in memory; restart and it starts over. The dev sign-in
+trusts whoever clicks it, so it only turns on when `NEXTAUTH_URL` points at localhost.
 
 ### With your own Google Calendar
 
-1. In the Google Cloud Console, create a project and enable the Google Calendar API.
-2. Create an OAuth client (Web application) with the redirect URI
-   `http://localhost:3000/api/auth/callback/google`, and add your account as a test user on the
-   consent screen.
-3. In `.env.local`, set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `NEXTAUTH_SECRET`, and
-   `NEXTAUTH_URL=http://localhost:3000`, and leave `SECRETARY_MODE` unset (everything real).
-4. `npm run build && npm start`, sign in with Google, then open **Tasks** and scan the calendar; the
-   next 30 days of your calendar are listed there.
+1. In Google Cloud Console, create a project and enable the Calendar API.
+2. Create an OAuth client (Web application) with redirect URI
+   `http://localhost:3000/api/auth/callback/google`, and add yourself as a test user.
+3. In `.env.local`, set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `NEXTAUTH_SECRET`,
+   `NEXTAUTH_URL=http://localhost:3000`, and leave `SECRETARY_MODE` unset.
+4. `npm run build && npm start`, sign in with Google, open **Tasks**, scan.
 
-To keep the real calendar while the ports other lanes own stay fake, set only what you need, for
-example `SECRETARY_CATALOG=fake`.
+To keep the real calendar and fake the rest, set the ports you don't have, e.g. `SECRETARY_CATALOG=fake`.
 
 ### With Gemini as the planner
 
-Set `GEMINI_API_KEY` (Google AI Studio) in `.env.local`, keep `SECRETARY_MODE=demo`, and add
-`SECRETARY_PLANNER=real`. The other ports stay fake, so the secretary's proposals are written by
-Gemini while the calendar, the fare catalog, and the spending allowance are stand-ins. Gemini only
-answers whether an event is a trip, which catalog destination it targets, and which offer ids to
-pick; dates come from the event and prices from the catalog. `GEMINI_MODEL` overrides the default
-model (`gemini-3.5-flash-lite`).
+Set `GEMINI_API_KEY` (Google AI Studio) in `.env.local`, keep `SECRETARY_MODE=demo`, add
+`SECRETARY_PLANNER=real`. Gemini only decides whether an event is a trip, which destination, and which
+offer ids to pick; dates come from the event and prices from the catalog. `GEMINI_MODEL` overrides the
+default (`gemini-3.5-flash-lite`).
+
+### With a Midnight devnet (real payments)
+
+Needs Docker and Compact 0.31.1: install the `compact` CLI with the
+[installer](https://github.com/LFDT-Minokawa/compact#installation) (the script is still served from
+the `midnightntwrk/compact` releases), then `compact update 0.31.1`.
+
+```bash
+docker compose -f devnet.yml up -d --wait     # node, indexer, proof-server on 127.0.0.1
+cd contract
+npm install
+npm run compile:full                          # circuits, TypeScript bindings and proving keys
+cp .env.example .env                          # DEPLOYER_SEED (openssl rand -hex 32), never committed
+npm run address                               # the deployer's unshielded address
+npm run fund -- <address> 100000              # genesis NIGHT (devnet only; 1000 isn't enough for DUST)
+npm run register-dust                         # fee DUST
+npm run deploy                                # token.compact: deploy, mintSupply, setSendAllowance
+npm run deploy-shielded-token
+npm run deploy-age-verification
+```
+
+Put the three printed addresses into `contract/.env` (`TOKEN_ADDRESS`, `SHIELDED_TOKEN_ADDRESS`,
+`AGE_VERIFICATION_ADDRESS`), start the contract server with `npm run server` in `contract/` (root's
+`npm run dev` starts it alongside Next.js), then at the root:
+
+```bash
+SECRETARY_MODE=demo SECRETARY_MANDATE=real \
+  MANDATE_SETTLEMENT_RECIPIENT=<an unshielded address> \
+  MANDATE_SETTLEMENT_RECIPIENT_SHIELDED=<a shielded address> \
+  npm start
+```
+
+Each payment takes about 20 seconds of proving, so a three-booking trip pays in about a minute. Add
+`SECRETARY_IDENTITY=real` to run the age proof through the contract too. Connect Wallet on the profile
+page targets `NEXT_PUBLIC_MIDNIGHT_NETWORK_ID` (`undeployed` by default, which is this devnet).
+`docker compose -f devnet.yml down` discards the chain, so redeploy after it.
 
 ### Source variables
 
 | Variable | Values | Default |
 | --- | --- | --- |
-| `SECRETARY_MODE` | `normal`, `demo` | `normal` |
-| `SECRETARY_AUTH` | `google`, `dev` | from the mode |
-| `SECRETARY_CALENDAR` | `real`, `fake` | from the mode |
-| `SECRETARY_CATALOG` | `real`, `fake` | from the mode |
-| `SECRETARY_PLANNER` | `real`, `fake` | from the mode |
-| `SECRETARY_MANDATE` | `real`, `fake` | from the mode |
-| `SECRETARY_STORE` | `real`, `fake` | from the mode |
-| `SECRETARY_IDENTITY` | `real`, `fake` | from the mode |
-| `SECRETARY_PROFILE` | `real`, `fake` | from the mode |
+| `SECRETARY_MODE` | `normal` \| `demo` | `normal` |
+| `SECRETARY_AUTH` | `google` \| `dev` | from the mode |
+| `SECRETARY_<PORT>` (`CALENDAR`, `CATALOG`, `PLANNER`, `MANDATE`, `STORE`, `PROFILE`, `IDENTITY`) | `real` \| `fake` | from the mode |
 
-Precedence: a per-port variable beats `SECRETARY_MODE`, which beats the `normal` default (everything real).
-
-Each real port reads its own variables (listed in `.env.example`) from `.env.local`; a missing one does
-not stop the server but makes that port's calls fail:
+A per-port variable beats `SECRETARY_MODE`, which beats the default (everything real). Each real port
+reads its own variables from `.env.local` (see `.env.example`); a missing one doesn't stop the server,
+that port's calls just fail:
 
 | Port | Variable | Read when |
 | --- | --- | --- |
-| catalog | `DATABASE_URL` | the first catalog query (`unavailable` when missing) |
-| planner | `GEMINI_API_KEY`, `GEMINI_MODEL` (optional) | every proposal (`planner.llm` when the key is missing) |
-| mandate | `MANDATE_SETTLEMENT_RECIPIENT` | every payment (`unavailable` when missing) |
-| profile | `DATABASE_URL` | the age proof reads the date of birth from the profile page's table |
-| identity | `AGE_VERIFICATION_ADDRESS`, `AGE_VERIFICATION_DOB`, `AGE_VERIFICATION_SEED` (in `contract/.env`, read by the contract server) | issuing the credential and every age proof (`unavailable` when the contract server has no age verification) |
+| catalog | `DATABASE_URL` | the first catalog query |
+| planner | `GEMINI_API_KEY`, `GEMINI_MODEL` (optional) | every proposal |
+| mandate | `MANDATE_SETTLEMENT_RECIPIENT` | every payment |
+| profile | `DATABASE_URL` | the age proof reads the date of birth from the profile |
+| identity | `AGE_VERIFICATION_ADDRESS` (in `contract/.env`, read by the contract server) | issuing the credential and every proof |
 
-`SECRETARY_IDENTITY=real` issues the credential and proves the age through the contract server's
-`/age-verification/*` routes. What is real there is the circuit, the proof, and the on-chain record:
-the date of birth is registered as a commitment on the deployed age-verification contract, and each
-proof is a transaction whose id becomes the proof reference. What is not real is who holds the
-secrets. The date of birth and the identity secret stay with the contract server (the app sends the
-date of birth to it over loopback HTTP), not with the user, so this is a dev stand-in for the flow
-where a wallet on the user's side proves without ever sending them anywhere. The contract server
-needs `AGE_VERIFICATION_ADDRESS`, `AGE_VERIFICATION_DOB`, and `AGE_VERIFICATION_SEED` in
-`contract/.env`, and `AGE_VERIFICATION_SEED` must be a different value from `DEPLOYER_SEED`:
-`deploy-age-verification` writes a private state with a date of birth of 0 under the deployer's
-account, so with the same seed `AGE_VERIFICATION_DOB` is ignored and every proof comes out as
-"adult".
+`SECRETARY_STORE=real` writes confirmed itineraries to NeonDB and reads the Confirmed tab from there;
+trips still in progress live in memory. It needs `SECRETARY_CATALOG=real` too, since each line item
+points at the catalog row it was booked from; with the fake catalog the calendar entry still succeeds
+and the conversation says the itinerary couldn't be saved.
 
-`SECRETARY_STORE=real` writes the confirmed itinerary to NeonDB (`trips` and `trip_items`) once the trip
-is on the calendar, and reads the Confirmed tab from there, so it needs `DATABASE_URL`. Trips in progress
-(proposed, approved, paid) still live in memory and are lost on restart. Writing needs
-`SECRETARY_CATALOG=real` as well, because each line item points at the service row it was booked from and
-only the real catalog can look those ids up; with the fake catalog the calendar entry still succeeds and
-the conversation says the itinerary could not be saved.
+## Tests and CI
+
+```bash
+npm test               # vitest: 55 files, 731 tests, about five seconds, no network
+npm run typecheck      # next typegen + tsc
+npm run lint           # Biome
+npm run i18n:report    # keys in en.json but not ja.json, and the reverse
+```
+
+The tests need no database, key or node. I/O comes in as arguments, so the tests pass the same fakes
+demo mode runs on, and the use cases run end to end (scan, propose, approve, pay, write back, the age
+check, the rebuilt plan) as state in, state out. Tests sit next to the code: `src/domain` (money,
+dates, plans), `src/application` (use cases, wiring), `src/adapters` (fakes, Gemini prompts and
+parsing, Google Calendar, Neon rows, the real mandate and identity adapters against a stubbed contract
+server), `src/server` (route handlers, page loaders), `src/components` and `src/features` (views).
+
+The circuits have no simulator tests yet; CI checks that they compile and that the generated bindings
+typecheck.
+
+CI (`.github/workflows/ci.yml`, on every pull request):
+
+- `check`: `npm ci`, typecheck, lint, tests.
+- `compact`: Compact 0.31.1 via `midnightntwrk/setup-compact-action`, compiles every contract under
+  `contract/compact` (`--skip-zk`) and typechecks `contract/src` against the bindings. A contract that
+  compiles is the buildathon's entry condition; this is where it's checked.
+
+Git hooks (lefthook): Biome on commit, typecheck and the changed tests on push.
+
+Measured on a local devnet with `SECRETARY_MANDATE=real` (2026-09-15): after a three-booking trip of
+30,120 MST, `sendAllowance` had dropped by exactly 30,120; after a second trip with one booking kept
+private, `shielded-token`'s mint counter read 1 and `mintAllowance` had dropped by that booking's
+3,000.
+
+## Team
+
+Team Gecko:
+
+- **albaeye** ([shutrax2010](https://github.com/shutrax2010)): the overall design -- the product
+  concept and how the parts fit -- and NeonDB (catalog, profiles, stored itineraries).
+- **kamikaze** ([PhyoeBlitz](https://github.com/PhyoeBlitz)): Midnight -- the Compact contracts, the
+  contract server, the devnet.
+- **yozora** ([yozora7r](https://github.com/yozora7r)): the AI planner, and Midnight alongside kamikaze.
+- **yahomi** ([yahomi-dev](https://github.com/yahomi-dev)): Google Calendar, the screens, QA (tests,
+  CI, the port and adapter wiring).
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).
