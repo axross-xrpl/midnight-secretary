@@ -16,6 +16,7 @@ import { profileSaveSchema } from "@/features/profile/schemas";
 import { useRouter } from "@/i18n/navigation";
 import { ProfileReadiness } from "./profile-readiness";
 import { requestProfileSave } from "./request-profile-save";
+import { WalletConnectField } from "./wallet-connect-field";
 
 const inputClass =
   "w-full rounded-lg border border-[#e5e8ec] px-3 py-2 text-sm outline-none transition focus:border-[#185fa5] focus:ring-2 focus:ring-blue-100";
@@ -415,22 +416,11 @@ export function ProfileForm({
             label={t("labels.walletAddress")}
             error={errorFor("walletAddress")}
           >
-            {(id) => (
-              <>
-                <input
-                  id={id}
-                  value={values.walletAddress}
-                  onChange={(event) =>
-                    update({ walletAddress: event.target.value })
-                  }
-                  maxLength={200}
-                  spellCheck={false}
-                  autoComplete="off"
-                  className={`${inputClass} font-mono`}
-                />
-                <Hint>{t("hints.walletAddress")}</Hint>
-              </>
-            )}
+            <WalletConnectField
+              value={values.walletAddress}
+              onChange={(address) => update({ walletAddress: address })}
+            />
+            <Hint>{t("hints.walletAddress")}</Hint>
           </Field>
         </Section>
 

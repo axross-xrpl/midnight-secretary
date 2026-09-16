@@ -147,7 +147,16 @@
       "budget": "Used as a hard limit when the secretary filters options.",
       "priority": "Decides how options are weighted when the secretary picks one.",
       "wallet": "The address the secretary pays from. Service providers have their own addresses, which are the ones that receive money.",
-      "walletAddress": "8 to 200 characters. The format depends on the network, so it is not checked here."
+      "walletAddress": "Connect a Midnight-compatible wallet extension to fill this in. It is not typed by hand."
+    },
+    "wallet": {
+      "connect": "Connect wallet",
+      "connecting": "Connecting…",
+      "disconnect": "Disconnect",
+      "notFound": "No Midnight-compatible wallet extension was found in this browser.",
+      "rejected": "The connection request was rejected in the wallet.",
+      "disconnected": "The wallet connection was lost. Try connecting again.",
+      "failed": "Could not connect to the wallet."
     },
     "priorities": {
       "time": "Time",
@@ -201,7 +210,7 @@
         "leisureGenres": "Up to 10, with no duplicates.",
         "budget": "Enter a whole number of 0 or more.",
         "priority": "Choose one of the listed options.",
-        "walletAddress": "Enter 8 to 200 characters, or leave it empty."
+        "walletAddress": "Connect a wallet, or disconnect to leave it empty."
       }
     }
   },
