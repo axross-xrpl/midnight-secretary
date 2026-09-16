@@ -26,7 +26,7 @@ Two things run on Midnight, not just next to it:
 | It running on your machine, nothing else set up | [Demo](#demo-no-google-project-database-llm-key-or-midnight-node) | 5 min |
 | What the contracts hold and hide | [Midnight integration](#midnight-integration), then `contract/compact/` | 10 min |
 | What the tests and CI prove | [Tests and CI](#tests-and-ci) | 2 min |
-| A real settlement on a local devnet | [With a Midnight devnet](#with-a-midnight-devnet-real-payments) | 30 min |
+| A real settlement on Midnight Preview | [With Midnight Preview](#with-midnight-preview-real-payments) | 30 min plus the first sync |
 
 ## What's real and what's a stand-in
 
@@ -46,13 +46,13 @@ Each page of the app says which fakes it's running on.
 | identity | `age-verification.compact` via the contract server, one pseudonym per traveler | an in-memory credential registry |
 
 In demo mode the age check and the private payment happen in the fakes: they show the flow but prove
-nothing. `SECRETARY_MANDATE=real` makes the payments real transactions on a devnet.
+nothing. `SECRETARY_MANDATE=real` makes the payments real transactions on the Midnight Preview network.
 `SECRETARY_IDENTITY=real` makes the circuit, the proof and the on-chain record real, with one catch
 described under [What we don't claim](#what-we-dont-claim).
 
 ## Architecture
 
-![Architecture: the browser talks to the Next.js server, whose use cases go through seven ports wired to real adapters or in-memory fakes; the contract server talks to the Midnight devnet](docs/architecture.svg)
+![Architecture: the browser talks to the Next.js server, whose use cases go through seven ports wired to real adapters or in-memory fakes; the contract server talks to Midnight Preview](docs/architecture.svg)
 
 The use cases are pure functions over the ports; I/O, the clock and ids come in as arguments. That's
 what lets the same code run against the fakes in tests and demo mode, and against Google, Neon, Gemini
@@ -143,8 +143,12 @@ So this README can't promise more than the code does.
 - **Which identity proved is visible.** The registration map's key is a public argument to its
   `member()` / `lookup()`, so repeated proofs by the same pseudonym are linkable. A Merkle tree of
   commitments would hide it; noted in the circuit's comments, not built.
-- **Devnet only.** Nothing is on a public Midnight network yet. The settlement numbers under
-  [Tests and CI](#tests-and-ci) are from a local devnet.
+- **Preview, not mainnet.** The three contracts are deployed on Midnight Preview (addresses under
+  [With Midnight Preview](#with-midnight-preview-real-payments)); nothing is on mainnet. The
+  settlement numbers under [Tests and CI](#tests-and-ci) were measured on a local devnet.
+- **The first sync is slow.** The contract server's wallet replays Preview from genesis the first
+  time (hours; the local devnet took seconds). `contract/.wallet-cache` keeps the shielded and
+  unshielded state between runs, but the DUST wallet always starts cold.
 - **Demo mode's clock.** The demo profile's date of birth is fixed at server start, so a demo server
   left running past midnight lets the wrong trip pass. Restart it for a new day.
 - **Not audited.** Three weeks of hackathon.
@@ -161,7 +165,7 @@ npm install    # dependencies and git hooks
 
 ## Run it
 
-The whole path runs with every port real: Google Calendar, NeonDB, Gemini, and a Midnight devnet for
+The whole path runs with every port real: Google Calendar, NeonDB, Gemini, and Midnight Preview for
 both the payments and the age proof. You can walk the same path on your machine in demo mode, where
 everything is faked and nothing else needs setting up.
 
@@ -203,41 +207,73 @@ Set `GEMINI_API_KEY` (Google AI Studio) in `.env.local`, keep `SECRETARY_MODE=de
 offer ids to pick; dates come from the event and prices from the catalog. `GEMINI_MODEL` overrides the
 default (`gemini-3.5-flash-lite`).
 
-### With a Midnight devnet (real payments)
+### With Midnight Preview (real payments)
 
-Needs Docker and Compact 0.31.1: install the `compact` CLI with the
+The contracts are deployed on Preview:
+
+| Contract | Address |
+| --- | --- |
+| `token.compact` | `151f2e5b963e82fbf6c69659f19470cd15ffacf41fcf4ea7d8924cd74af10d54` |
+| `shielded-token.compact` | `1803ad848d2956fa045381e838550bc5559fd1a37ff07443df2501ca213508fa` |
+| `age-verification.compact` | `88771671d34d963095f71c367ed7341673f28bb94865f83a0836833b0da43a5c` |
+
+Only the deployer's key can call `sendToken` / `mint_and_send` (the owner check in the circuits), so a
+contract server that pays needs the deployer's `DEPLOYER_SEED`. Without it, deploy your own copy: same
+steps, your own addresses.
+
+Needs Docker (for the proof server) and Compact 0.31.1: install the `compact` CLI with the
 [installer](https://github.com/LFDT-Minokawa/compact#installation) (the script is still served from
 the `midnightntwrk/compact` releases), then `compact update 0.31.1`.
 
 ```bash
-docker compose -f devnet.yml up -d --wait     # node, indexer, proof-server on 127.0.0.1
+docker compose -f devnet.yml up -d --wait proof-server   # proving stays local; node and indexer are Preview's
 cd contract
 npm install
 npm run compile:full                          # circuits, TypeScript bindings and proving keys
-cp .env.example .env                          # DEPLOYER_SEED (openssl rand -hex 32), never committed
-npm run address                               # the deployer's unshielded address
-npm run fund -- <address> 100000              # genesis NIGHT (devnet only; 1000 isn't enough for DUST)
-npm run register-dust                         # fee DUST
+cp .env.example .env                          # NETWORK_ID=preview and the Preview URLs are the defaults
+                                              # DEPLOYER_SEED (openssl rand -hex 32), never committed
+npm run address                               # the deployer's unshielded address: fund it from the faucet
+npm run register-dust                         # turns some NIGHT into fee DUST
 npm run deploy                                # token.compact: deploy, mintSupply, setSendAllowance
 npm run deploy-shielded-token
 npm run deploy-age-verification
 ```
 
-Put the three printed addresses into `contract/.env` (`TOKEN_ADDRESS`, `SHIELDED_TOKEN_ADDRESS`,
-`AGE_VERIFICATION_ADDRESS`), start the contract server with `npm run server` in `contract/` (root's
-`npm run dev` starts it alongside Next.js), then at the root:
+Skip the three deploys if you have the deployer's seed for the addresses above. Put the addresses into
+`contract/.env` (`TOKEN_ADDRESS`, `SHIELDED_TOKEN_ADDRESS`, `AGE_VERIFICATION_ADDRESS`), then start
+the contract server in `contract/`:
+
+```bash
+NODE_OPTIONS=--max-old-space-size=6144 npm run server
+```
+
+The first start walks Preview from genesis (about 900,000 blocks at the time of writing, hours, and
+more heap than Node's default, hence `NODE_OPTIONS`); the log prints the sync position every few
+seconds. The shielded and unshielded state is saved under `contract/.wallet-cache` (git-ignored) when
+the sync finishes or the server is stopped, so later starts resume from there; the DUST wallet, which
+pays the fees, always syncs from scratch. Root's `npm run dev` starts the same server alongside
+Next.js. Then at the root:
 
 ```bash
 SECRETARY_MODE=demo SECRETARY_MANDATE=real \
-  MANDATE_SETTLEMENT_RECIPIENT=<an unshielded address> \
-  MANDATE_SETTLEMENT_RECIPIENT_SHIELDED=<a shielded address> \
+  NEXT_PUBLIC_MIDNIGHT_NETWORK_ID=preview \
+  MANDATE_SETTLEMENT_RECIPIENT=<an unshielded address, mn_addr_preview1...> \
+  MANDATE_SETTLEMENT_RECIPIENT_SHIELDED=<a shielded address, mn_shield-addr_preview1...> \
   npm start
 ```
 
-Each payment takes about 20 seconds of proving, so a three-booking trip pays in about a minute. Add
-`SECRETARY_IDENTITY=real` to run the age proof through the contract too. Connect Wallet on the profile
-page targets `NEXT_PUBLIC_MIDNIGHT_NETWORK_ID` (`undeployed` by default, which is this devnet).
-`docker compose -f devnet.yml down` discards the chain, so redeploy after it.
+Each payment takes about 20 seconds of proving on the local devnet; Preview adds the network's own
+confirmation time. Add `SECRETARY_IDENTITY=real` to run the age proof through the contract too
+(`AGE_VERIFICATION_SEED` pays its own fees, so fund it from the faucet as well). Private payments mint
+shielded coins, and `npm run shield` turns some of the deployer's NIGHT into shielded NIGHT for their
+fees (Preview has no genesis wallet to fund from). Connect Wallet on the profile page targets
+`NEXT_PUBLIC_MIDNIGHT_NETWORK_ID`.
+
+To run against a local devnet instead: `docker compose -f devnet.yml up -d --wait` starts node, indexer
+and proof server on 127.0.0.1; set `NETWORK_ID=undeployed` and the 127.0.0.1 URLs in `contract/.env`
+(kept there as comments), fund the deployer with `npm run fund -- <address> 100000` (genesis NIGHT;
+1000 isn't enough for DUST) instead of the faucet, and use `NEXT_PUBLIC_MIDNIGHT_NETWORK_ID=undeployed`.
+`docker compose -f devnet.yml down` discards that chain, so redeploy after it.
 
 ### Source variables
 
@@ -255,7 +291,8 @@ that port's calls just fail:
 | --- | --- | --- |
 | catalog | `DATABASE_URL` | the first catalog query |
 | planner | `GEMINI_API_KEY`, `GEMINI_MODEL` (optional) | every proposal |
-| mandate | `MANDATE_SETTLEMENT_RECIPIENT` | every payment |
+| mandate | `MANDATE_SETTLEMENT_RECIPIENT`, `MANDATE_SETTLEMENT_RECIPIENT_SHIELDED` (optional: without it the private toggle hides) | every payment |
+| profile (Connect Wallet) | `NEXT_PUBLIC_MIDNIGHT_NETWORK_ID` (`preview`) | the wallet extension's connect call |
 | profile | `DATABASE_URL` | the age proof reads the date of birth from the profile |
 | identity | `AGE_VERIFICATION_ADDRESS` (in `contract/.env`, read by the contract server) | issuing the credential and every proof |
 
@@ -304,7 +341,7 @@ Team Gecko:
 - **albaeye** ([shutrax2010](https://github.com/shutrax2010)): the overall design -- the product
   concept and how the parts fit -- and NeonDB (catalog, profiles, stored itineraries).
 - **kamikaze** ([PhyoeBlitz](https://github.com/PhyoeBlitz)): Midnight -- the Compact contracts, the
-  contract server, the devnet.
+  contract server, the devnet and the Preview deployment.
 - **yozora** ([yozora7r](https://github.com/yozora7r)): the AI planner, and Midnight alongside kamikaze.
 - **yahomi** ([yahomi-dev](https://github.com/yahomi-dev)): Google Calendar, the screens, QA (tests,
   CI, the port and adapter wiring).

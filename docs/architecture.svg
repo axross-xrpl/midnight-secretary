@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 500" width="960" height="500" role="img" aria-label="The browser talks to the Next.js server. Its use cases go through seven ports, each wired to a real adapter (Google Calendar, NeonDB, Gemini, the contract server) or an in-memory fake. The contract server talks to the Midnight devnet, where the three Compact contracts live.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 500" width="960" height="500" role="img" aria-label="The browser talks to the Next.js server. Its use cases go through seven ports, each wired to a real adapter (Google Calendar, NeonDB, Gemini, the contract server) or an in-memory fake. The contract server talks to the Midnight Preview, where the three Compact contracts live.">
   <style>
     text { font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif; fill: #1a1d21; font-size: 13px; }
     .m { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 10px; }
@@ -90,12 +90,12 @@
   <text x="638" y="406" text-anchor="middle" class="mu">seeded calendar and catalog,</text>
   <text x="638" y="422" text-anchor="middle" class="mu">ledger, credentials</text>
 
-  <!-- contract server -> devnet -->
+  <!-- contract server -> Preview -->
   <path d="M728,268 H766" class="wire-real" marker-end="url(#a-real)"/>
   
-  <!-- Midnight devnet -->
+  <!-- Midnight Preview -->
   <rect x="768" y="200" width="176" height="136" rx="12" class="mn"/>
-  <text x="856" y="226" text-anchor="middle" class="b on-mn">Midnight devnet</text>
+  <text x="856" y="226" text-anchor="middle" class="b on-mn">Midnight Preview</text>
   <line x1="784" y1="238" x2="928" y2="238" stroke="#3a3a5e" stroke-width="1"/>
   <text x="856" y="262" text-anchor="middle" class="on-mn" font-size="12">token.compact</text>
   <text x="856" y="284" text-anchor="middle" class="on-mn" font-size="12">shielded-token.compact</text>
