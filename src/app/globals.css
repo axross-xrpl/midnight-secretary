@@ -202,4 +202,217 @@ body {
       padding-inline-end: calc(12 / 16 * 1rem);
     }
   }
+
+  /* 未サインインのトップ (landing-hero) */
+  /* ライト固定なのでトークンではなくリテラル色で書く (dark でも白いまま、ユーザ決定 024) */
+  /* サイズは Artifact の 16:10 の枠で詰めた値を、幅の 1% と高さの 1/64 (16:10 の幅 1% 相当に少し余裕を足した値) の小さい方を単位にして写している */
+  /* 幅基準だけだと 16:9 や拡大表示で縦に収まらず、説明文とボタンが重なる */
+  /* ページ全体を占めるヒーローなので、高さの基準に svb を使う (responsive.md の「ページレベルの流動値」) */
+  .landing-hero {
+    --_u: min(1cqi, calc(100svb / 64));
+
+    container: --landing-hero / inline-size;
+    position: relative;
+    display: flex;
+    flex: 1;
+    min-block-size: 0;
+    overflow: hidden;
+    background: #fff;
+    color: #1a1d21;
+  }
+
+  /* 背景のカレンダー (7 列、曜日 + 5 週) */
+  .landing-hero__calendar {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    grid-template-rows: auto repeat(5, 1fr);
+  }
+
+  .landing-hero__dow {
+    padding: calc(1.4 * var(--_u)) calc(1.2 * var(--_u)) calc(0.6 * var(--_u));
+    font-size: clamp(0.6rem, calc(1.05 * var(--_u)), 0.9rem);
+    letter-spacing: 0.12em;
+    color: #7c838d;
+    border-block-end: 1px solid #d6dae0;
+    border-inline-end: 1px solid #d6dae0;
+  }
+
+  .landing-hero__cell {
+    display: flex;
+    flex-direction: column;
+    gap: calc(0.6 * var(--_u));
+    padding: calc(0.9 * var(--_u)) calc(1.2 * var(--_u));
+    font-size: clamp(0.7rem, calc(1.35 * var(--_u)), 1.1rem);
+    font-variant-numeric: tabular-nums;
+    color: #7c838d;
+    border-block-end: 1px solid #d6dae0;
+    border-inline-end: 1px solid #d6dae0;
+  }
+
+  .landing-hero__cell--outside {
+    color: #b9bfc7;
+  }
+
+  /* 土日の列にごく薄い地色 */
+  .landing-hero__cell:nth-child(7n + 6),
+  .landing-hero__cell:nth-child(7n + 7) {
+    background: rgb(26 29 33 / 0.015);
+  }
+
+  .landing-hero__chip {
+    padding: calc(0.25 * var(--_u)) calc(0.7 * var(--_u));
+    border-inline-start: calc(0.3 * var(--_u)) solid #185fa5;
+    border-radius: calc(0.3 * var(--_u));
+    background: #edf3fa;
+    color: #185fa5;
+    font-size: clamp(0.55rem, calc(1.05 * var(--_u)), 0.85rem);
+    font-weight: 700;
+    line-height: 1.5;
+  }
+
+  .landing-hero__chip--ghost {
+    border-inline-start-color: #c9cfd8;
+    background: #f1f3f6;
+    color: #9aa1aa;
+    font-weight: 500;
+  }
+
+  /* 2 日間の出張: 1 日目のチップをマスの右端まで伸ばし、2 日目は左端から続ける (マスの padding calc(1.2 * var(--_u)) ぶんを打ち消す) */
+  .landing-hero__chip--start {
+    margin-inline-end: calc(-1.2 * var(--_u));
+    border-radius: calc(0.3 * var(--_u)) 0 0 calc(0.3 * var(--_u));
+  }
+
+  .landing-hero__chip--cont {
+    margin-inline-start: calc(-1.2 * var(--_u));
+    border-inline-start: 0;
+    border-radius: 0 calc(0.3 * var(--_u)) calc(0.3 * var(--_u)) 0;
+  }
+
+  /* カレンダーを覆う白: 上は薄く、下 3 割は真っ白 (文字の後ろに罫線を出さない) */
+  .landing-hero__veil {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.1) 0%,
+      rgb(255 255 255 / 0.72) 40%,
+      #fff 70%,
+      #fff 100%
+    );
+  }
+
+  .landing-hero__copy {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding-block-end: calc(6 * var(--_u));
+    text-align: center;
+  }
+
+  /* ロゴが名前の後ろから昇る: ロゴの下半分に名前を重ね、ロゴは mask で下に向かって消す */
+  .landing-hero__rise {
+    --_mark-size: clamp(12rem, calc(34 * var(--_u)), 30rem);
+
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .landing-hero__mark {
+    inline-size: var(--_mark-size);
+    block-size: var(--_mark-size);
+    object-fit: contain;
+    margin-block-end: calc(var(--_mark-size) * -0.5);
+    mask-image: linear-gradient(
+      180deg,
+      #000 0%,
+      #000 38%,
+      rgb(0 0 0 / 0.18) 58%,
+      transparent 74%
+    );
+  }
+
+  .landing-hero__name {
+    position: relative;
+    margin: 0;
+    font-size: clamp(3rem, calc(9.6 * var(--_u)), 8.5rem);
+    font-weight: 900;
+    line-height: 0.98;
+    letter-spacing: -0.045em;
+    text-shadow:
+      0 0 calc(1 * var(--_u)) #fff,
+      0 0 calc(2 * var(--_u)) #fff,
+      0 0 calc(3 * var(--_u)) rgb(255 255 255 / 0.7);
+  }
+
+  .landing-hero__name-accent {
+    color: #185fa5;
+  }
+
+  .landing-hero__sub {
+    position: relative;
+    margin: calc(0.3 * var(--_u)) 0 0;
+    font-size: clamp(1rem, calc(3.1 * var(--_u)), 2.75rem);
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #6b7280;
+  }
+
+  .landing-hero__tag {
+    position: relative;
+    max-inline-size: calc(52 * var(--_u));
+    margin: calc(1.4 * var(--_u)) 0 0;
+    font-size: clamp(0.85rem, calc(1.7 * var(--_u)), 1.5rem);
+    color: #6b7280;
+    text-wrap: balance;
+  }
+
+  /* サインイン: 中央下のピル。アイコンは左端に固定して文字を中央に */
+  .landing-hero__signin {
+    position: absolute;
+    inset-inline-start: 50%;
+    inset-block-end: calc(8.5 * var(--_u));
+    translate: -50% 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: clamp(14rem, calc(24 * var(--_u)), 22rem);
+    padding: calc(1.3 * var(--_u)) calc(2.6 * var(--_u)) calc(1.3 * var(--_u))
+      calc(4.2 * var(--_u));
+    border-radius: 999px;
+    background: #1a1d21;
+    color: #fff;
+    font-size: clamp(0.85rem, calc(1.55 * var(--_u)), 1.35rem);
+    font-weight: 700;
+    white-space: nowrap;
+    box-shadow: 0 calc(1.2 * var(--_u)) calc(3 * var(--_u)) calc(-1 * var(--_u))
+      rgb(26 29 33 / 0.45);
+    cursor: pointer;
+  }
+
+  .landing-hero__signin > svg {
+    position: absolute;
+    inset-inline-start: calc(1.6 * var(--_u));
+    inline-size: clamp(0.9rem, calc(1.6 * var(--_u)), 1.4rem);
+    block-size: clamp(0.9rem, calc(1.6 * var(--_u)), 1.4rem);
+  }
+
+  .landing-hero__hint {
+    position: absolute;
+    inset-inline-start: 50%;
+    inset-block-end: calc(5 * var(--_u));
+    translate: -50% 0;
+    margin: 0;
+    font-size: clamp(0.65rem, calc(1.15 * var(--_u)), 0.95rem);
+    color: #9aa1aa;
+    white-space: nowrap;
+  }
 }
