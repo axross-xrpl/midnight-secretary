@@ -23,7 +23,6 @@ Two things run on Midnight, not just next to it:
 
 | To see | Go to | Takes |
 | --- | --- | --- |
-| The whole flow, every port real | TODO: demo video URL | 5 min |
 | It running on your machine, nothing else set up | [Demo](#demo-no-google-project-database-llm-key-or-midnight-node) | 5 min |
 | What the contracts hold and hide | [Midnight integration](#midnight-integration), then `contract/compact/` | 10 min |
 | What the tests and CI prove | [Tests and CI](#tests-and-ci) | 2 min |
@@ -124,7 +123,7 @@ date of birth is never shown to the AI planner.
 
 ## What we don't claim
 
-So the video and this README can't promise more than the code does.
+So this README can't promise more than the code does.
 
 - **Who holds the age secrets.** With `SECRETARY_IDENTITY=real`, the app names you by an opaque
   pseudonym, and the contract server derives your identity secret and salt from it and receives your
@@ -162,9 +161,9 @@ npm install    # dependencies and git hooks
 
 ## Run it
 
-The demo video is recorded with every port real: Google Calendar, NeonDB, Gemini, and a Midnight
-devnet for both the payments and the age proof. You can walk the same path on your machine in demo
-mode, where everything is faked and nothing else needs setting up.
+The whole path runs with every port real: Google Calendar, NeonDB, Gemini, and a Midnight devnet for
+both the payments and the age proof. You can walk the same path on your machine in demo mode, where
+everything is faked and nothing else needs setting up.
 
 ### Demo: no Google project, database, LLM key, or Midnight node
 
