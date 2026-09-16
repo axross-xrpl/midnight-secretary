@@ -12,7 +12,12 @@ import type {
   TripPlanResponse,
   TripResponse,
 } from "@/lib/secretary-response";
-import { adultRequirementOfResponse, DEFAULT_AGE_LIMIT } from "./format";
+import type { PlanDiff } from "./format";
+import {
+  adultRequirementOfResponse,
+  DEFAULT_AGE_LIMIT,
+  diffPlans,
+} from "./format";
 import type {
   Activity,
   MandateCapabilities,
@@ -69,6 +74,9 @@ export type SecretaryLine =
       title: string;
       plan: TripPlanResponse;
       visibility?: PlanVisibility;
+
+      /** 組み直した提案なら、前の提案との差分 (変わった行に色を付ける) */
+      diff?: PlanDiff;
     }
   | { kind: "askProof"; place: PlaceOfferResponse; ageLimit: number }
   | {
@@ -205,6 +213,7 @@ const proposalOf = (
   plan: TripPlanResponse,
   proposedAt: string,
   visibility: PlanVisibility | undefined,
+  diff: PlanDiff | undefined,
 ): Bubble => {
   return secretary(
     {
@@ -212,9 +221,22 @@ const proposalOf = (
       title: event.title,
       plan,
       ...(visibility === undefined ? {} : { visibility }),
+      ...(diff === undefined ? {} : { diff }),
     },
     proposedAt,
   );
+};
+
+// 組み直した trip のいまの計画は、前の計画との差分を持つ (組み直していなければ無し)
+const diffOf = (
+  revision: PlanRevisionResponse | undefined,
+  plan: TripPlanResponse,
+): PlanDiff | undefined => {
+  if (revision === undefined) {
+    return undefined;
+  }
+
+  return diffPlans(revision.previous.plan, plan);
 };
 
 // ユーザが承認を押したときの写し (非公開に選んだ件数を持つ)
@@ -344,15 +366,18 @@ const proposedHistory = (
   plan: TripPlanResponse,
   proposedAt: string,
   rejection: AgeRejection | undefined,
+  diff: PlanDiff | undefined,
 ): readonly Bubble[] => {
   const event = state.event;
 
   if (rejection === undefined) {
-    return [proposalOf(event, plan, proposedAt, editorVisibilityOf(state))];
+    return [
+      proposalOf(event, plan, proposedAt, editorVisibilityOf(state), diff),
+    ];
   }
 
   return [
-    proposalOf(event, plan, proposedAt, badgesOf(rejection.visibility)),
+    proposalOf(event, plan, proposedAt, badgesOf(rejection.visibility), diff),
     ...approvalEchoOf(plan, privateCountOf(rejection.visibility)),
     rejection.asked,
   ];
@@ -387,6 +412,7 @@ const revisionPreludeOf = (
       previous.plan,
       previous.proposedAt,
       badgesOf(previous.visibility),
+      undefined,
     ),
     ...approvalEchoOf(previous.plan, privateCountOf(previous.visibility)),
     asked,
@@ -397,7 +423,13 @@ const revisionPreludeOf = (
 const paidHistory = (event: ScanEvent, trip: PaidFacts): readonly Bubble[] => {
   return [
     ...revisionPreludeOf(event, trip.revision),
-    proposalOf(event, trip.plan, trip.proposedAt, badgesOf(trip.visibility)),
+    proposalOf(
+      event,
+      trip.plan,
+      trip.proposedAt,
+      badgesOf(trip.visibility),
+      diffOf(trip.revision, trip.plan),
+    ),
     ...approvalEchoOf(trip.plan, privateCountOf(trip.visibility)),
     ...ageVerifiedOf(trip.plan, trip.ageProof),
     secretary({ kind: "askPay" }, trip.approvedAt),
@@ -423,6 +455,7 @@ const historyOf = (state: ChatState, trip: TripResponse): readonly Bubble[] => {
         proposed.plan,
         proposed.proposedAt,
         ageRejectionOf(proposed.plan, proposed.failedAgeCheck),
+        diffOf(proposed.revision, proposed.plan),
       ),
     ])
     .with({ status: "approved" }, (approved) => [
@@ -432,6 +465,7 @@ const historyOf = (state: ChatState, trip: TripResponse): readonly Bubble[] => {
         approved.plan,
         approved.proposedAt,
         badgesOf(approved.visibility),
+        diffOf(approved.revision, approved.plan),
       ),
       ...approvalEchoOf(approved.plan, privateCountOf(approved.visibility)),
       ...ageVerifiedOf(approved.plan, approved.ageProof),

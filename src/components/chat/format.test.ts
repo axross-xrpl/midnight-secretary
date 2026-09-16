@@ -8,6 +8,7 @@ import type { FormatNumber } from "./format";
 import {
   adultRequirementOfResponse,
   asOfDateOf,
+  diffPlans,
   inclusiveEndDate,
   moneyText,
   nightsOf,
@@ -246,6 +247,59 @@ describe("planRows", () => {
         (row) => row.kind,
       ),
     ).toStrictEqual(["transport", "lodging", "dining", "leisure", "transport"]);
+  });
+});
+
+describe("diffPlans", () => {
+  test("同じ計画なら変わった行は無く、合計も変わらない", () => {
+    expect(diffPlans(GATHERING_PLAN, GATHERING_PLAN)).toStrictEqual({
+      rows: [],
+      total: false,
+    });
+  });
+
+  test("飲食だけ違えば飲食の行と合計が変わる", () => {
+    expect(
+      diffPlans(GATHERING_PLAN, {
+        ...GATHERING_PLAN,
+        dining: CAFE,
+        total: mst(47200),
+      }),
+    ).toStrictEqual({ rows: ["dining"], total: true });
+  });
+
+  test("前にあった飲食が無くなれば、行は変わらず合計だけ変わる", () => {
+    expect(diffPlans(GATHERING_PLAN, DAY_TRIP_PLAN)).toStrictEqual({
+      rows: [],
+      total: true,
+    });
+  });
+
+  test("宿が増えれば宿の行と合計が変わる", () => {
+    expect(diffPlans(DAY_TRIP_PLAN, OVERNIGHT_PLAN)).toStrictEqual({
+      rows: ["lodging"],
+      total: true,
+    });
+  });
+
+  test("往路と飲食が違えば、行は往路、飲食の順で並ぶ", () => {
+    expect(
+      diffPlans(GATHERING_PLAN, {
+        ...GATHERING_PLAN,
+        outbound: { ...RAIL_OUT, id: "air-tokyo-fukuoka", mode: "air" },
+        dining: CAFE,
+      }),
+    ).toStrictEqual({ rows: ["outbound", "dining"], total: false });
+  });
+
+  test("同じ id で金額だけ違う候補は変わった行に入らず、合計だけ変わる", () => {
+    expect(
+      diffPlans(GATHERING_PLAN, {
+        ...GATHERING_PLAN,
+        dining: { ...IZAKAYA, price: mst(4000) },
+        total: mst(50000),
+      }),
+    ).toStrictEqual({ rows: [], total: true });
   });
 });
 

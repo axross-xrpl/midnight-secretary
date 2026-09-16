@@ -399,7 +399,8 @@
       "leisure": "{name} ({genre})",
       "ageLimit": "Age {age}+",
       "total": "Total",
-      "rationale": "Why this plan"
+      "rationale": "Why this plan",
+      "changed": "Changed from the previous proposal"
     },
     "authorization": {
       "publicHash": "Public hash",

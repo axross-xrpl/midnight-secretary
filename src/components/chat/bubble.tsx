@@ -48,7 +48,7 @@ const SecretaryContent = ({
       <p>{t("lines.greeting", { title, cap: moneyText(cap, formatNumber) })}</p>
     ))
     .with({ kind: "ask" }, ({ title }) => <p>{t("lines.ask", { title })}</p>)
-    .with({ kind: "proposal" }, ({ plan, visibility }) => (
+    .with({ kind: "proposal" }, ({ plan, visibility, diff }) => (
       <>
         <p>
           {t("lines.proposal", { total: moneyText(plan.total, formatNumber) })}
@@ -56,6 +56,7 @@ const SecretaryContent = ({
         <PlanDetails
           plan={plan}
           visibility={visibility}
+          diff={diff}
           onVisibilityChange={onVisibilityChange}
         />
       </>
