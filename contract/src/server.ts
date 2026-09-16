@@ -42,11 +42,12 @@ import {
 } from "@midnight-ntwrk/wallet-sdk-address-format";
 import { bech32m } from "@scure/base";
 import * as ledger from "@midnight-ntwrk/ledger-v8";
-import * as Rx from "rxjs";
 import type {
   WalletProvider,
   MidnightProvider,
 } from "@midnight-ntwrk/midnight-js-types";
+import { syncWallet } from "./shared/sync.js";
+import { readWalletCache, saveWalletCache } from "./shared/wallet-cache.js";
 
 import { Contract as TokenContract } from "./managed/token/contract/index.js";
 import {
@@ -233,6 +234,21 @@ async function main() {
   const dustSecretKey = ledger.DustSecretKey.fromSeed(keys.dust);
   const keystore = createKeystore(keys.nightExternal, networkId);
 
+  // Shared with contract/'s CLI scripts (sync.ts, get-address.ts, deploy.ts,
+  // ...): same (networkId, seedHex) key means a server restart resumes
+  // shielded/unshielded from wherever a CLI run (or a previous server run)
+  // already got to, instead of replaying preview/preprod history from
+  // genesis every single startup. Dust always cold-starts regardless -- a
+  // restored dust wallet never reconstructs its real per-coin generation
+  // data (see wallet-cache.ts's comment), and this server pays DUST fees on
+  // every owner-gated call.
+  const cache = readWalletCache(NETWORK_ID, DEPLOYER_SEED);
+  console.log(
+    cache
+      ? "Found a saved sync cache -- resuming shielded/unshielded from it (dust always syncs fresh)."
+      : "No saved sync cache -- this will replay from genesis.",
+  );
+
   console.log("Initializing wallet facade...");
   const facade = await WalletFacade.init({
     configuration: {
@@ -250,16 +266,28 @@ async function main() {
       txHistoryStorage: new InMemoryTransactionHistoryStorage(
         WalletEntrySchema,
       ),
+      // Default batch size (10) makes shielded/dust's replay of a long
+      // preview/preprod history very slow -- see
+      // https://github.com/midnightntwrk/midnight-wallet/issues/425.
+      batchUpdates: { size: 10000 },
     },
     shielded: (cfg) =>
-      ShieldedWallet(cfg).startWithSecretKeys(shieldedSecretKeys),
-    unshielded: (cfg) =>
-      UnshieldedWallet({
+      cache?.shielded
+        ? ShieldedWallet(cfg).restore(cache.shielded)
+        : ShieldedWallet(cfg).startWithSecretKeys(shieldedSecretKeys),
+    unshielded: (cfg) => {
+      const unshieldedCfg = {
         ...cfg,
         txHistoryStorage: new InMemoryTransactionHistoryStorage(
           WalletEntrySchema,
         ),
-      }).startWithPublicKey(PublicKey.fromKeyStore(keystore)),
+      };
+      return cache?.unshielded
+        ? UnshieldedWallet(unshieldedCfg).restore(cache.unshielded)
+        : UnshieldedWallet(unshieldedCfg).startWithPublicKey(
+            PublicKey.fromKeyStore(keystore),
+          );
+    },
     dust: (cfg) =>
       DustWallet(cfg).startWithSecretKey(
         dustSecretKey,
@@ -267,18 +295,31 @@ async function main() {
       ),
   });
 
+  // Registered here, before the slow sync below, rather than at the bottom
+  // after the HTTP server is listening -- otherwise Ctrl+C during startup
+  // sync (the exact scenario that used to hang on a fixed timeout) would
+  // hit Node's default SIGINT behavior and lose that sync progress instead
+  // of saving it. `server` doesn't exist yet at this point, hence the
+  // conditional close below.
+  let server: http.Server | undefined;
+  const shutdown = async () => {
+    console.log("Shutting down contract server...");
+    server?.close();
+    console.log("Saving sync cache...");
+    await saveWalletCache(NETWORK_ID, DEPLOYER_SEED, facade);
+    await facade.stop();
+    process.exit(0);
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+
   console.log("Starting wallet facade...");
   await facade.start(shieldedSecretKeys, dustSecretKey);
 
   console.log(
-    "Waiting for wallet to sync (this is the slow part, paid once at startup)...",
+    "Waiting for wallet to sync (this is the slow part, paid once at startup unless a sync cache already exists)...",
   );
-  const state = await Rx.firstValueFrom(
-    facade.state().pipe(
-      Rx.filter((s) => s.isSynced),
-      Rx.timeout(180_000),
-    ),
-  );
+  const state = await syncWallet(console, facade, 2_000);
   console.log("Wallet synced!");
 
   const walletAndMidnightProvider: WalletProvider & MidnightProvider = {
@@ -869,7 +910,7 @@ async function main() {
     sendJson(res, 404, { error: "Not found" });
   }
 
-  const server = http.createServer((req, res) => {
+  server = http.createServer((req, res) => {
     handle(req, res).catch((err) => {
       console.error("Request failed:", err);
       if (!res.headersSent) {
@@ -883,15 +924,6 @@ async function main() {
   server.listen(PORT, "127.0.0.1", () => {
     console.log(`Contract server listening on http://127.0.0.1:${PORT}`);
   });
-
-  const shutdown = async () => {
-    console.log("Shutting down contract server...");
-    server.close();
-    await facade.stop();
-    process.exit(0);
-  };
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
 }
 
 main().catch((err) => {

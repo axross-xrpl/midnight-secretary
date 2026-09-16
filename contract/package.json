@@ -18,6 +18,7 @@
     "set-allowance-shielded-token": "node --env-file=.env --import tsx src/shielded-token/set-allowance.ts",
     "fund": "node --env-file=.env --import tsx src/shared/fund.ts",
     "fund-shielded": "node --env-file=.env --import tsx src/shared/fund-shielded.ts",
+    "shield": "node --env-file=.env --import tsx src/shared/shield.ts",
     "address": "node --env-file=.env --import tsx src/shared/get-address.ts",
     "register-dust": "node --env-file=.env --import tsx src/shared/register-dust.ts",
     "deploy-age-verification": "node --env-file=.env --import tsx src/age-verification/deploy.ts",
