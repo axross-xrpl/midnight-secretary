@@ -147,8 +147,8 @@ So this README can't promise more than the code does.
   [With Midnight Preview](#with-midnight-preview-real-payments)); nothing is on mainnet. The
   settlement numbers under [Tests and CI](#tests-and-ci) were measured on a local devnet.
 - **The first sync is slow.** The contract server's wallet replays Preview from genesis the first
-  time (hours; the local devnet took seconds). `contract/.wallet-cache` keeps the shielded and
-  unshielded state between runs, but the DUST wallet always starts cold.
+  time (about ten minutes for us; the local devnet took seconds). `contract/.wallet-cache` keeps the
+  shielded and unshielded state between runs, but the DUST wallet always starts cold.
 - **Demo mode's clock.** The demo profile's date of birth is fixed at server start, so a demo server
   left running past midnight lets the wrong trip pass. Restart it for a new day.
 - **Not audited.** Three weeks of hackathon.
@@ -247,12 +247,11 @@ the contract server in `contract/`:
 NODE_OPTIONS=--max-old-space-size=6144 npm run server
 ```
 
-The first start walks Preview from genesis (about 900,000 blocks at the time of writing, hours, and
-more heap than Node's default, hence `NODE_OPTIONS`); the log prints the sync position every few
-seconds. The shielded and unshielded state is saved under `contract/.wallet-cache` (git-ignored) when
-the sync finishes or the server is stopped, so later starts resume from there; the DUST wallet, which
-pays the fees, always syncs from scratch. Root's `npm run dev` starts the same server alongside
-Next.js. Then at the root:
+The first start walks Preview from genesis (about ten minutes for us, and it ran out of Node's
+default heap, hence `NODE_OPTIONS`); the log prints the sync position every few seconds. Stopping the
+server with Ctrl-C saves the shielded and unshielded state under `contract/.wallet-cache`
+(git-ignored), so later starts resume from there; the DUST wallet, which pays the fees, always syncs
+from scratch. Root's `npm run dev` starts the same server alongside Next.js. Then at the root:
 
 ```bash
 SECRETARY_MODE=demo SECRETARY_MANDATE=real \
@@ -262,8 +261,8 @@ SECRETARY_MODE=demo SECRETARY_MANDATE=real \
   npm start
 ```
 
-Each payment takes about 20 seconds of proving on the local devnet; Preview adds the network's own
-confirmation time. Add `SECRETARY_IDENTITY=real` to run the age proof through the contract too
+Each payment takes about 20 to 30 seconds of proving and confirmation, so a three-booking trip pays
+in one to two minutes. Add `SECRETARY_IDENTITY=real` to run the age proof through the contract too
 (`AGE_VERIFICATION_SEED` pays its own fees, so fund it from the faucet as well). Private payments mint
 shielded coins, and `npm run shield` turns some of the deployer's NIGHT into shielded NIGHT for their
 fees (Preview has no genesis wallet to fund from). Connect Wallet on the profile page targets
@@ -329,10 +328,14 @@ CI (`.github/workflows/ci.yml`, on every pull request):
 
 Git hooks (lefthook): Biome on commit, typecheck and the changed tests on push.
 
-Measured on a local devnet with `SECRETARY_MANDATE=real` (2026-09-15): after a three-booking trip of
-30,120 MST, `sendAllowance` had dropped by exactly 30,120; after a second trip with one booking kept
-private, `shielded-token`'s mint counter read 1 and `mintAllowance` had dropped by that booking's
-3,000.
+Measured on Midnight Preview with `SECRETARY_MANDATE=real` (2026-09-16): the contract server's first
+sync took about ten minutes; a two-booking trip of 28,920 MST settled as two `sendToken`
+transactions in about a minute, and `sendAllowance` on the deployed contract had dropped by exactly
+28,920; a three-booking trip with one booking kept private settled as three transactions, one of them
+`mint_and_send`, in 1 minute 45 seconds. Earlier on a local devnet (2026-09-15): after a
+three-booking trip of 30,120 MST, `sendAllowance` had dropped by exactly 30,120; after a second trip
+with one booking kept private, `shielded-token`'s mint counter read 1 and `mintAllowance` had dropped
+by that booking's 3,000.
 
 ## Team
 
