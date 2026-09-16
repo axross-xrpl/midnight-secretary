@@ -224,22 +224,25 @@ carries a line naming the ports that are stand-ins. The source variables are rea
 starts, so `SECRETARY_MODE=demo npm start` works as well; a misconfiguration stops the server there
 instead of degrading at runtime.
 
-Then open **Tasks** ([http://localhost:3000/ja/tasks](http://localhost:3000/ja/tasks)), press
-**カレンダーをスキャン**, and open 大阪出張 (取引先訪問) with **秘書に相談**. From the reply buttons: propose
-(the first proposal also sets up a spending allowance), approve, pay, add to the calendar. Back in
-**Tasks** the trip moves from 手配中の出張 to 確定旅程, and the written-back event no longer shows up
-in a scan. This is the same path the demo video walks, on fakes instead of the real systems.
+Then open **Tasks** ([http://localhost:3000/en/tasks](http://localhost:3000/en/tasks)), press
+**Scan the calendar**, and open 大阪出張 (取引先訪問) (an Osaka business trip to visit a client) with
+**Ask the secretary**. From the reply buttons: propose (the first proposal also sets up a spending
+allowance), approve, pay, add to the calendar. Back in **Tasks** the trip moves from **Trips in
+progress** to **Confirmed trips**, and the written-back event no longer shows up in a scan. This is
+the same path the demo video walks, on fakes instead of the real systems.
 
-The other seeded events each show one more thing:
+The seeded events keep their Japanese titles in either language of the UI. The others each show one
+more thing:
 
-- 大阪出張 (展示会): an overnight trip, so lodging is added.
-- 大阪出張 (取引先と懇親会) and 大阪出張 (パートナー会食): an izakaya (age 20 or over). Approving asks
-  whether the secretary may send the age proof. For the first trip the proof fails, and the secretary
-  offers to rebuild the plan without the age-limited place; for the second, three days later, it
-  passes. The demo profile's date of birth is 20 years before the server's start date plus 7 days.
-- 大阪出張 (工場視察と懇親会): every category at once (lodging, the izakaya, a leisure place), five
-  bookings, each with its own "keep private" switch.
-- チーム定例: the secretary declining an event that is not a trip.
+- 大阪出張 (展示会) (a trade show): an overnight trip, so lodging is added.
+- 大阪出張 (取引先と懇親会) and 大阪出張 (パートナー会食) (a dinner with a client, a dinner with a
+  partner): an izakaya (age 20 or over). Approving asks whether the secretary may send the age proof.
+  For the first trip the proof fails, and the secretary offers to rebuild the plan without the
+  age-limited place; for the second, three days later, it passes. The demo profile's date of birth is
+  20 years before the server's start date plus 7 days.
+- 大阪出張 (工場視察と懇親会) (a factory visit and a dinner): every category at once (lodging, the
+  izakaya, a leisure place), five bookings, each with its own "keep private" switch.
+- チーム定例 (the team's regular meeting): the secretary declining an event that is not a trip.
 
 The ledger panel beside the conversation counts each payment on the public side while the cap and
 the spent amount stay private. Everything lives in memory, so restarting the server starts over. The
