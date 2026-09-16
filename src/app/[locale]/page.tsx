@@ -1,8 +1,11 @@
 import { getTranslations } from "next-intl/server";
 import type { ReactElement } from "react";
-import { emptyStateClass, sectionLabelClass } from "@/components/chat/styles";
+import { DEV_PROVIDER_ID } from "@/adapters/auth/dev";
+import { getSecretaryRuntime } from "@/adapters/runtime";
+import { sectionLabelClass } from "@/components/chat/styles";
 import { BalanceCard } from "@/components/home/balance-card";
 import { ConfirmedTripBoard } from "@/components/home/confirmed-trip-board";
+import { LandingHero } from "@/components/home/landing-hero";
 import { getApiSessionUser } from "@/lib/api-session";
 import { loadConfirmedTrips } from "@/server/trips/confirmed-trips";
 import { readMstBalance } from "@/server/wallet/read-mst-balance";
@@ -28,7 +31,7 @@ const HomeShell = ({ title, children }: ShellProps): ReactElement => {
 /**
  * ホーム (上段が保有トークンの残高、下段が確定した旅程の一覧)
  *
- * どちらもサインイン中のユーザのものなので、未サインインでは案内だけを出す
+ * どちらもサインイン中のユーザのものなので、未サインインではヒーローだけを出す
  * (この画面自体がサインインの入口なので、他の画面のようにトップへ送らない)
  */
 const HomePage = async (): Promise<ReactElement> => {
@@ -36,11 +39,10 @@ const HomePage = async (): Promise<ReactElement> => {
   const user = await getApiSessionUser();
 
   if (user === null) {
-    return (
-      <HomeShell title={t("title")}>
-        <p className={emptyStateClass}>{t("signedOut")}</p>
-      </HomeShell>
-    );
+    const { sources } = getSecretaryRuntime();
+    const signInProvider = sources.auth === "dev" ? DEV_PROVIDER_ID : "google";
+
+    return <LandingHero signInProvider={signInProvider} />;
   }
 
   const [balance, trips] = await Promise.all([

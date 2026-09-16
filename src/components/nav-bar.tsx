@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useSession } from "next-auth/react";
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname } from "@/i18n/navigation";
 import { PRODUCT_NAME } from "@/lib/product";
 import LocaleSwitcher from "@/components/locale-switcher";
 import AuthStatus from "@/components/auth-status";
@@ -23,6 +23,13 @@ type NavBarProps = {
 export default function NavBar({ signInProvider }: NavBarProps) {
   const t = useTranslations("NavBar");
   const { status } = useSession();
+  const pathname = usePathname();
+
+  // 未サインインのトップはヘッダーの無いヒーローなので、ナビごと出さない
+  // loading では隠さない (layout から session を渡しているので初期状態で確定していて、loading になるのは再検証中だけ)
+  if (status === "unauthenticated" && pathname === "/") {
+    return undefined;
+  }
 
   return (
     <header className="flex flex-wrap items-center justify-between gap-x-8 gap-y-3 border-b border-black/8 px-16 py-4 dark:border-white/[.145]">
