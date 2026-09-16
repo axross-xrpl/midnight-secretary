@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 500" width="960" height="500" role="img" aria-label="The browser talks to the Next.js server. Its use cases go through seven ports, each wired to a real adapter (Google Calendar, NeonDB, Gemini, the contract server) or an in-memory fake. The contract server talks to the Midnight devnet, where the three Compact contracts live.">
+  <style>
+    text { font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif; fill: #1a1d21; font-size: 13px; }
+    .m { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 10px; }
+    .b { font-weight: 600; }
+    .mu { fill: #6b7280; font-size: 11px; }
+    .node { fill: #ffffff; stroke: #c7cbd4; stroke-width: 1.2; }
+    .browser { fill: #fdf2f8; stroke: #ec4899; stroke-width: 1.4; }
+    .app { fill: #d1fae5; stroke: #10b981; stroke-width: 1.4; }
+    .frame { fill: #e6faf0; stroke: #34d399; stroke-width: 1.6; }
+    .real { fill: #dbeafe; stroke: #3b82f6; stroke-width: 1.4; }
+    .fake { fill: #fef3c7; stroke: #d97706; stroke-width: 1.4; stroke-dasharray: 5 3; }
+    .mn { fill: #1a1a2e; stroke: #7c5cff; stroke-width: 1.4; }
+    .on-mn { fill: #ffffff; }
+    .on-mn-mu { fill: #b8b5d9; font-size: 11px; }
+    .wire { fill: none; stroke: #4b5563; stroke-width: 1.6; }
+    .wire-real { fill: none; stroke: #3b82f6; stroke-width: 2; }
+    .wire-fake { fill: none; stroke: #d97706; stroke-width: 2; stroke-dasharray: 5 3; }
+    .wire-dot { fill: none; stroke: #7c5cff; stroke-width: 1.4; stroke-dasharray: 2 4; }
+    .pill-real { fill: #185fa5; }
+    .pill-fake { fill: #8a6d1f; }
+    .pt { fill: #ffffff; font-weight: 600; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#4b5563"/></marker>
+    <marker id="a-real" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3b82f6"/></marker>
+    <marker id="a-fake" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d97706"/></marker>
+    <marker id="a-dot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7c5cff"/></marker>
+  </defs>
+
+  <rect width="960" height="500" fill="#ffffff"/>
+
+  <!-- Browser -->
+  <rect x="24" y="120" width="170" height="64" rx="10" class="browser"/>
+  <text x="109" y="146" text-anchor="middle" class="b">Browser</text>
+  <text x="109" y="166" text-anchor="middle" class="mu">Tasks · conversation · Settings</text>
+
+
+  <!-- Browser -> server -->
+  <path d="M194,152 H246" class="wire" marker-end="url(#a)"/>
+
+  <!-- Next.js server frame -->
+  <rect x="248" y="60" width="222" height="260" rx="12" class="frame"/>
+  <text x="359" y="86" text-anchor="middle" class="b">Next.js server</text>
+
+  <rect x="260" y="100" width="198" height="68" rx="8" class="app"/>
+  <text x="359" y="122" text-anchor="middle" class="b">use cases</text>
+  <text x="359" y="140" text-anchor="middle" class="mu">scan · propose · approve</text>
+  <text x="359" y="156" text-anchor="middle" class="mu">pay · write back</text>
+
+  <path d="M359,168 V190" class="wire" marker-end="url(#a)"/>
+
+  <rect x="260" y="192" width="198" height="112" rx="8" class="app"/>
+  <text x="359" y="214" text-anchor="middle" class="b">7 ports</text>
+  <text x="359" y="234" text-anchor="middle" class="mu">calendar · catalog · planner</text>
+  <text x="359" y="250" text-anchor="middle" class="mu">mandate · store · profile · identity</text>
+  <rect x="272" y="266" width="174" height="24" rx="12" fill="#ffffff" stroke="#a7f3d0"/>
+  <text x="359" y="282" text-anchor="middle" class="m">SECRETARY_* = real | fake</text>
+
+  <!-- Wires: ports -> real adapters (blue) -->
+  <path d="M458,212 H500 V96 H546" class="wire-real" marker-end="url(#a-real)"/>
+  <path d="M458,220 H508 V152 H546" class="wire-real" marker-end="url(#a-real)"/>
+  <path d="M458,228 H516 V208 H546" class="wire-real" marker-end="url(#a-real)"/>
+  <path d="M458,236 H524 V268 H546" class="wire-real" marker-end="url(#a-real)"/>
+  <!-- Wire: ports -> fake (amber) -->
+  <path d="M458,278 H500 V400 H546" class="wire-fake" marker-end="url(#a-fake)"/>
+
+  <!-- Real adapters -->
+  <text x="548" y="60" class="mu b">real adapters</text>
+  <rect x="548" y="72" width="180" height="48" rx="8" class="real"/>
+  <text x="638" y="92" text-anchor="middle" class="b">Google Calendar</text>
+  <text x="638" y="108" text-anchor="middle" class="mu">calendar</text>
+
+  <rect x="548" y="128" width="180" height="48" rx="8" class="real"/>
+  <text x="638" y="148" text-anchor="middle" class="b">NeonDB</text>
+  <text x="638" y="164" text-anchor="middle" class="mu">catalog · store · profile</text>
+
+  <rect x="548" y="184" width="180" height="48" rx="8" class="real"/>
+  <text x="638" y="204" text-anchor="middle" class="b">Gemini</text>
+  <text x="638" y="220" text-anchor="middle" class="mu">planner</text>
+
+  <rect x="548" y="240" width="180" height="56" rx="8" class="mn"/>
+  <text x="638" y="261" text-anchor="middle" class="b on-mn">contract server</text>
+  <text x="638" y="278" text-anchor="middle" class="on-mn-mu">mandate · identity · one wallet</text>
+
+  <!-- Fake adapters -->
+  <text x="548" y="352" class="mu b">fake adapters (demo)</text>
+  <rect x="548" y="364" width="180" height="72" rx="8" class="fake"/>
+  <text x="638" y="388" text-anchor="middle" class="b">everything in memory</text>
+  <text x="638" y="406" text-anchor="middle" class="mu">seeded calendar and catalog,</text>
+  <text x="638" y="422" text-anchor="middle" class="mu">ledger, credentials</text>
+
+  <!-- contract server -> devnet -->
+  <path d="M728,268 H766" class="wire-real" marker-end="url(#a-real)"/>
+  
+  <!-- Midnight devnet -->
+  <rect x="768" y="200" width="176" height="136" rx="12" class="mn"/>
+  <text x="856" y="226" text-anchor="middle" class="b on-mn">Midnight devnet</text>
+  <line x1="784" y1="238" x2="928" y2="238" stroke="#3a3a5e" stroke-width="1"/>
+  <text x="856" y="262" text-anchor="middle" class="on-mn" font-size="12">token.compact</text>
+  <text x="856" y="284" text-anchor="middle" class="on-mn" font-size="12">shielded-token.compact</text>
+  <text x="856" y="306" text-anchor="middle" class="on-mn" font-size="12">age-verification.compact</text>
+  <text x="856" y="326" text-anchor="middle" class="on-mn-mu">Compact 0.31.1</text>
+
+
+  <!-- Legend -->
+  <g transform="translate(24,470)">
+    <path d="M0,6 H26" class="wire-real"/><text x="34" y="10" class="mu">real: an outside system</text>
+    <path d="M190,6 H216" class="wire-fake"/><text x="224" y="10" class="mu">fake: in the same process</text>
+    <rect x="396" y="0" width="14" height="12" rx="3" class="mn"/><text x="418" y="10" class="mu">Midnight</text>
+  </g>
+</svg>
