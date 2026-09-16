@@ -1,9 +1,11 @@
 "use client";
 
+import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { useSession } from "next-auth/react";
+import badge from "@/assets/zee-kwat-badge.png";
 import { Link, usePathname } from "@/i18n/navigation";
-import { PRODUCT_NAME } from "@/lib/product";
+import { PRODUCT_BRAND, PRODUCT_SUBTITLE } from "@/lib/product";
 import LocaleSwitcher from "@/components/locale-switcher";
 import AuthStatus from "@/components/auth-status";
 import ContractServerStatus from "@/components/contract-server-status";
@@ -34,8 +36,22 @@ export default function NavBar({ signInProvider }: NavBarProps) {
   return (
     <header className="flex flex-wrap items-center justify-between gap-x-8 gap-y-3 border-b border-black/8 px-16 py-4 dark:border-white/[.145]">
       <div className="flex flex-wrap items-center gap-x-8 gap-y-2">
-        <Link href="/" className="text-base font-semibold tracking-tight">
-          {PRODUCT_NAME}
+        {/* 紺のバッジの右に名前を 2 段 (固有名詞を太く、Private Agent を小さく灰色で) */}
+        <Link href="/" className="flex items-center gap-2.5">
+          <Image
+            src={badge}
+            alt=""
+            sizes="36px"
+            className="size-9 object-contain"
+          />
+          <span className="flex flex-col leading-tight">
+            <span className="text-base font-semibold tracking-tight">
+              {PRODUCT_BRAND}
+            </span>
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+              {PRODUCT_SUBTITLE}
+            </span>
+          </span>
         </Link>
         <nav className="flex gap-6 text-sm font-medium">
           {links
