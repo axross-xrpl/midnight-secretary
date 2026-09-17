@@ -32,7 +32,6 @@ import {
   UnshieldedWallet,
 } from "@midnight-ntwrk/wallet-sdk-unshielded-wallet";
 import * as ledger from "@midnight-ntwrk/ledger-v8";
-import * as Rx from "rxjs";
 import type {
   WalletProvider,
   MidnightProvider,
@@ -44,6 +43,7 @@ import {
   createShieldedTokenPrivateState,
   deriveMinterSecret,
 } from "./witnesses.js";
+import { syncWallet } from "../shared/sync.js";
 
 type ShieldedTokenCircuitId = ContractNS.ProvableCircuitId<
   InstanceType<typeof Contract>
@@ -139,12 +139,7 @@ async function main() {
     await facade.start(shieldedSecretKeys, dustSecretKey);
 
     console.log("Waiting for wallet to sync...");
-    const state = await Rx.firstValueFrom(
-      facade.state().pipe(
-        Rx.filter((s) => s.isSynced),
-        Rx.timeout(120_000),
-      ),
-    );
+    const state = await syncWallet(console, facade, 2_000);
     console.log("Wallet synced!");
 
     const walletAndMidnightProvider: WalletProvider & MidnightProvider = {
