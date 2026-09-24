@@ -1,6 +1,11 @@
 import type { NewTripId } from "@/application/deps";
-import type { EnvLike } from "@/application/sources";
-import type { RequestContext, SecretaryFactories } from "@/application/wiring";
+import type { EnvLike, PortSources } from "@/application/sources";
+import type {
+  PortFactories,
+  RequestContext,
+  SecretaryFactories,
+} from "@/application/wiring";
+import { selectPort } from "@/application/wiring";
 import type { CalendarPort } from "@/domain/calendar";
 import type {
   CalendarEventId,
@@ -8,6 +13,8 @@ import type {
   IsoDateTime,
 } from "@/domain/identifiers";
 import type { TravelerPreferences } from "@/domain/plan";
+import type { ProfileSettingsPort } from "@/features/profile/settings-port";
+import type { CatalogSettingsPort } from "@/features/services/settings-port";
 import { payToken } from "@/lib/dev-contracts/token";
 import { payShieldedToken } from "@/lib/dev-contracts/shielded-token";
 import {
@@ -20,6 +27,7 @@ import { createFakeCalendar, seedCalendarEvents } from "./calendar/fake";
 import { createGoogleCalendar } from "./calendar/google";
 import { createFakeCatalog, seedCatalog } from "./catalog/fake";
 import { createNeonCatalog } from "./catalog/neon";
+import { createNeonCatalogSettings } from "./catalog/neon-settings";
 import type { FakeIdentityIds } from "./identity/fake";
 import { createFakeIdentity } from "./identity/fake";
 import { createRealIdentity } from "./identity/real";
@@ -31,6 +39,7 @@ import { createGeminiPlanner } from "./planner/gemini";
 import { DEFAULT_GEMINI_MODEL, geminiGenerate } from "./planner/gemini-client";
 import { createFakeProfile } from "./profile/fake";
 import { createNeonProfile } from "./profile/neon";
+import { createNeonProfileSettings } from "./profile/neon-settings";
 import { createFakeStore } from "./store/fake";
 import { createNeonStore } from "./store/neon";
 
@@ -49,6 +58,32 @@ export type ProcessResources = {
   newEventId: () => CalendarEventId;
   mandateIds: FakeMandateIds;
   identityIds: FakeIdentityIds;
+};
+
+/**
+ * 設定画面の port の 2 通りの組み立て方
+ */
+export type SettingsFactories = {
+  catalog: PortFactories<CatalogSettingsPort>;
+  profile: PortFactories<ProfileSettingsPort>;
+};
+
+/**
+ * プロセスごとに 1 回作るファクトリ全部
+ *
+ * fake は秘書と設定画面で同じインスタンスを共有する
+ */
+export type ProcessFactories = {
+  secretary: SecretaryFactories;
+  settings: SettingsFactories;
+};
+
+/**
+ * 設定画面の deps
+ */
+export type SettingsDeps = {
+  catalog: CatalogSettingsPort;
+  profile: ProfileSettingsPort;
 };
 
 // demo のプロフィールが全ユーザに返す好み
@@ -90,9 +125,9 @@ const envValue = (raw: string | undefined): string | undefined => {
  * Fake はここで 1 回だけ作り、メモリ上の状態を全リクエストで共有する
  * real の factory は最初は fake と同じで、各レーンが自分の持つ adapter で自分の `real` を差し替える
  */
-export const createSecretaryFactories = (
+export const createProcessFactories = (
   resources: ProcessResources,
-): SecretaryFactories => {
+): ProcessFactories => {
   const fakeCalendar = createFakeCalendar({
     events: seedCalendarEvents(resources.startedAt),
     newEventId: resources.newEventId,
@@ -140,15 +175,47 @@ export const createSecretaryFactories = (
   });
   // カタログと同じく、接続は readProfile の getDb() が持つ
   const neonProfile = createNeonProfile();
+  // 設定画面の読み書きも、接続は各呼び出しの getDb() が持つ
+  const neonCatalogSettings = createNeonCatalogSettings();
+  const neonProfileSettings = createNeonProfileSettings();
 
   return {
-    calendar: { real: googleCalendarFor, fake: () => fakeCalendar },
-    catalog: { real: () => neonCatalog, fake: () => fakeCatalog },
-    planner: { real: () => geminiPlanner, fake: () => fakePlanner },
-    mandate: { real: () => realMandate, fake: () => fakeMandate },
-    store: { real: () => neonStore, fake: () => fakeStore },
-    identity: { real: () => realIdentity, fake: () => fakeIdentity },
-    profile: { real: () => neonProfile, fake: () => fakeProfile },
-    newTripId: resources.newTripId,
+    secretary: {
+      calendar: { real: googleCalendarFor, fake: () => fakeCalendar },
+      catalog: { real: () => neonCatalog, fake: () => fakeCatalog },
+      planner: { real: () => geminiPlanner, fake: () => fakePlanner },
+      mandate: { real: () => realMandate, fake: () => fakeMandate },
+      store: { real: () => neonStore, fake: () => fakeStore },
+      identity: { real: () => realIdentity, fake: () => fakeIdentity },
+      profile: { real: () => neonProfile, fake: () => fakeProfile },
+      newTripId: resources.newTripId,
+    },
+    // TODO: fake は次のコミットで秘書と共有する fake に向ける (今は移す前と同じく fake でも Neon を読む)
+    settings: {
+      catalog: {
+        real: () => neonCatalogSettings,
+        fake: () => neonCatalogSettings,
+      },
+      profile: {
+        real: () => neonProfileSettings,
+        fake: () => neonProfileSettings,
+      },
+    },
+  };
+};
+
+/**
+ * 解決済みの source から設定画面の deps を組み立てる
+ *
+ * catalog は `SECRETARY_CATALOG`、profile は `SECRETARY_PROFILE` に従う (秘書と同じ source)
+ */
+export const buildSettingsDeps = (
+  sources: PortSources,
+  factories: SettingsFactories,
+  context: RequestContext,
+): SettingsDeps => {
+  return {
+    catalog: selectPort(sources.catalog, factories.catalog, context),
+    profile: selectPort(sources.profile, factories.profile, context),
   };
 };

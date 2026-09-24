@@ -6,15 +6,11 @@ import { AgeCredentialCard } from "@/components/settings/age-credential-card";
 import { ProfileForm } from "@/components/settings/profile-form";
 import type { ProfileDto } from "@/features/profile/schemas";
 import { requireSessionUser } from "@/lib/require-session";
-import {
-  readGenreOptions,
-  readHomeOptions,
-  readProfile,
-} from "@/server/profile/read-profile";
+import { settingsDeps, valueOrThrow } from "@/server/settings/deps";
 
 // プロフィールの行が無いときと、行はあるが生年月日が空のときを同じに扱う
-const hasBirthDate = (profile: ProfileDto | null): boolean => {
-  return profile !== null && profile.birthDate !== null;
+const hasBirthDate = (profile: ProfileDto | undefined): boolean => {
+  return profile !== undefined && profile.birthDate !== null;
 };
 
 // 読めなかったことを未発行と混ぜない (real では contract server が落ちているだけで読めなくなる)
@@ -49,12 +45,13 @@ const initialCredential = async (): Promise<AgeCredentialInitial> => {
 
 export default async function ProfileSettingsPage() {
   const user = await requireSessionUser();
+  const deps = settingsDeps();
 
   const [profile, homeOptions, genreOptions, credential, t] = await Promise.all(
     [
-      readProfile(user.userId),
-      readHomeOptions(),
-      readGenreOptions(),
+      deps.profile.readProfile(user.userId).then(valueOrThrow),
+      deps.catalog.listHomeOptions().then(valueOrThrow),
+      deps.catalog.listGenreOptions().then(valueOrThrow),
       initialCredential(),
       getTranslations("ProfileSettings"),
     ],

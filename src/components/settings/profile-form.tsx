@@ -41,7 +41,7 @@ type FormValues = {
 };
 
 type ProfileFormProps = {
-  initialProfile: ProfileDto | null;
+  initialProfile: ProfileDto | undefined;
   email: string;
   defaultFullName: string | null;
   homeOptions: HomeOption[];
@@ -56,7 +56,7 @@ const needsReload = (banner: Banner): boolean => {
 };
 
 const toFormValues = (
-  profile: ProfileDto | null,
+  profile: ProfileDto | undefined,
   defaultFullName: string | null,
   defaultHomeCity: string,
 ): FormValues => ({
@@ -210,7 +210,7 @@ export function ProfileForm({
           </div>
         )}
 
-        {initialProfile === null && (
+        {initialProfile === undefined && (
           <p className="mb-6 rounded-lg bg-blue-50 px-4 py-3 text-sm text-[#185fa5]">
             {t("newProfileNotice")}
           </p>

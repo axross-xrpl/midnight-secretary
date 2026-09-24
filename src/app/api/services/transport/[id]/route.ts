@@ -5,18 +5,13 @@ import {
 } from "@/features/services/schemas";
 import {
   databaseReadErrorResponse,
-  databaseWriteErrorResponse,
   invalidRequestResponse,
   notFoundResponse,
   unauthorizedResponse,
 } from "@/lib/api-response";
 import { hasApiSession } from "@/lib/api-session";
-import { readTransportService } from "@/server/services/read-services";
-import {
-  disableTransportService,
-  updateTransportService,
-} from "@/server/services/write-services";
 import { serviceWriteErrorResponse } from "@/server/services/write-response";
+import { settingsDeps } from "@/server/settings/deps";
 
 const idSchema = z.uuid();
 
@@ -34,12 +29,17 @@ export async function GET(
     return invalidRequestResponse(parsedId.error.flatten());
   }
 
-  try {
-    const service = await readTransportService(parsedId.data);
-    return service ? Response.json({ data: service }) : notFoundResponse();
-  } catch (error) {
-    return databaseReadErrorResponse(error);
+  const service = await settingsDeps().catalog.getTransportService(
+    parsedId.data,
+  );
+
+  if (!service.ok) {
+    return databaseReadErrorResponse(service.error.cause);
   }
+
+  return service.value === undefined
+    ? notFoundResponse()
+    : Response.json({ data: service.value });
 }
 
 export async function PUT(
@@ -67,14 +67,13 @@ export async function PUT(
     return invalidRequestResponse(parsedBody.error.flatten());
   }
 
-  try {
-    const result = await updateTransportService(parsedId.data, parsedBody.data);
-    return result.ok
-      ? Response.json({ data: result.value })
-      : serviceWriteErrorResponse(result.error);
-  } catch (error) {
-    return databaseWriteErrorResponse(error);
-  }
+  const result = await settingsDeps().catalog.updateTransportService(
+    parsedId.data,
+    parsedBody.data,
+  );
+  return result.ok
+    ? Response.json({ data: result.value })
+    : serviceWriteErrorResponse(result.error);
 }
 
 export async function DELETE(
@@ -102,15 +101,11 @@ export async function DELETE(
     return invalidRequestResponse(parsedBody.error.flatten());
   }
 
-  try {
-    const result = await disableTransportService(
-      parsedId.data,
-      parsedBody.data.updatedAt,
-    );
-    return result.ok
-      ? Response.json({ data: result.value })
-      : serviceWriteErrorResponse(result.error);
-  } catch (error) {
-    return databaseWriteErrorResponse(error);
-  }
+  const result = await settingsDeps().catalog.disableTransportService(
+    parsedId.data,
+    parsedBody.data.updatedAt,
+  );
+  return result.ok
+    ? Response.json({ data: result.value })
+    : serviceWriteErrorResponse(result.error);
 }
