@@ -3,6 +3,7 @@ import {
   createMandateIn,
   hasAuthorization,
   publicLedgerOf,
+  releaseIn,
   validatePayment,
   type MandateIds,
   type MandateLedgerState,
@@ -126,6 +127,7 @@ const finalizeAuthorization = (
     authorizedAt: request.now,
     publicHash: ids.hashAuthorization(request.mandateId, request.paymentRef),
     settlement,
+    escrow: { status: "held", heldAt: request.now },
   };
 
   commitPayment(state, authorization, mandate);
@@ -202,6 +204,7 @@ const authorizePayment = async (
  * `visibility: "private"` は shielded (`mint_and_send`)、`"public"` は unshielded (`sendToken`) を使う。
  * `privateSettlement` は `MANDATE_SETTLEMENT_RECIPIENT_SHIELDED` が設定されているときだけ true
  * (adapter を作った時点で決まる -- `MandateCapabilities` の規約どおり)
+ * 預かり (`escrow`) は Wave 2 ではメモリ上の状態で、`releaseEscrow` は on-chain 呼び出しをしない (Wave 3 で契約に移す)
  */
 export const createRealMandate = (seed: RealMandateSeed): MandatePort => {
   const state: MandateLedgerState = {
@@ -218,6 +221,9 @@ export const createRealMandate = (seed: RealMandateSeed): MandatePort => {
     createMandate: async (draft) => ok(createMandateIn(state, seed.ids, draft)),
     authorizePayment: (request) =>
       authorizePayment(state, seed.ids, seed.deps, request),
+    // Wave 2 は承認時に送金済みなので、解放はメモリ上の状態を進めるだけ (fake と同じ)
+    releaseEscrow: async (mandateId, paymentRef, now) =>
+      releaseIn(state, seed.ids, mandateId, paymentRef, now),
     readMandate: async (mandateId) => ok(state.mandates[mandateId]),
     isAuthorized: async (mandateId, paymentRef) =>
       ok(hasAuthorization(state, mandateId, paymentRef)),

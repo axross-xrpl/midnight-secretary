@@ -1,6 +1,10 @@
 import type { NewTripId } from "@/application/deps";
 import type { EnvLike } from "@/application/sources";
-import type { RequestContext, SecretaryFactories } from "@/application/wiring";
+import type {
+  RequestContext,
+  SecretaryFactories,
+  SettingsFactories,
+} from "@/application/wiring";
 import type { CalendarPort } from "@/domain/calendar";
 import type {
   CalendarEventId,
@@ -18,6 +22,7 @@ import {
 import { err } from "@/lib/result";
 import { createFakeCalendar, seedCalendarEvents } from "./calendar/fake";
 import { createGoogleCalendar } from "./calendar/google";
+import type { FakeCatalogIds } from "./catalog/fake";
 import { createFakeCatalog, seedCatalog } from "./catalog/fake";
 import { createNeonCatalog } from "./catalog/neon";
 import type { FakeIdentityIds } from "./identity/fake";
@@ -26,6 +31,7 @@ import { createRealIdentity } from "./identity/real";
 import type { FakeMandateIds } from "./mandate/fake";
 import { createFakeMandate } from "./mandate/fake";
 import { createRealMandate } from "./mandate/real";
+import { DEV_USER } from "./auth/dev";
 import { createFakePlanner } from "./planner/fake";
 import { createGeminiPlanner } from "./planner/gemini";
 import { DEFAULT_GEMINI_MODEL, geminiGenerate } from "./planner/gemini-client";
@@ -39,6 +45,7 @@ import { createNeonStore } from "./store/neon";
  *
  * id は非決定的なので注入する
  * `demoBirthDate` は Fake のプロフィールが全ユーザに返す生年月日で、起動日から決める
+ * `catalogIds` は Fake のカタログの行の id と時計、`profileClock` は Fake のプロフィールの保存時刻
  * 各レーンは自分の adapter が入るときに自分のフィールドを追加する
  */
 export type ProcessResources = {
@@ -49,6 +56,8 @@ export type ProcessResources = {
   newEventId: () => CalendarEventId;
   mandateIds: FakeMandateIds;
   identityIds: FakeIdentityIds;
+  catalogIds: FakeCatalogIds;
+  profileClock: () => IsoDateTime;
 };
 
 // demo のプロフィールが全ユーザに返す好み
@@ -92,12 +101,13 @@ const envValue = (raw: string | undefined): string | undefined => {
  */
 export const createSecretaryFactories = (
   resources: ProcessResources,
-): SecretaryFactories => {
+): SecretaryFactories & SettingsFactories => {
   const fakeCalendar = createFakeCalendar({
     events: seedCalendarEvents(resources.startedAt),
     newEventId: resources.newEventId,
   });
-  const fakeCatalog = createFakeCatalog(seedCatalog());
+  // 管理画面の書き込みもこのメモリの行に入る (再起動で seed に戻る)
+  const fakeCatalog = createFakeCatalog(seedCatalog(), resources.catalogIds);
   // DB のハンドルは getDb() が保持するので、ここでは接続せず port だけ作る
   const neonCatalog = createNeonCatalog();
   const fakePlanner = createFakePlanner();
@@ -134,11 +144,15 @@ export const createSecretaryFactories = (
     prove: proveAge,
     accountRefOf: resources.identityIds.identityOf,
   });
+  // 画面には dev サインインのユーザの email を出す (保存すると、そのユーザの email になる)
   const fakeProfile = createFakeProfile({
     birthDate: resources.demoBirthDate,
     preferences: DEMO_PREFERENCES,
+    email: DEV_USER.email,
+    seededAt: resources.startedAt,
+    now: resources.profileClock,
   });
-  // カタログと同じく、接続は readProfile の getDb() が持つ
+  // カタログと同じく、接続は各呼び出しの getDb() が持つ
   const neonProfile = createNeonProfile();
 
   return {
@@ -150,5 +164,8 @@ export const createSecretaryFactories = (
     identity: { real: () => realIdentity, fake: () => fakeIdentity },
     profile: { real: () => neonProfile, fake: () => fakeProfile },
     newTripId: resources.newTripId,
+    // 設定画面は同じ adapter の広い面を使う (source は同じ変数で決まる)
+    profileSettings: { real: () => neonProfile, fake: () => fakeProfile },
+    catalogManagement: { real: () => neonCatalog, fake: () => fakeCatalog },
   };
 };

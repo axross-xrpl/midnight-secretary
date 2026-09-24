@@ -20,9 +20,14 @@ const links = [
 
 type NavBarProps = {
   signInProvider: string;
+  /** contract server の状態を出すか (mandate か identity が real のとき) */
+  contractServerEnabled: boolean;
 };
 
-export default function NavBar({ signInProvider }: NavBarProps) {
+export default function NavBar({
+  signInProvider,
+  contractServerEnabled,
+}: NavBarProps) {
   const t = useTranslations("NavBar");
   const { status } = useSession();
   const pathname = usePathname();
@@ -34,7 +39,7 @@ export default function NavBar({ signInProvider }: NavBarProps) {
   }
 
   return (
-    <header className="flex flex-wrap items-center justify-between gap-x-8 gap-y-3 border-b border-black/8 px-16 py-4 dark:border-white/[.145]">
+    <header className="flex flex-wrap items-center justify-between gap-x-8 gap-y-3 border-b border-border px-6 py-4 sm:px-16">
       <div className="flex flex-wrap items-center gap-x-8 gap-y-2">
         {/* 紺のバッジの右に名前を 2 段 (固有名詞を太く、Private Agent を小さく灰色で) */}
         <Link href="/" className="flex items-center gap-2.5">
@@ -45,15 +50,13 @@ export default function NavBar({ signInProvider }: NavBarProps) {
             className="size-9 object-contain"
           />
           <span className="flex flex-col leading-tight">
-            <span className="text-base font-semibold tracking-tight">
+            <span className="font-serif text-base font-medium">
               {PRODUCT_BRAND}
             </span>
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">
-              {PRODUCT_SUBTITLE}
-            </span>
+            <span className="text-xs text-muted">{PRODUCT_SUBTITLE}</span>
           </span>
         </Link>
-        <nav className="flex gap-6 text-sm font-medium">
+        <nav className="flex gap-6 text-base font-medium">
           {links
             .filter((link) => !link.protected || status === "authenticated")
             .map(({ href, label }) => (
@@ -63,8 +66,8 @@ export default function NavBar({ signInProvider }: NavBarProps) {
             ))}
         </nav>
       </div>
-      <div className="flex items-center gap-4">
-        <ContractServerStatus />
+      <div className="flex flex-wrap items-center gap-4">
+        <ContractServerStatus enabled={contractServerEnabled} />
         <LocaleSwitcher />
         <AuthStatus signInProvider={signInProvider} />
       </div>

@@ -95,10 +95,10 @@ const DetailItem = ({ item }: ItemProps): ReactElement => {
   const Icon = categoryIcons[item.category];
 
   return (
-    <li className="flex flex-wrap items-center gap-3 p-3 px-3.5">
+    <li className="flex flex-wrap items-center gap-3 px-4 py-3">
       <Icon aria-hidden className="size-4 flex-none text-muted" />
       <div className="min-w-0 flex-1">
-        <div className="text-[13px] font-semibold">{item.name}</div>
+        <div className="text-base font-semibold">{item.name}</div>
         <div className={`mt-[3px] flex flex-wrap gap-x-2 ${labelClass}`}>
           <span>{categories(`categories.${item.category}`)}</span>
           <ItemWhen item={item} />
@@ -110,7 +110,7 @@ const DetailItem = ({ item }: ItemProps): ReactElement => {
         )}
       </div>
       <div className="text-right">
-        <div className="text-[13px] font-bold tabular-nums">
+        <div className="text-base font-semibold tabular-nums">
           <Money amount={item.price} />
         </div>
         <div className={labelClass}>
@@ -159,11 +159,11 @@ const TripDialog = ({ trip, onClose }: DialogProps): ReactElement => {
         role="dialog"
         aria-modal="true"
         aria-label={trip.title}
-        className="flex max-h-full w-full max-w-2xl flex-col gap-4 overflow-y-auto rounded-xl border border-border bg-surface p-5 px-6 text-ink"
+        className="flex max-h-full w-full max-w-2xl flex-col gap-4 overflow-y-auto rounded-xl border border-border bg-surface p-6 text-ink"
       >
         <header className="flex flex-wrap items-start gap-4">
           <div className="min-w-0 flex-1">
-            <h2 className="text-[17px] font-bold">{trip.title}</h2>
+            <h2 className="font-serif text-xl font-medium">{trip.title}</h2>
             <p className={`mt-[3px] ${labelClass}`}>
               {t("trips.route", {
                 from: trip.originCity,
@@ -178,7 +178,7 @@ const TripDialog = ({ trip, onClose }: DialogProps): ReactElement => {
           </button>
         </header>
 
-        <section className="flex flex-col gap-2">
+        <section className="flex flex-col gap-3">
           <h3 className={labelClass}>{t("trips.detail.items")}</h3>
           {trip.items.length === 0 ? (
             <p className={emptyStateClass}>{t("trips.detail.noItems")}</p>
@@ -191,9 +191,9 @@ const TripDialog = ({ trip, onClose }: DialogProps): ReactElement => {
           )}
         </section>
 
-        <footer className="flex items-center justify-between border-t border-border pt-3">
+        <footer className="flex items-center justify-between border-t border-border pt-4">
           <span className={labelClass}>{t("trips.total")}</span>
-          <span className="text-[19px] font-bold tabular-nums">
+          <span className="text-xl font-semibold tabular-nums">
             <Money amount={totalPriceOf(trip.items)} />
           </span>
         </footer>
@@ -218,7 +218,7 @@ const TripRow = ({ trip, onOpen }: RowProps): ReactElement => {
         className={`${rowCardClass} w-full cursor-pointer text-left`}
       >
         <span className="min-w-0 flex-1">
-          <span className="block text-[15px] font-bold">{trip.title}</span>
+          <span className="block text-base font-semibold">{trip.title}</span>
           <span className={`mt-[3px] block ${labelClass}`}>
             {t("trips.route", {
               from: trip.originCity,
@@ -230,7 +230,7 @@ const TripRow = ({ trip, onOpen }: RowProps): ReactElement => {
         </span>
         <span className="text-right">
           <span className={`block ${labelClass}`}>{t("trips.total")}</span>
-          <span className="block text-[17px] font-bold tabular-nums">
+          <span className="block text-lg font-semibold tabular-nums">
             <Money amount={totalPriceOf(trip.items)} />
           </span>
         </span>
@@ -263,7 +263,7 @@ export const ConfirmedTripBoard = ({ trips }: BoardProps): ReactElement => {
 
   return (
     <>
-      <ul className="flex flex-col gap-3">
+      <ul className="flex flex-col gap-4">
         {trips.map((trip) => (
           <TripRow key={trip.id} trip={trip} onOpen={setOpenedTripId} />
         ))}

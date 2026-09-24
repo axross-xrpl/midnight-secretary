@@ -17,6 +17,7 @@ import type { TripStatus } from "@/domain/trip";
  * `birthDateMissing` はその証明書を発行しようとしたのにプロフィールに生年月日が無いとき
  * 証明の結果が「成人ではない」ことは失敗ではなく、trip に記録して組み直しを待つ
  * `replanNotNeeded` はその記録の無い提案済みの trip を組み直そうとしたとき
+ * `notPaid` は支払い済み (paid / written) でない trip の受取を確認しようとしたとき
  */
 export type FlowError =
   | { kind: "noMandate" }
@@ -33,7 +34,8 @@ export type FlowError =
   | { kind: "privateSettlementUnsupported"; tripId: TripId }
   | { kind: "ageCredentialMissing"; tripId: TripId }
   | { kind: "birthDateMissing" }
-  | { kind: "replanNotNeeded"; tripId: TripId };
+  | { kind: "replanNotNeeded"; tripId: TripId }
+  | { kind: "notPaid"; tripId: TripId };
 
 /**
  * use case で起こりうる期待される失敗を、発生元のタグ付きで表す

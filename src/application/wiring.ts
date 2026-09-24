@@ -1,10 +1,10 @@
 import type { CalendarPort } from "@/domain/calendar";
-import type { FareCatalogPort } from "@/domain/catalog";
+import type { CatalogManagementPort, FareCatalogPort } from "@/domain/catalog";
 import type { IsoDateTime } from "@/domain/identifiers";
 import type { IdentityPort } from "@/domain/identity";
 import type { MandatePort } from "@/domain/mandate";
 import type { PlannerPort } from "@/domain/planner";
-import type { ProfilePort } from "@/domain/profile";
+import type { ProfilePort, ProfileSettingsPort } from "@/domain/profile";
 import type { SecretaryStore } from "@/domain/store";
 import type { NewTripId, SecretaryDeps } from "./deps";
 import type { PortSource, PortSources } from "./sources";
@@ -82,5 +82,40 @@ export const buildSecretaryDeps = (
     identity: selectPort(sources.identity, factories.identity, context),
     profile: selectPort(sources.profile, factories.profile, context),
     newTripId: factories.newTripId,
+  };
+};
+
+/**
+ * 設定画面 (プロフィール・サービス管理) が使う port のファクトリ
+ *
+ * 秘書の port と同じ adapter が実装し、同じ source (`SECRETARY_PROFILE` / `SECRETARY_CATALOG`) で切り替わる
+ * 秘書の deps と分けているのは、use case の port を画面の都合で広げないため
+ */
+export type SettingsFactories = {
+  profileSettings: PortFactories<ProfileSettingsPort>;
+  catalogManagement: PortFactories<CatalogManagementPort>;
+};
+
+/**
+ * 設定画面と、その Route Handler が受け取る deps
+ */
+export type SettingsDeps = {
+  profile: ProfileSettingsPort;
+  catalog: CatalogManagementPort;
+};
+
+/**
+ * 解決済みの source とファクトリから、設定画面の deps を組み立てる
+ *
+ * `buildSecretaryDeps` と同じ選び方で、profile と catalog の source をそのまま使う
+ */
+export const buildSettingsDeps = (
+  sources: PortSources,
+  factories: SettingsFactories,
+  context: RequestContext,
+): SettingsDeps => {
+  return {
+    profile: selectPort(sources.profile, factories.profileSettings, context),
+    catalog: selectPort(sources.catalog, factories.catalogManagement, context),
   };
 };

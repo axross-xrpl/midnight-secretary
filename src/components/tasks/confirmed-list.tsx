@@ -69,10 +69,10 @@ const ConfirmedTripItem = async ({
   return (
     <li className={`${cardClass} flex flex-wrap items-center gap-5`}>
       <div className="min-w-0 flex-1">
-        <div className="text-[17px] font-bold">
+        <div className="text-lg font-semibold">
           {trip.title === "" ? t("noTitle") : trip.title}
         </div>
-        <div className="mt-[3px] text-[12.5px] text-muted">
+        <div className="mt-1 text-sm text-muted">
           {t("route", {
             from: trip.originCity,
             to: trip.destinationCity,
@@ -83,7 +83,7 @@ const ConfirmedTripItem = async ({
       </div>
       <div className="text-right">
         <div className={labelClass}>{t("total")}</div>
-        <div className="text-[19px] font-bold tabular-nums">
+        <div className="text-xl font-semibold tabular-nums">
           {moneyText(trip.total, formatNumber)}
         </div>
       </div>

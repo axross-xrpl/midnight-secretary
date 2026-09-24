@@ -11,6 +11,7 @@ import {
   unauthorizedResponse,
 } from "@/lib/api-response";
 import { hasApiSession } from "@/lib/api-session";
+import { settingsDeps } from "@/server/ports";
 import { readTransportService } from "@/server/services/read-services";
 import {
   disableTransportService,
@@ -35,7 +36,10 @@ export async function GET(
   }
 
   try {
-    const service = await readTransportService(parsedId.data);
+    const service = await readTransportService(
+      parsedId.data,
+      settingsDeps().catalog,
+    );
     return service ? Response.json({ data: service }) : notFoundResponse();
   } catch (error) {
     return databaseReadErrorResponse(error);
@@ -68,7 +72,11 @@ export async function PUT(
   }
 
   try {
-    const result = await updateTransportService(parsedId.data, parsedBody.data);
+    const result = await updateTransportService(
+      parsedId.data,
+      parsedBody.data,
+      settingsDeps().catalog,
+    );
     return result.ok
       ? Response.json({ data: result.value })
       : serviceWriteErrorResponse(result.error);
@@ -106,6 +114,7 @@ export async function DELETE(
     const result = await disableTransportService(
       parsedId.data,
       parsedBody.data.updatedAt,
+      settingsDeps().catalog,
     );
     return result.ok
       ? Response.json({ data: result.value })

@@ -13,12 +13,9 @@ export default function LocaleSwitcher() {
   return (
     <nav
       aria-label={t("label")}
-      className="flex items-center gap-1.5 rounded-full border border-black/8 bg-zinc-50 p-1 text-sm dark:border-white/[.145] dark:bg-zinc-900"
+      className="flex items-center gap-1.5 rounded-full border border-border bg-neutral-bg p-1 text-sm"
     >
-      <Languages
-        size={14}
-        className="mx-1.5 text-zinc-500 dark:text-zinc-400"
-      />
+      <Languages size={14} className="mx-1.5 text-muted" />
       {routing.locales.map((locale) => {
         const isActive = locale === activeLocale;
         return (
@@ -29,8 +26,8 @@ export default function LocaleSwitcher() {
             aria-current={isActive}
             className={
               isActive
-                ? "rounded-full bg-white px-3 py-1 font-medium text-black shadow-sm dark:bg-black dark:text-white"
-                : "rounded-full px-3 py-1 text-zinc-500 hover:text-black dark:text-zinc-400 dark:hover:text-white"
+                ? "whitespace-nowrap rounded-full bg-surface px-3 py-1 font-medium text-ink shadow-sm"
+                : "whitespace-nowrap rounded-full px-3 py-1 text-muted hover:text-ink"
             }
           >
             {t(locale)}

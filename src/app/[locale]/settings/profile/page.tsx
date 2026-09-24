@@ -6,6 +6,7 @@ import { AgeCredentialCard } from "@/components/settings/age-credential-card";
 import { ProfileForm } from "@/components/settings/profile-form";
 import type { ProfileDto } from "@/features/profile/schemas";
 import { requireSessionUser } from "@/lib/require-session";
+import { settingsDeps } from "@/server/ports";
 import {
   readGenreOptions,
   readHomeOptions,
@@ -49,12 +50,13 @@ const initialCredential = async (): Promise<AgeCredentialInitial> => {
 
 export default async function ProfileSettingsPage() {
   const user = await requireSessionUser();
+  const deps = settingsDeps();
 
   const [profile, homeOptions, genreOptions, credential, t] = await Promise.all(
     [
-      readProfile(user.userId),
-      readHomeOptions(),
-      readGenreOptions(),
+      readProfile(user.userId, deps.profile),
+      readHomeOptions(deps.catalog),
+      readGenreOptions(deps.catalog),
       initialCredential(),
       getTranslations("ProfileSettings"),
     ],
@@ -63,11 +65,9 @@ export default async function ProfileSettingsPage() {
   return (
     <section className="flex flex-col px-4 py-6 sm:px-6 lg:px-8">
       <div className="mb-6">
-        <p className="text-sm font-medium text-[#185fa5]">{t("eyebrow")}</p>
-        <h2 className="mt-1 text-2xl font-semibold tracking-tight">
-          {t("title")}
-        </h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+        <p className="text-sm font-medium text-accent">{t("eyebrow")}</p>
+        <h2 className="mt-1 font-serif text-2xl font-medium">{t("title")}</h2>
+        <p className="mt-2 max-w-2xl text-base text-muted">
           {t("description")}
         </p>
       </div>

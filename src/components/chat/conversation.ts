@@ -87,8 +87,16 @@ export type SecretaryLine =
     }
   | { kind: "ageVerified"; proof: AgeProofResponse; ageLimit: number }
   | { kind: "askPay" }
-  | { kind: "partiallyPaid"; authorizations: readonly AuthorizationResponse[] }
-  | { kind: "paid"; authorizations: readonly AuthorizationResponse[] }
+  | {
+      kind: "partiallyPaid";
+      tripId: string;
+      authorizations: readonly AuthorizationResponse[];
+    }
+  | {
+      kind: "paid";
+      tripId: string;
+      authorizations: readonly AuthorizationResponse[];
+    }
   | { kind: "askWriteBack" }
   | {
       kind: "written";
@@ -148,6 +156,7 @@ export type Conversation = {
 
 // 支払い済みと登録済みの trip が共通で持つ、履歴に要るもの
 type PaidFacts = {
+  id: string;
   plan: TripPlanResponse;
   proposedAt: string;
   approvedAt: string;
@@ -277,6 +286,7 @@ const approvalEchoOf = (
 
 // 支払いの途中で失敗していれば済んだ候補が残っているので、askPay の代わりに partiallyPaid を出す
 const afterApproval = (
+  tripId: string,
   authorizations: readonly AuthorizationResponse[],
   approvedAt: string,
 ): Bubble => {
@@ -284,7 +294,10 @@ const afterApproval = (
     return secretary({ kind: "askPay" }, approvedAt);
   }
 
-  return secretary({ kind: "partiallyPaid", authorizations }, approvedAt);
+  return secretary(
+    { kind: "partiallyPaid", tripId, authorizations },
+    approvedAt,
+  );
 };
 
 const ageLimitOf = (plan: TripPlanResponse): number => {
@@ -435,7 +448,7 @@ const paidHistory = (event: ScanEvent, trip: PaidFacts): readonly Bubble[] => {
     secretary({ kind: "askPay" }, trip.approvedAt),
     user({ kind: "pay", resume: false }),
     secretary(
-      { kind: "paid", authorizations: trip.authorizations },
+      { kind: "paid", tripId: trip.id, authorizations: trip.authorizations },
       trip.paidAt,
     ),
     secretary({ kind: "askWriteBack" }, trip.paidAt),
@@ -469,7 +482,7 @@ const historyOf = (state: ChatState, trip: TripResponse): readonly Bubble[] => {
       ),
       ...approvalEchoOf(approved.plan, privateCountOf(approved.visibility)),
       ...ageVerifiedOf(approved.plan, approved.ageProof),
-      afterApproval(approved.authorizations, approved.approvedAt),
+      afterApproval(approved.id, approved.authorizations, approved.approvedAt),
     ])
     .with({ status: "paid" }, (paid) => paidHistory(event, paid))
     .with({ status: "written" }, (written) => [

@@ -64,6 +64,20 @@ export const settlementSchema = z.discriminatedUnion("kind", [
 ]);
 
 /**
+ * 預かりの状態 (予約時に預かり、受取の確認で受取先へ解放する)
+ */
+export const escrowSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("held"), heldAt: z.string() }),
+
+  z.object({
+    status: z.literal("released"),
+    heldAt: z.string(),
+    releasedAt: z.string(),
+    releaseRef: z.string(),
+  }),
+]);
+
+/**
  * 支払い 1 件が mandate のもとで承認された証拠
  */
 export const authorizationSchema = z.object({
@@ -73,6 +87,7 @@ export const authorizationSchema = z.object({
   authorizedAt: z.string(),
   publicHash: z.string(),
   settlement: settlementSchema,
+  escrow: escrowSchema,
 });
 
 /**
@@ -300,6 +315,11 @@ export type SettlementVisibilityResponse = z.infer<
  * 承認のときに選んだ、候補ごとの支払いの公開範囲
  */
 export type PaymentVisibilityResponse = z.infer<typeof paymentVisibilitySchema>;
+
+/**
+ * 預かりの状態
+ */
+export type EscrowResponse = z.infer<typeof escrowSchema>;
 
 /**
  * 支払い 1 件が mandate のもとで承認された証拠

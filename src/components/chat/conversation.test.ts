@@ -142,6 +142,7 @@ const AUTHORIZATION: AuthorizationResponse = {
     transactionId: "tx-1",
     recipient: "wallet-rail",
   },
+  escrow: { status: "held", heldAt: "2026-09-10T00:02:00Z" },
 };
 
 const SECOND_AUTHORIZATION: AuthorizationResponse = {
@@ -468,6 +469,7 @@ const PAID_BUBBLES: readonly Bubble[] = [
     speaker: "secretary",
     line: {
       kind: "paid",
+      tripId: TRIP_ID,
       authorizations: [AUTHORIZATION, SECOND_AUTHORIZATION],
     },
     at: "2026-09-10T00:02:00Z",
@@ -516,7 +518,11 @@ describe("conversationOf (休止状態)", () => {
 
         {
           speaker: "secretary",
-          line: { kind: "partiallyPaid", authorizations: [AUTHORIZATION] },
+          line: {
+            kind: "partiallyPaid",
+            tripId: TRIP_ID,
+            authorizations: [AUTHORIZATION],
+          },
           at: "2026-09-10T00:01:00Z",
         },
       ],

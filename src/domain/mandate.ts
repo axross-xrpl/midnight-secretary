@@ -73,9 +73,24 @@ export type Settlement =
     };
 
 /**
+ * 預かりの状態: 予約時に預かり、受取の確認で受取先へ解放する
+ *
+ * `Settlement` が「送金の形」なのに対し、こちらは「お金がいまどこにあるか」
+ * Wave 2 の real は即時送金のままなので、`held` は「秘書が預かっている」の意味で表示する (Wave 3 で契約に移す)
+ */
+export type Escrow =
+  | { status: "held"; heldAt: IsoDateTime }
+  | {
+      status: "released";
+      heldAt: IsoDateTime;
+      releasedAt: IsoDateTime;
+      releaseRef: string;
+    };
+
+/**
  * 支払いが mandate のもとで承認され、トークンが受取先へ送られた証拠
  *
- * この支払いについて公開台帳に載る値は `publicHash` と送金の tx だけ
+ * この支払いについて公開台帳に載る値は `publicHash`、送金の tx、預かりの状態と額だけ
  */
 export type Authorization = {
   mandateId: MandateId;
@@ -84,27 +99,42 @@ export type Authorization = {
   authorizedAt: IsoDateTime;
   publicHash: string;
   settlement: Settlement;
+  escrow: Escrow;
+};
+
+/**
+ * 公開台帳に載る預かり 1 件 (額は `sendToken` の額がもともと公開なので載せてよい)
+ */
+export type PublicEscrow = {
+  publicHash: string;
+  status: Escrow["status"];
+  amount: Money;
 };
 
 /**
  * mandate について誰でも公開台帳から読み取れる内容
  *
- * 金額、上限、個人を特定する情報は意図的に含めない
+ * 上限、個人を特定する情報は意図的に含めない
  */
 export type PublicLedgerView = {
   commitments: readonly { mandateId: MandateId; commitment: string }[];
   authorizations: readonly { publicHash: string }[];
   authorizedCount: number;
+  escrows: readonly PublicEscrow[];
 };
 
 /**
  * mandate の操作で起こりうる失敗
+ *
+ * `notHeld` は解放済みの預かりをもう一度解放しようとしたとき
+ * 承認そのものが無い paymentRef の解放は `notFound` (mandate を知らないのと同じ扱い)
  */
 export type MandateError =
   | { kind: "notFound"; mandateId: MandateId }
   | { kind: "overBudget"; cap: Money; spent: Money; requested: Money }
   | { kind: "expired"; expiresAt: IsoDateTime; now: IsoDateTime }
   | { kind: "alreadyAuthorized"; paymentRef: PaymentRef }
+  | { kind: "notHeld"; paymentRef: PaymentRef }
   | { kind: "proofFailed"; cause: unknown }
   | { kind: "unavailable"; cause: unknown };
 
@@ -124,6 +154,18 @@ export type CreateMandate = (
  */
 export type AuthorizePayment = (
   request: PaymentRequest,
+) => Promise<Result<Authorization, MandateError>>;
+
+/**
+ * 受取の確認で、預かり中の支払いを受取先へ解放する
+ *
+ * 解放済みなら `notHeld`、承認が無ければ `notFound`
+ * `now` は `releasedAt` になる (承認と同じく、時刻は呼び出し側が渡す)
+ */
+export type ReleaseEscrow = (
+  mandateId: MandateId,
+  paymentRef: PaymentRef,
+  now: IsoDateTime,
 ) => Promise<Result<Authorization, MandateError>>;
 
 /**
@@ -171,6 +213,7 @@ export type MandatePort = {
   capabilities: MandateCapabilities;
   createMandate: CreateMandate;
   authorizePayment: AuthorizePayment;
+  releaseEscrow: ReleaseEscrow;
   readMandate: ReadMandate;
   isAuthorized: IsAuthorized;
   readPublicLedger: ReadPublicLedger;

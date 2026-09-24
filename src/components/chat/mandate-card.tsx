@@ -44,29 +44,29 @@ export const MandateCard = ({ mandate }: MandateCardProps): ReactElement => {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xs text-muted">{t("title")}</h2>
+            <h2 className="text-sm text-muted">{t("title")}</h2>
             <span className={privatePillClass}>{t("badge")}</span>
           </div>
           {/* 「残り」は金額の下の行に置く (サイドバーの幅では横に並べると途中で折り返す) */}
-          <div className="text-2xl font-bold leading-snug tabular-nums">
+          <div className="text-2xl font-semibold tabular-nums">
             {moneyText(remainingOf(mandate), formatNumber)}
-            <span className="block text-[13px] font-semibold text-muted">
+            <span className="block text-sm font-medium text-muted">
               {t("remaining")}
             </span>
           </div>
         </div>
       </div>
 
-      <dl className="grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(7rem,1fr))]">
-        <div className="rounded-xl border border-border p-3 px-3.5">
+      <dl className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(9rem,1fr))]">
+        <div className="rounded-lg border border-border px-4 py-3">
           <dt className={labelClass}>{t("cap")}</dt>
-          <dd className="text-base font-bold tabular-nums">
+          <dd className="text-base font-semibold tabular-nums">
             {moneyText(mandate.cap, formatNumber)}
           </dd>
         </div>
-        <div className="rounded-xl border border-border p-3 px-3.5">
+        <div className="rounded-lg border border-border px-4 py-3">
           <dt className={labelClass}>{t("spent")}</dt>
-          <dd className="text-base font-bold tabular-nums">
+          <dd className="text-base font-semibold tabular-nums">
             {moneyText(mandate.spent, formatNumber)}
           </dd>
         </div>
@@ -85,7 +85,7 @@ export const MandateCard = ({ mandate }: MandateCardProps): ReactElement => {
         <span className={faintLabelClass}>{t("usedPercent", { percent })}</span>
       </div>
 
-      <dl className="flex flex-wrap gap-x-6 gap-y-1 text-[12.5px]">
+      <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
         <div className="flex items-baseline gap-1.5">
           <dt className={labelClass}>{t("purpose")}</dt>
           <dd className="font-medium">{mandate.purpose}</dd>

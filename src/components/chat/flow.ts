@@ -41,6 +41,7 @@ export type FlowAction =
   | { type: "askConsent" }
   | { type: "declineConsent" }
   | { type: "succeed"; trip: TripResponse }
+  | { type: "tripUpdated"; trip: TripResponse }
   | { type: "fail"; failure: RequestFailure }
   | { type: "dismiss" }
   | { type: "mandateCreated"; mandate: MandateResponse }
@@ -130,6 +131,11 @@ const onSucceed = (state: FlowState, trip: TripResponse): FlowState => {
   return { ...state, activity: IDLE, fresh: trip, visibility: {} };
 };
 
+// 1 手の外で出張が差し替わったとき (受取の確認)。進行中かどうかに関わらず表示だけ追いつかせる
+const onTripUpdated = (state: FlowState, trip: TripResponse): FlowState => {
+  return { ...state, fresh: trip };
+};
+
 const onFail = (state: FlowState, failure: RequestFailure): FlowState => {
   if (state.activity.kind !== "busy") {
     return state;
@@ -176,6 +182,7 @@ export const reduceFlow = (state: FlowState, action: FlowAction): FlowState => {
     .with({ type: "askConsent" }, () => onAskConsent(state))
     .with({ type: "declineConsent" }, () => onDeclineConsent(state))
     .with({ type: "succeed" }, ({ trip }) => onSucceed(state, trip))
+    .with({ type: "tripUpdated" }, ({ trip }) => onTripUpdated(state, trip))
     .with({ type: "fail" }, ({ failure }) => onFail(state, failure))
     .with({ type: "dismiss" }, () => onDismiss(state))
     .with({ type: "mandateCreated" }, ({ mandate }) =>

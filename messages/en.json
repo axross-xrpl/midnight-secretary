@@ -408,7 +408,12 @@
       "amount": "Amount",
       "authorizedAt": "Authorized at",
       "visibility": "Visibility",
-      "transaction": "Transaction"
+      "transaction": "Transaction",
+      "escrow": "Held by",
+      "escrowHeld": "Held by the secretary",
+      "escrowReleased": "Released to the payee",
+      "confirmReceipt": "I received this",
+      "confirming": "Confirming…"
     },
     "ageProof": {
       "identity": "Public ID",
@@ -453,6 +458,31 @@
       "note": "Held off-chain and proven on-chain. The commitment is the only link to the public side."
     }
   },
+  "MoneyFlow": {
+    "title": "Where the money is",
+    "subtitle": "From your allowance, through the secretary, to each payee.",
+    "traveler": {
+      "title": "You",
+      "granted": "Granted to the secretary",
+      "none": "No allowance yet."
+    },
+    "secretary": {
+      "title": "Secretary",
+      "holding": "Holding for payees",
+      "unspent": "Unspent"
+    },
+    "payees": {
+      "title": "Payees",
+      "none": "No plan yet.",
+      "received": "Received so far"
+    },
+    "status": {
+      "unpaid": "Not paid",
+      "held": "Held",
+      "released": "Received"
+    },
+    "note": "Each payment is held by the secretary until you confirm you received the service. In this build the hold lives in the app, not in the contract."
+  },
   "SecretaryError": {
     "calendar": {
       "unauthenticated": "Sign in with Google again to read the calendar.",
@@ -486,6 +516,7 @@
       "overBudget": "The payment of {requested} does not fit: {spent} of the {cap} cap is already spent.",
       "expired": "The allowance has expired.",
       "alreadyAuthorized": "This payment was already authorized.",
+      "notHeld": "That payment was already released to the payee.",
       "proofFailed": "Proof generation failed; try again.",
       "unavailable": "The allowance contract is not reachable right now."
     },
@@ -507,7 +538,8 @@
       "privateSettlementUnsupported": "This allowance cannot settle payments privately. Approve with every payment public.",
       "ageCredentialMissing": "Your age credential has not been issued yet. Issue it on the <link>settings page</link>.",
       "birthDateMissing": "To prove your age, register your date of birth in your profile.",
-      "replanNotNeeded": "This plan does not need rebuilding; reload the page."
+      "replanNotNeeded": "This plan does not need rebuilding; reload the page.",
+      "notPaid": "This trip hasn't been paid yet, so there is nothing to confirm."
     },
     "identity": {
       "notRegistered": "Your date of birth is not registered for age verification yet.",

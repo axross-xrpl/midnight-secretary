@@ -1,108 +1,45 @@
 import "server-only";
 
-import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
-import { getDb } from "@/db/client";
-import { placeServices, transportServices, userProfiles } from "@/db/schema";
+import type { CatalogManagementPort } from "@/domain/catalog";
+import { mustParse, parseUserId } from "@/domain/identifiers.parse";
+import type { ProfileSettingsPort } from "@/domain/profile";
 import type { PlanningProfile } from "@/features/profile/feasibility";
 import type { GenreOptions, HomeOption } from "@/features/profile/options";
 import type { ProfileDto } from "@/features/profile/schemas";
+import { unwrapOrThrow } from "../unwrap";
 
 /**
  * 自分のプロフィールを読む
  *
  * 行が無ければ未登録。画面は空のフォームを出す
+ * 読めなかったときは throw する (呼び出し側の try か Next のエラー画面に届く)
  */
-export async function readProfile(userId: string): Promise<ProfileDto | null> {
-  const [row] = await getDb()
-    .select({
-      email: userProfiles.email,
-      fullName: userProfiles.fullName,
-      address: userProfiles.address,
-      birthDate: userProfiles.birthDate,
-      residencePref: userProfiles.residencePref,
-      homeCity: userProfiles.homeCity,
-      homeSpot: userProfiles.homeSpot,
-      diningGenres: userProfiles.diningGenres,
-      leisureGenres: userProfiles.leisureGenres,
-      budget: userProfiles.budget,
-      priority: userProfiles.priority,
-      walletAddress: userProfiles.walletAddress,
-      updatedAt: userProfiles.updatedAt,
-    })
-    .from(userProfiles)
-    .where(eq(userProfiles.userId, userId))
-    .limit(1);
+export const readProfile = async (
+  userId: string,
+  profile: ProfileSettingsPort,
+): Promise<ProfileDto | null> => {
+  const read = await profile.readProfile(mustParse(parseUserId(userId)));
 
-  if (row === undefined) {
-    return null;
-  }
-
-  return {
-    ...row,
-    priority: row.priority as ProfileDto["priority"],
-    updatedAt: row.updatedAt.toISOString(),
-  };
-}
+  return unwrapOrThrow(read) ?? null;
+};
 
 /**
- * 拠点として選べる都市と起点
- *
- * 自由入力にすると交通が1件も当たらない設定を作れてしまうので、
- * 登録済みの交通の有効行から導出する (`register-page-spec.md` §9 と同じ考え方)
+ * 拠点として選べる都市と起点 (登録済みの交通の有効行から導く)
  */
-export async function readHomeOptions(): Promise<HomeOption[]> {
-  const rows = await getDb()
-    .selectDistinct({
-      city: transportServices.fromCity,
-      spot: transportServices.fromSpot,
-    })
-    .from(transportServices)
-    .where(eq(transportServices.active, true))
-    .orderBy(asc(transportServices.fromCity), asc(transportServices.fromSpot));
-
-  const byCity = new Map<string, string[]>();
-
-  for (const { city, spot } of rows) {
-    const spots = byCity.get(city);
-
-    if (spots === undefined) {
-      byCity.set(city, [spot]);
-    } else {
-      spots.push(spot);
-    }
-  }
-
-  return [...byCity].map(([city, spots]) => ({ city, spots }));
-}
+export const readHomeOptions = async (
+  catalog: CatalogManagementPort,
+): Promise<HomeOption[]> => {
+  return [...unwrapOrThrow(await catalog.listHomeOptions())];
+};
 
 /**
- * 好み・趣味に選べるジャンル
- *
- * `place_services.genre` と突き合わせるので、選択肢も同じ列から出す
+ * 好み・趣味に選べるジャンル (有効な飲食・レジャーの genre から導く)
  */
-export async function readGenreOptions(): Promise<GenreOptions> {
-  const rows = await getDb()
-    .selectDistinct({
-      kind: placeServices.kind,
-      genre: placeServices.genre,
-    })
-    .from(placeServices)
-    .where(
-      and(
-        eq(placeServices.active, true),
-        isNotNull(placeServices.genre),
-        inArray(placeServices.kind, ["restaurant", "leisure"]),
-      ),
-    )
-    .orderBy(asc(placeServices.genre));
-
-  const pick = (kind: string): string[] =>
-    rows
-      .filter((row) => row.kind === kind && row.genre !== null)
-      .map((row) => row.genre as string);
-
-  return { dining: pick("restaurant"), leisure: pick("leisure") };
-}
+export const readGenreOptions = async (
+  catalog: CatalogManagementPort,
+): Promise<GenreOptions> => {
+  return unwrapOrThrow(await catalog.listGenreOptions());
+};
 
 /**
  * 手配に使うプロフィールを読む
@@ -110,28 +47,13 @@ export async function readGenreOptions(): Promise<GenreOptions> {
  * 画面用の `readProfile` とは別に、本人確認の判定に要る `nationality` を含め、
  * 表示だけの項目は読まない
  */
-export async function readPlanningProfile(
+export const readPlanningProfile = async (
   userId: string,
-): Promise<PlanningProfile | null> {
-  const [row] = await getDb()
-    .select({
-      birthDate: userProfiles.birthDate,
-      nationality: userProfiles.nationality,
-      residencePref: userProfiles.residencePref,
-      homeCity: userProfiles.homeCity,
-      homeSpot: userProfiles.homeSpot,
-      diningGenres: userProfiles.diningGenres,
-      leisureGenres: userProfiles.leisureGenres,
-      budget: userProfiles.budget,
-      priority: userProfiles.priority,
-    })
-    .from(userProfiles)
-    .where(eq(userProfiles.userId, userId))
-    .limit(1);
+  profile: ProfileSettingsPort,
+): Promise<PlanningProfile | null> => {
+  const read = await profile.readPlanningProfile(
+    mustParse(parseUserId(userId)),
+  );
 
-  if (row === undefined) {
-    return null;
-  }
-
-  return { ...row, priority: row.priority as PlanningProfile["priority"] };
-}
+  return unwrapOrThrow(read) ?? null;
+};

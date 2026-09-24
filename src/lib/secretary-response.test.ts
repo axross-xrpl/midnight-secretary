@@ -76,8 +76,39 @@ const APPROVED_PAYLOAD = {
           transactionId: "tx-1",
           recipient: "wallet-rail",
         },
+        escrow: { status: "held", heldAt: "2026-09-10T00:02:00Z" },
       },
     ],
+  },
+};
+
+// 受取を確認した支払いの応答 (預かりが released に進んでいる)
+const RELEASED_PAYLOAD = {
+  data: {
+    ...APPROVED_PAYLOAD.data,
+    authorizations: APPROVED_PAYLOAD.data.authorizations.map(
+      (authorization) => ({
+        ...authorization,
+        escrow: {
+          status: "released",
+          heldAt: "2026-09-10T00:02:00Z",
+          releasedAt: "2026-09-11T00:00:00Z",
+          releaseRef: "release-1",
+        },
+      }),
+    ),
+  },
+};
+
+// escrow を落とした応答 (スキーマが必須として弾くことを確かめる)
+const WITHOUT_ESCROW = {
+  data: {
+    ...APPROVED_PAYLOAD.data,
+    authorizations: APPROVED_PAYLOAD.data.authorizations.map((authorization) =>
+      Object.fromEntries(
+        Object.entries(authorization).filter(([key]) => key !== "escrow"),
+      ),
+    ),
   },
 };
 
@@ -276,6 +307,18 @@ describe("parseTripResponse", () => {
 
   test("visibility の無い承認済みの応答は拒否する", () => {
     const parsed = parseTripResponse(WITHOUT_VISIBILITY);
+
+    expect(parsed.ok).toBe(false);
+  });
+
+  test("released の預かりを持つ支払いも通す", () => {
+    const parsed = parseTripResponse(RELEASED_PAYLOAD);
+
+    expect(parsed).toStrictEqual({ ok: true, value: RELEASED_PAYLOAD.data });
+  });
+
+  test("escrow の無い支払いを持つ応答は拒否する", () => {
+    const parsed = parseTripResponse(WITHOUT_ESCROW);
 
     expect(parsed.ok).toBe(false);
   });

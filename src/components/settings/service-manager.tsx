@@ -139,19 +139,19 @@ export function ServiceManager({
   // 高さは固定せず本文と一緒に伸ばす。一覧はページのスクロールで読み、
   // 詳細は右の列で sticky にして画面から出ないようにする
   return (
-    <div className="grid rounded-2xl border border-[#e5e8ec] bg-white shadow-sm md:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
-      <div className="flex flex-col border-b border-[#e5e8ec] md:border-r md:border-b-0">
+    <div className="grid rounded-xl border border-border bg-surface md:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="flex flex-col border-b border-border md:border-r md:border-b-0">
         {/* 検索と絞り込みは一覧をスクロールしても操作できるよう貼り付ける */}
-        <div className="bg-white md:sticky md:top-0 md:z-20">
-          <div className="border-b border-[#e5e8ec] p-4">
+        <div className="bg-surface md:sticky md:top-0 md:z-20">
+          <div className="border-b border-border p-4">
             <label className="relative block">
               <span className="sr-only">{t("search")}</span>
-              <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+              <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-faint" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder={t("searchPlaceholder")}
-                className="w-full rounded-lg border border-[#e5e8ec] py-2 pr-3 pl-9 text-sm outline-none transition focus:border-[#185fa5] focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-lg border border-border py-2 pr-3 pl-9 text-base outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-border"
               />
             </label>
             <div className="mt-3 flex items-center gap-3">
@@ -161,7 +161,7 @@ export function ServiceManager({
                 onChange={(event) =>
                   setCategory(event.target.value as ServiceCategory | "all")
                 }
-                className="min-w-0 flex-1 rounded-lg border border-[#e5e8ec] bg-white px-3 py-2 text-sm"
+                className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-base"
               >
                 <option value="all">{t("allCategories")}</option>
                 {serviceCategories.map((value) => (
@@ -170,19 +170,19 @@ export function ServiceManager({
                   </option>
                 ))}
               </select>
-              <label className="flex shrink-0 items-center gap-2 text-xs text-slate-600">
+              <label className="flex shrink-0 items-center gap-2 text-sm text-muted">
                 <input
                   type="checkbox"
                   checked={includeInactive}
                   onChange={(event) => setIncludeInactive(event.target.checked)}
-                  className="size-4 accent-[#185fa5]"
+                  className="size-4 accent-accent"
                 />
                 {t("includeInactive")}
               </label>
             </div>
           </div>
 
-          <div className="flex items-center justify-between border-b border-[#e5e8ec] px-4 py-3 text-xs text-slate-500">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3 text-xs text-muted">
             <span>{t("resultCount", { count: services.length })}</span>
             {isLoading && <span>{t("loading")}</span>}
           </div>
@@ -192,25 +192,23 @@ export function ServiceManager({
             md 以上はページのスクロールに任せる (でないと右の sticky が効かない) */}
         <div className="max-h-[60vh] overflow-y-auto md:max-h-none md:overflow-visible">
           {loadFailed ? (
-            <p className="p-6 text-center text-sm text-red-700">
+            <p className="p-6 text-center text-base text-danger">
               {t("loadFailed")}
             </p>
           ) : services.length === 0 ? (
-            <p className="p-6 text-center text-sm text-slate-500">
-              {t("empty")}
-            </p>
+            <p className="p-6 text-center text-base text-muted">{t("empty")}</p>
           ) : (
             groups.map((group) => {
               const Icon = categoryIcons[group.category];
 
               return (
                 <section key={group.category}>
-                  <h3 className="flex items-center justify-between gap-2 border-b border-[#e5e8ec] bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-600">
+                  <h3 className="flex items-center justify-between gap-2 border-b border-border bg-table-head px-4 py-2 text-sm font-medium text-muted">
                     <span className="flex items-center gap-1.5">
-                      <Icon className="size-3.5 text-[#185fa5]" />
+                      <Icon className="size-3.5 text-accent" />
                       {categoryLabel(group.category)}
                     </span>
-                    <span className="font-normal text-slate-500 tabular-nums">
+                    <span className="font-normal text-muted tabular-nums">
                       {t("resultCount", { count: group.items.length })}
                     </span>
                   </h3>
@@ -223,28 +221,28 @@ export function ServiceManager({
                       return (
                         <li
                           key={service.id}
-                          className="border-b border-[#e5e8ec] last:border-b-0"
+                          className="border-b border-border last:border-b-0"
                         >
                           <button
                             type="button"
                             onClick={() => selectService(service.id)}
                             aria-current={isSelected}
-                            className={`w-full px-4 py-3 text-left transition hover:bg-slate-50 ${
+                            className={`w-full px-4 py-3 text-left transition hover:bg-card-inner ${
                               isSelected
-                                ? "bg-blue-50 ring-1 ring-inset ring-blue-100"
+                                ? "bg-accent-bg ring-1 ring-inset ring-accent-border"
                                 : ""
                             }`}
                           >
                             <span className="flex items-baseline justify-between gap-2">
                               <span
                                 title={service.name}
-                                className="truncate text-sm font-semibold"
+                                className="truncate text-base font-semibold"
                               >
                                 {service.name}
                               </span>
-                              <span className="shrink-0 text-sm font-semibold tabular-nums">
+                              <span className="shrink-0 text-base font-semibold tabular-nums">
                                 {priceFormatter.format(service.price)}
-                                <span className="ml-0.5 text-xs font-normal text-slate-500">
+                                <span className="ml-0.5 text-xs font-normal text-muted">
                                   /
                                   {t(
                                     `units.${categoryPriceUnits[service.category]}`,
@@ -252,7 +250,7 @@ export function ServiceManager({
                                 </span>
                               </span>
                             </span>
-                            <span className="mt-1.5 flex items-center gap-2 text-xs text-slate-500">
+                            <span className="mt-1.5 flex items-center gap-2 text-xs text-muted">
                               <span className="flex min-w-0 flex-1 items-center gap-1">
                                 <MapPin className="size-3 shrink-0" />
                                 <span className="truncate">
@@ -262,7 +260,7 @@ export function ServiceManager({
                               {hasVerifications && (
                                 <span
                                   title={verificationSummary(service)}
-                                  className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-50 px-1.5 py-0.5 font-medium text-amber-900 ring-1 ring-inset ring-amber-200"
+                                  className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-warn-bg px-1.5 py-0.5 font-medium text-warn"
                                 >
                                   <ShieldCheck className="size-3" />
                                   <span className="sr-only">
@@ -279,7 +277,7 @@ export function ServiceManager({
                                 </span>
                               )}
                               {!service.active && (
-                                <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-slate-700">
+                                <span className="shrink-0 rounded-full bg-neutral-bg px-2 py-0.5 text-muted">
                                   {t("inactive")}
                                 </span>
                               )}
@@ -299,16 +297,16 @@ export function ServiceManager({
       <div className="p-6 sm:p-8">
         {/* 一覧をスクロールしても内容が画面から出ないよう貼り付ける。
             詳細が画面より高いときはこの中だけをスクロールさせる */}
-        <div className="mx-auto w-full max-w-3xl md:sticky md:top-6 md:max-h-[calc(100dvh-4rem)] md:overflow-y-auto">
+        <div className="mx-auto w-full max-w-4xl md:sticky md:top-6 md:max-h-[calc(100dvh-4rem)] md:overflow-y-auto">
           {selectedService ? (
             <ServiceDetail key={selectedService.id} service={selectedService} />
           ) : (
             <div className="mx-auto max-w-sm py-8 text-center">
-              <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+              <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-neutral-bg text-muted">
                 <Building2 className="size-5" />
               </span>
               <h3 className="mt-4 font-semibold">{t("selectTitle")}</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-500">
+              <p className="mt-2 text-base text-muted">
                 {t("selectDescription")}
               </p>
               {supportedCities.length > 0 && (
@@ -316,7 +314,7 @@ export function ServiceManager({
                   {supportedCities.map((city) => (
                     <span
                       key={city}
-                      className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-[#185fa5]"
+                      className="rounded-full bg-accent-bg px-2.5 py-1 text-xs text-accent"
                     >
                       {city}
                     </span>

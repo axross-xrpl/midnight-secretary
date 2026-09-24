@@ -3,6 +3,7 @@
 import { useFormatter, useTranslations } from "next-intl";
 import type { ReactElement } from "react";
 import { match } from "ts-pattern";
+import type { TripUpdatedHandler } from "./authorization-list";
 import { AuthorizationList } from "./authorization-list";
 import type { Bubble, SecretaryLine, UserLine } from "./conversation";
 import { FailureNotice } from "./failure-notice";
@@ -32,12 +33,14 @@ import { useFormatNumber } from "./use-format-number";
 type SecretaryContentProps = {
   line: SecretaryLine;
   onVisibilityChange: VisibilityChangeHandler;
+  onTripUpdated: TripUpdatedHandler;
 };
 
 // 秘書の吹き出しの中身 (文言と、あれば計画や支払いの明細)
 const SecretaryContent = ({
   line,
   onVisibilityChange,
+  onTripUpdated,
 }: SecretaryContentProps): ReactElement => {
   const t = useTranslations("Conversation");
   const format = useFormatter();
@@ -107,16 +110,24 @@ const SecretaryContent = ({
       </>
     ))
     .with({ kind: "askPay" }, () => <p>{t("lines.askPay")}</p>)
-    .with({ kind: "partiallyPaid" }, ({ authorizations }) => (
+    .with({ kind: "partiallyPaid" }, ({ tripId, authorizations }) => (
       <>
         <p>{t("lines.partiallyPaid", { count: authorizations.length })}</p>
-        <AuthorizationList authorizations={authorizations} />
+        <AuthorizationList
+          tripId={tripId}
+          authorizations={authorizations}
+          onTripUpdated={onTripUpdated}
+        />
       </>
     ))
-    .with({ kind: "paid" }, ({ authorizations }) => (
+    .with({ kind: "paid" }, ({ tripId, authorizations }) => (
       <>
         <p>{t("lines.paid", { count: authorizations.length })}</p>
-        <AuthorizationList authorizations={authorizations} />
+        <AuthorizationList
+          tripId={tripId}
+          authorizations={authorizations}
+          onTripUpdated={onTripUpdated}
+        />
       </>
     ))
     .with({ kind: "askWriteBack" }, () => <p>{t("lines.askWriteBack")}</p>)
@@ -132,7 +143,7 @@ const SecretaryContent = ({
         </dl>
         {/* カレンダーには書けているので、確定旅程の保存の失敗は補足の 1 行だけにする */}
         {confirmedStoreFailed ? (
-          <p className="text-[12.5px] text-muted">
+          <p className="text-sm text-muted">
             {t("lines.confirmedStoreFailed")}
           </p>
         ) : undefined}
@@ -164,12 +175,14 @@ type SecretaryBubbleProps = {
   line: SecretaryLine;
   at?: string;
   onVisibilityChange: VisibilityChangeHandler;
+  onTripUpdated: TripUpdatedHandler;
 };
 
 const SecretaryBubble = ({
   line,
   at,
   onVisibilityChange,
+  onTripUpdated,
 }: SecretaryBubbleProps): ReactElement => {
   const t = useTranslations("Conversation");
   const format = useFormatter();
@@ -184,6 +197,7 @@ const SecretaryBubble = ({
           <SecretaryContent
             line={line}
             onVisibilityChange={onVisibilityChange}
+            onTripUpdated={onTripUpdated}
           />
         </div>
         {at === undefined ? undefined : (
@@ -225,6 +239,7 @@ const UserBubble = ({ line }: UserBubbleProps): ReactElement => {
 type BubbleItemProps = {
   bubble: Bubble;
   onVisibilityChange: VisibilityChangeHandler;
+  onTripUpdated: TripUpdatedHandler;
 };
 
 /**
@@ -232,10 +247,12 @@ type BubbleItemProps = {
  *
  * 秘書は左にアバター付き、ユーザは右に出す
  * `onVisibilityChange` は提案の計画に置く公開範囲のトグルが使う
+ * `onTripUpdated` は支払いの明細に置く受取の確認が使う
  */
 export const BubbleItem = ({
   bubble,
   onVisibilityChange,
+  onTripUpdated,
 }: BubbleItemProps): ReactElement => {
   return match(bubble)
     .with({ speaker: "secretary" }, ({ line, at }) => (
@@ -243,6 +260,7 @@ export const BubbleItem = ({
         line={line}
         at={at}
         onVisibilityChange={onVisibilityChange}
+        onTripUpdated={onTripUpdated}
       />
     ))
     .with({ speaker: "user" }, ({ line }) => <UserBubble line={line} />)

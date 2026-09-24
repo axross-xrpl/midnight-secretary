@@ -45,7 +45,7 @@ const walletAddress = (raw: string): WalletAddress => {
 const PAYEE = walletAddress("demo-payee-jr");
 
 const testIds = (): MandateIds => {
-  const state = { issued: 0 };
+  const state = { issued: 0, released: 0 };
 
   return {
     newMandateId: () => {
@@ -55,6 +55,11 @@ const testIds = (): MandateIds => {
     },
     newCommitment: () => `commitment-${state.issued}`,
     hashAuthorization: (id, ref) => `hash:${id}:${ref}`,
+    newReleaseRef: () => {
+      state.released = state.released + 1;
+
+      return `release-${state.released}`;
+    },
   };
 };
 
@@ -182,6 +187,7 @@ describe("authorizePayment", () => {
           transactionId: "tx-1",
           recipient: PAYEE,
         },
+        escrow: { status: "held", heldAt: "2026-09-09T09:00:00+09:00" },
       },
     });
     // カタログの payee (プレースホルダ) ではなく、固定の決済受取アドレスへ送金する
@@ -219,6 +225,7 @@ describe("authorizePayment", () => {
           transactionId: "shielded-tx-1",
           recipient: PAYEE,
         },
+        escrow: { status: "held", heldAt: "2026-09-09T09:00:00+09:00" },
       },
     });
     // public 側の送金は試みず、shielded の固定受取アドレスへだけ送金する
@@ -384,5 +391,92 @@ describe("authorizePayment", () => {
       error: { kind: "notFound", mandateId: "mandate-9" },
     });
     expect(deps.calls).toStrictEqual([]);
+  });
+});
+
+describe("releaseEscrow", () => {
+  test("解放は fake と同じくメモリ上で released に進め、on-chain 送金は増えない (送金は承認時に済んでいる)", async () => {
+    const deps = recordingDeps();
+    const mandate = await setUp(deps, 50000);
+
+    await mandate.authorizePayment({
+      mandateId: mandateId("mandate-1"),
+      paymentRef: paymentRef("trip:1"),
+      amount: mst(14720),
+      recipient: PAYEE,
+      visibility: "public",
+      now: at("2026-09-09T09:00:00+09:00"),
+    });
+
+    const released = await mandate.releaseEscrow(
+      mandateId("mandate-1"),
+      paymentRef("trip:1"),
+      at("2026-09-10T09:00:00+09:00"),
+    );
+
+    expect(released.ok && released.value.escrow).toStrictEqual({
+      status: "released",
+      heldAt: "2026-09-09T09:00:00+09:00",
+      releasedAt: "2026-09-10T09:00:00+09:00",
+      releaseRef: "release-1",
+    });
+    expect(deps.calls).toHaveLength(1);
+    expect(deps.shieldedCalls).toStrictEqual([]);
+
+    const ledger = await mandate.readPublicLedger();
+
+    expect(ledger.ok && ledger.value.escrows).toStrictEqual([
+      {
+        publicHash: "hash:mandate-1:trip:1",
+        status: "released",
+        amount: mst(14720),
+      },
+    ]);
+  });
+
+  test("解放済みをもう一度解放すると notHeld になる", async () => {
+    const deps = recordingDeps();
+    const mandate = await setUp(deps, 50000);
+
+    await mandate.authorizePayment({
+      mandateId: mandateId("mandate-1"),
+      paymentRef: paymentRef("trip:1"),
+      amount: mst(14720),
+      recipient: PAYEE,
+      visibility: "public",
+      now: at("2026-09-09T09:00:00+09:00"),
+    });
+    await mandate.releaseEscrow(
+      mandateId("mandate-1"),
+      paymentRef("trip:1"),
+      at("2026-09-10T09:00:00+09:00"),
+    );
+
+    expect(
+      await mandate.releaseEscrow(
+        mandateId("mandate-1"),
+        paymentRef("trip:1"),
+        at("2026-09-11T09:00:00+09:00"),
+      ),
+    ).toStrictEqual({
+      ok: false,
+      error: { kind: "notHeld", paymentRef: "trip:1" },
+    });
+  });
+
+  test("承認の無い paymentRef は notFound になる", async () => {
+    const deps = recordingDeps();
+    const mandate = await setUp(deps, 50000);
+
+    expect(
+      await mandate.releaseEscrow(
+        mandateId("mandate-1"),
+        paymentRef("trip:9"),
+        at("2026-09-10T09:00:00+09:00"),
+      ),
+    ).toStrictEqual({
+      ok: false,
+      error: { kind: "notFound", mandateId: "mandate-1" },
+    });
   });
 });

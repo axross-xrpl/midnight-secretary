@@ -1,13 +1,14 @@
 import "server-only";
 
+import type { ServiceWriteError } from "@/domain/catalog";
 import {
   conflictResponse,
   databaseConstraintResponse,
+  databaseWriteErrorResponse,
   duplicateCodeResponse,
   immutableCategoryResponse,
   notFoundResponse,
 } from "@/lib/api-response";
-import type { ServiceWriteError } from "./write-services";
 
 export function serviceWriteErrorResponse(error: ServiceWriteError) {
   switch (error.kind) {
@@ -21,5 +22,7 @@ export function serviceWriteErrorResponse(error: ServiceWriteError) {
       return immutableCategoryResponse();
     case "constraintViolation":
       return databaseConstraintResponse();
+    case "unavailable":
+      return databaseWriteErrorResponse(error.cause);
   }
 }

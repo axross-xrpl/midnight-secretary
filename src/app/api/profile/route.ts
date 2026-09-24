@@ -5,6 +5,7 @@ import {
   unauthorizedResponse,
 } from "@/lib/api-response";
 import { getApiSessionUser } from "@/lib/api-session";
+import { settingsDeps } from "@/server/ports";
 import { profileWriteErrorResponse } from "@/server/profile/write-response";
 import { saveProfile } from "@/server/profile/write-profile";
 
@@ -28,7 +29,11 @@ export async function PUT(request: Request) {
   }
 
   try {
-    const result = await saveProfile(user, parsedBody.data);
+    const result = await saveProfile(
+      user,
+      parsedBody.data,
+      settingsDeps().profile,
+    );
     return result.ok
       ? Response.json({ data: result.value })
       : profileWriteErrorResponse(result.error);

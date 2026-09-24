@@ -3,6 +3,7 @@ import {
   createMandateIn,
   hasAuthorization,
   publicLedgerOf,
+  releaseIn,
   validatePayment,
   type MandateIds,
   type MandateLedgerState,
@@ -75,6 +76,7 @@ const authorizePayment = (
     authorizedAt: request.now,
     publicHash: ids.hashAuthorization(request.mandateId, request.paymentRef),
     settlement: settlementOf(ids, request),
+    escrow: { status: "held", heldAt: request.now },
   };
 
   commitPayment(state, authorization, validated.value);
@@ -101,6 +103,8 @@ export const createFakeMandate = (seed: FakeMandateSeed): MandatePort => {
     createMandate: async (draft) => ok(createMandateIn(state, seed.ids, draft)),
     authorizePayment: async (request) =>
       authorizePayment(state, seed.ids, request),
+    releaseEscrow: async (mandateId, paymentRef, now) =>
+      releaseIn(state, seed.ids, mandateId, paymentRef, now),
     readMandate: async (mandateId) => ok(state.mandates[mandateId]),
     isAuthorized: async (mandateId, paymentRef) =>
       ok(hasAuthorization(state, mandateId, paymentRef)),

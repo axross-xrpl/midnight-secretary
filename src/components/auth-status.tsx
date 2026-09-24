@@ -24,7 +24,7 @@ export default function AuthStatus({ signInProvider }: AuthStatusProps) {
       <button
         type="button"
         onClick={() => signOut()}
-        className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-zinc-600 hover:text-black dark:text-zinc-300 dark:hover:text-white"
+        className="flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium text-muted hover:text-ink"
       >
         <LogOut size={16} />
         {t("signOut")}
@@ -36,7 +36,7 @@ export default function AuthStatus({ signInProvider }: AuthStatusProps) {
     <button
       type="button"
       onClick={() => signIn(signInProvider)}
-      className="flex items-center gap-1.5 rounded-full bg-black px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+      className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-ink px-3 py-1.5 text-sm font-medium text-surface hover:opacity-90"
     >
       <LogIn size={16} />
       {signInLabel}

@@ -20,6 +20,7 @@ import type {
   CalendarEventId,
   IsoDateTime,
   MandateId,
+  OfferId,
   TripId,
   UserId,
 } from "@/domain/identifiers";
@@ -29,6 +30,7 @@ import {
   parseCalendarEventId,
   parseIsoDateTime,
   parseMandateId,
+  parseOfferId,
   parseUserId,
 } from "@/domain/identifiers.parse";
 import type { IdentityPort } from "@/domain/identity";
@@ -64,6 +66,7 @@ import type {
 } from "./secretary";
 import {
   approveTrip,
+  confirmReceipt,
   deleteConfirmedTrip,
   issueAgeCredential,
   loadConfirmedTrips,
@@ -96,6 +99,10 @@ const mandateId = (raw: string): MandateId => {
 
 const userId = (raw: string): UserId => {
   return mustParse(parseUserId(raw));
+};
+
+const offerId = (raw: string): OfferId => {
+  return mustParse(parseOfferId(raw));
 };
 
 const NOW = at("2026-09-09T00:00:00Z");
@@ -154,7 +161,7 @@ const testEventIds = (): (() => CalendarEventId) => {
 };
 
 const testMandateIds = (): FakeMandateIds => {
-  const state = { issued: 0, sent: 0 };
+  const state = { issued: 0, sent: 0, released: 0 };
 
   return {
     newMandateId: () => {
@@ -169,6 +176,11 @@ const testMandateIds = (): FakeMandateIds => {
       return `tx-${state.sent}`;
     },
     hashAuthorization: (id, ref) => `hash:${id}:${ref}`,
+    newReleaseRef: () => {
+      state.released = state.released + 1;
+
+      return `release-${state.released}`;
+    },
   };
 };
 
@@ -1497,6 +1509,138 @@ describe("payForTrip", () => {
           expected: "approved",
           actual: "paid",
         },
+      },
+    });
+  });
+});
+
+describe("confirmReceipt", () => {
+  test("支払い済みの候補の受取を確認すると、その行だけ released になって保存される", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, OSAKA_EVENT);
+
+    await mustApprove(deps, proposed.id);
+    const paid = await mustPay(deps, proposed.id);
+    const outboundRef = paymentRefFor(paid.id, paid.plan.outbound.id);
+
+    const confirmed = mustOk(
+      await confirmReceipt(USER, paid.id, outboundRef, LATER, deps),
+    );
+
+    expect(confirmed.status).toBe("paid");
+    expect(
+      confirmed.authorizations.map((authorization) => authorization.escrow),
+    ).toStrictEqual([
+      {
+        status: "released",
+        heldAt: NOW,
+        releasedAt: LATER,
+        releaseRef: "release-1",
+      },
+
+      { status: "held", heldAt: NOW },
+    ]);
+    expect(await storedTrip(deps, paid.id)).toStrictEqual(confirmed);
+
+    const ledger = mustOk(await loadLedgerViews(USER, deps));
+
+    expect(
+      ledger.publicLedger.escrows.map((escrow) => escrow.status),
+    ).toStrictEqual(["released", "held"]);
+  });
+
+  test("書き戻し済みの出張でも受取を確認できる", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const written = await mustWriteBack(deps, OSAKA_EVENT);
+    const inboundRef = paymentRefFor(written.id, written.plan.inbound.id);
+
+    const confirmed = mustOk(
+      await confirmReceipt(USER, written.id, inboundRef, LATER, deps),
+    );
+
+    expect(confirmed.status).toBe("written");
+    expect(confirmed.authorizations.at(1)?.escrow.status).toBe("released");
+    expect(await storedTrip(deps, written.id)).toStrictEqual(confirmed);
+  });
+
+  test("同じ候補の受取を 2 回確認すると notHeld になる", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, OSAKA_EVENT);
+
+    await mustApprove(deps, proposed.id);
+    const paid = await mustPay(deps, proposed.id);
+    const outboundRef = paymentRefFor(paid.id, paid.plan.outbound.id);
+
+    await confirmReceipt(USER, paid.id, outboundRef, LATER, deps);
+
+    expect(
+      await confirmReceipt(USER, paid.id, outboundRef, LATER, deps),
+    ).toStrictEqual({
+      ok: false,
+      error: {
+        source: "mandate",
+        error: { kind: "notHeld", paymentRef: outboundRef },
+      },
+    });
+  });
+
+  test("提案済みのままでは notPaid になる", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, OSAKA_EVENT);
+    const outboundRef = paymentRefFor(proposed.id, proposed.plan.outbound.id);
+
+    expect(
+      await confirmReceipt(USER, proposed.id, outboundRef, LATER, deps),
+    ).toStrictEqual({
+      ok: false,
+      error: {
+        source: "flow",
+        error: { kind: "notPaid", tripId: proposed.id },
+      },
+    });
+  });
+
+  test("その出張に無い paymentRef は notFound になり、trip は変わらない", async () => {
+    const deps = testDeps();
+
+    await mustSetUpMandate(deps, ENOUGH_CAP);
+    const proposed = await mustPropose(deps, OSAKA_EVENT);
+
+    await mustApprove(deps, proposed.id);
+    const paid = await mustPay(deps, proposed.id);
+    const unknownRef = paymentRefFor(paid.id, offerId("hotel-unknown"));
+
+    expect(
+      await confirmReceipt(USER, paid.id, unknownRef, LATER, deps),
+    ).toStrictEqual({
+      ok: false,
+      error: {
+        source: "mandate",
+        error: { kind: "notFound", mandateId: mandateId("mandate-1") },
+      },
+    });
+    expect(await storedTrip(deps, paid.id)).toStrictEqual(paid);
+  });
+
+  test("知らない trip id は tripNotFound になる", async () => {
+    const deps = testDeps();
+    const someRef = paymentRefFor(UNKNOWN_TRIP_ID, offerId("hotel-unknown"));
+
+    expect(
+      await confirmReceipt(USER, UNKNOWN_TRIP_ID, someRef, LATER, deps),
+    ).toStrictEqual({
+      ok: false,
+      error: {
+        source: "flow",
+        error: { kind: "tripNotFound", tripId: UNKNOWN_TRIP_ID },
       },
     });
   });

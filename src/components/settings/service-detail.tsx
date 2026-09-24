@@ -46,8 +46,8 @@ type FieldProps = {
 const Field = ({ label, children }: FieldProps): ReactElement => {
   return (
     <div>
-      <dt className="text-xs text-slate-500">{label}</dt>
-      <dd className="mt-1 text-sm font-medium break-words">{children}</dd>
+      <dt className="text-sm text-muted">{label}</dt>
+      <dd className="mt-1 text-base font-medium break-words">{children}</dd>
     </div>
   );
 };
@@ -59,8 +59,8 @@ type SectionProps = {
 
 const Section = ({ title, children }: SectionProps): ReactElement => {
   return (
-    <section className="border-t border-[#e5e8ec] pt-5">
-      <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+    <section className="border-t border-border pt-5">
+      <h4 className="text-sm font-medium uppercase tracking-wide text-muted">
         {title}
       </h4>
       <dl className="mt-3 grid gap-4 sm:grid-cols-2">{children}</dl>
@@ -74,11 +74,11 @@ const Section = ({ title, children }: SectionProps): ReactElement => {
  * 乗車時間より前後の移動と待ちが長いことが、数字を読まなくても分かるようにする
  */
 const breakdownColors = {
-  originAccessMin: "bg-slate-300",
-  boardingBufferMin: "bg-slate-400",
-  durationMin: "bg-[#185fa5]",
-  arrivalBufferMin: "bg-slate-400",
-  destinationAccessMin: "bg-slate-300",
+  originAccessMin: "bg-ghost-border",
+  boardingBufferMin: "bg-faint",
+  durationMin: "bg-accent",
+  arrivalBufferMin: "bg-faint",
+  destinationAccessMin: "bg-ghost-border",
 } satisfies Record<keyof DoorToDoorBreakdown, string>;
 
 const breakdownLabels = {
@@ -119,16 +119,16 @@ const DoorToDoorPanel = ({
       : t("detail.duration", { hours, minutes });
 
   return (
-    <div className="mt-6 rounded-xl bg-slate-50 p-5">
+    <div className="mt-6 rounded-xl bg-card-inner p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <p className="text-sm font-medium uppercase tracking-wide text-muted">
             {t("detail.doorToDoor")}
           </p>
           <p className="mt-1 text-2xl font-semibold tabular-nums">{duration}</p>
         </div>
         <div className="text-right">
-          <p className="text-xs text-slate-500">{t("detail.total")}</p>
+          <p className="text-sm text-muted">{t("detail.total")}</p>
           <p className="mt-1 text-lg font-semibold tabular-nums">
             {priceFormatter.format(totalPrice)} MST
           </p>
@@ -137,7 +137,7 @@ const DoorToDoorPanel = ({
 
       <div
         aria-hidden="true"
-        className="mt-4 flex h-2 overflow-hidden rounded-full bg-slate-200"
+        className="mt-4 flex h-2 overflow-hidden rounded-full bg-neutral-bg"
       >
         {breakdownOrder.map((key) => {
           const value = breakdown[key];
@@ -156,9 +156,9 @@ const DoorToDoorPanel = ({
         {breakdownOrder.map((key) => (
           <li
             key={key}
-            className="flex items-center justify-between gap-3 text-xs"
+            className="flex items-center justify-between gap-3 text-sm"
           >
-            <span className="flex min-w-0 items-center gap-2 text-slate-600">
+            <span className="flex min-w-0 items-center gap-2 text-muted">
               <span
                 aria-hidden="true"
                 className={`size-2 shrink-0 rounded-full ${breakdownColors[key]}`}
@@ -167,16 +167,14 @@ const DoorToDoorPanel = ({
                 {t(`detail.breakdown.${breakdownLabels[key]}`)}
               </span>
             </span>
-            <span className="shrink-0 tabular-nums text-slate-900">
+            <span className="shrink-0 tabular-nums text-ink">
               {t("detail.durationMinutes", { minutes: breakdown[key] })}
             </span>
           </li>
         ))}
       </ul>
 
-      <p className="mt-4 text-xs leading-5 text-slate-500">
-        {t("detail.doorToDoorNote")}
-      </p>
+      <p className="mt-4 text-sm text-muted">{t("detail.doorToDoorNote")}</p>
     </div>
   );
 };
@@ -202,8 +200,8 @@ const Verifications = ({
   }
 
   return (
-    <section className="border-t border-[#e5e8ec] pt-5">
-      <h4 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+    <section className="border-t border-border pt-5">
+      <h4 className="flex items-center gap-1.5 text-sm font-medium uppercase tracking-wide text-muted">
         <ShieldCheck className="size-3.5" />
         {t("detail.verifications")}
       </h4>
@@ -211,7 +209,7 @@ const Verifications = ({
         {requiredVerifications.map((kind) => (
           <li
             key={kind}
-            className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900 ring-1 ring-inset ring-amber-200"
+            className="rounded-full bg-warn-bg px-2.5 py-1 text-xs font-medium text-warn"
           >
             {kind === "age" && ageLimit !== null
               ? t("verifications.ageWithLimit", { limit: ageLimit })
@@ -304,14 +302,12 @@ const PlaceFields = ({ service }: PlaceFieldsProps): ReactElement => {
           <span className="tabular-nums">
             {priceFormatter.format(service.price)} MST
           </span>
-          <span className="ml-1 text-xs font-normal text-slate-500">
-            / {unit}
-          </span>
+          <span className="ml-1 text-xs font-normal text-muted">/ {unit}</span>
         </Field>
         {service.rating === null ? undefined : (
           <Field label={t("detail.rating")}>
             <span className="tabular-nums">{service.rating.toFixed(1)}</span>
-            <span className="text-xs font-normal text-slate-500"> / 5.0</span>
+            <span className="text-xs font-normal text-muted"> / 5.0</span>
           </Field>
         )}
       </Section>
@@ -386,21 +382,21 @@ const DetailSkeleton = (): ReactElement => {
   return (
     <div aria-hidden="true" className="animate-pulse">
       <div className="flex items-start gap-4">
-        <div className="size-12 rounded-xl bg-slate-100" />
+        <div className="size-12 rounded-lg bg-neutral-bg" />
         <div className="flex-1 space-y-2 pt-1">
-          <div className="h-3 w-16 rounded bg-slate-100" />
-          <div className="h-5 w-2/3 rounded bg-slate-100" />
-          <div className="h-3 w-24 rounded bg-slate-100" />
+          <div className="h-3 w-16 rounded bg-neutral-bg" />
+          <div className="h-5 w-2/3 rounded bg-neutral-bg" />
+          <div className="h-3 w-24 rounded bg-neutral-bg" />
         </div>
       </div>
-      <div className="mt-6 h-28 rounded-xl bg-slate-50" />
-      <div className="mt-6 space-y-4 border-t border-[#e5e8ec] pt-5">
-        <div className="h-3 w-20 rounded bg-slate-100" />
+      <div className="mt-6 h-28 rounded-xl bg-card-inner" />
+      <div className="mt-6 space-y-4 border-t border-border pt-5">
+        <div className="h-3 w-20 rounded bg-neutral-bg" />
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="h-9 rounded bg-slate-50" />
-          <div className="h-9 rounded bg-slate-50" />
-          <div className="h-9 rounded bg-slate-50" />
-          <div className="h-9 rounded bg-slate-50" />
+          <div className="h-9 rounded bg-card-inner" />
+          <div className="h-9 rounded bg-card-inner" />
+          <div className="h-9 rounded bg-card-inner" />
+          <div className="h-9 rounded bg-card-inner" />
         </div>
       </div>
     </div>
@@ -467,24 +463,24 @@ export const ServiceDetail = ({
     state.status === "loaded" ? state.detail.service.active : service.active;
 
   return (
-    <div className="w-full rounded-2xl border border-[#e5e8ec] p-6">
+    <div className="w-full rounded-xl border border-border p-6">
       <div className="flex items-start gap-4">
-        <span className="rounded-xl bg-blue-50 p-3 text-[#185fa5]">
+        <span className="rounded-lg bg-accent-bg p-3 text-accent">
           <Icon className="size-6" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#185fa5]">
+            <p className="text-sm font-medium uppercase tracking-wide text-accent">
               {t(`categories.${service.category}`)}
             </p>
             {isActive ? undefined : (
-              <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-700">
+              <span className="rounded-full bg-neutral-bg px-2 py-0.5 text-xs text-muted">
                 {t("inactive")}
               </span>
             )}
           </div>
           <h3 className="mt-1 text-xl font-semibold">{service.name}</h3>
-          <p className="mt-1 text-sm text-slate-500">{service.code}</p>
+          <p className="mt-1 font-mono text-sm text-muted">{service.code}</p>
         </div>
       </div>
 
@@ -500,7 +496,7 @@ export const ServiceDetail = ({
       {state.status === "failed" ? (
         <div
           role="alert"
-          className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+          className="mt-6 rounded-lg bg-danger-bg px-4 py-3 text-sm text-danger"
         >
           <p>
             {state.error === "notFound"
@@ -511,7 +507,7 @@ export const ServiceDetail = ({
             <button
               type="button"
               onClick={load}
-              className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 transition hover:bg-red-100"
+              className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-danger bg-surface px-4 py-2 text-sm font-medium text-danger transition hover:bg-danger-bg"
             >
               <RotateCcw className="size-3.5" />
               {t("detail.retry")}
@@ -537,11 +533,11 @@ export const ServiceDetail = ({
               />
             </div>
           ) : undefined}
-          <section className="mt-5 border-t border-[#e5e8ec] pt-5">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <section className="mt-5 border-t border-border pt-5">
+            <h4 className="text-sm font-medium uppercase tracking-wide text-muted">
               {t("detail.walletAddress")}
             </h4>
-            <p className="mt-2 font-mono text-xs break-all text-slate-600">
+            <p className="mt-2 font-mono text-sm break-all text-muted">
               {state.detail.service.walletAddress}
             </p>
           </section>

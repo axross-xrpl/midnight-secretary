@@ -102,7 +102,7 @@ const testEventIds = (): (() => CalendarEventId) => {
 };
 
 const testMandateIds = (): FakeMandateIds => {
-  const state = { issued: 0, sent: 0 };
+  const state = { issued: 0, sent: 0, released: 0 };
 
   return {
     newMandateId: (): MandateId => {
@@ -117,6 +117,11 @@ const testMandateIds = (): FakeMandateIds => {
       return `tx-${state.sent}`;
     },
     hashAuthorization: (id, ref) => `hash:${id}:${ref}`,
+    newReleaseRef: () => {
+      state.released = state.released + 1;
+
+      return `release-${state.released}`;
+    },
   };
 };
 

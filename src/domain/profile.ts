@@ -1,3 +1,5 @@
+import type { PlanningProfile } from "@/features/profile/feasibility";
+import type { ProfileDto, ProfileSaveInput } from "@/features/profile/schemas";
 import type { Result } from "@/lib/result";
 import type { SchemaError } from "@/lib/schema";
 import type { IsoDate, UserId } from "./identifiers";
@@ -35,4 +37,65 @@ export type ReadPreferences = (
 export type ProfilePort = {
   readBirthDate: ReadBirthDate;
   readPreferences: ReadPreferences;
+};
+
+/**
+ * プロフィールの書き込みで起こりうる失敗
+ *
+ * `notFound` は更新しようとした行が無いとき、`conflict` は取得時の `updatedAt` と食い違ったとき (同時編集)
+ * `unavailable` は DB に届かなかったときで、原因をそのまま持つ
+ */
+export type ProfileWriteError =
+  | { kind: "notFound" }
+  | { kind: "conflict" }
+  | { kind: "duplicateEmail" }
+  | { kind: "constraintViolation" }
+  | { kind: "unavailable"; cause: unknown };
+
+/**
+ * プロフィールの行の持ち主
+ *
+ * どちらもセッション由来で、クライアントからは受け取らない
+ */
+export type ProfileOwner = {
+  userId: UserId;
+  email: string;
+};
+
+/**
+ * 画面用のプロフィール (行が無ければ undefined)
+ */
+export type ReadProfile = (
+  userId: UserId,
+) => Promise<Result<ProfileDto | undefined, ProfileError>>;
+
+/**
+ * 手配に使うプロフィール (行が無ければ undefined)
+ *
+ * 本人確認の判定に要る `nationality` を含み、表示だけの項目は持たない
+ */
+export type ReadPlanningProfile = (
+  userId: UserId,
+) => Promise<Result<PlanningProfile | undefined, ProfileError>>;
+
+/**
+ * プロフィールを保存する
+ *
+ * `input.updatedAt` が無ければ未登録として作り、あれば同時編集を検知しつつ書き換える
+ */
+export type SaveProfile = (
+  owner: ProfileOwner,
+  input: ProfileSaveInput,
+) => Promise<Result<ProfileDto, ProfileWriteError>>;
+
+/**
+ * 設定画面から見たプロフィール
+ *
+ * `ProfilePort` と同じ行を画面の形で読み書きする
+ * 同じ adapter が両方を実装し、`SECRETARY_PROFILE` で一緒に切り替わる
+ */
+export type ProfileSettingsPort = {
+  readProfile: ReadProfile;
+  readPlanningProfile: ReadPlanningProfile;
+  saveProfile: SaveProfile;
 };

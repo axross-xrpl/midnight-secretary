@@ -2,7 +2,9 @@
 
 import { useFormatter, useTranslations } from "next-intl";
 import type { ReactElement } from "react";
+import { useId } from "react";
 import { match } from "ts-pattern";
+import { Switch } from "@/components/ui/switch";
 import type {
   PlaceOfferResponse,
   SettlementVisibilityResponse,
@@ -76,19 +78,20 @@ const PrivateToggle = ({
   onChange,
 }: PrivateToggleProps): ReactElement => {
   const t = useTranslations("Conversation");
+  // label は隠し input と for で結び、Base UI がその label を switch の aria-labelledby にする
+  const id = useId();
 
   return (
-    <label className={`flex flex-none items-center gap-1.5 ${labelClass}`}>
-      {/* switch は checked の対応づけを暗黙に頼らず aria-checked も持たせる */}
-      <input
-        type="checkbox"
-        role="switch"
-        className="cursor-pointer accent-accent disabled:cursor-default disabled:opacity-40"
+    <label
+      htmlFor={id}
+      className={`flex flex-none cursor-pointer items-center gap-1.5 ${labelClass}`}
+    >
+      <Switch
+        id={id}
         checked={checked}
-        aria-checked={checked}
         disabled={disabled}
-        onChange={(event) =>
-          onChange(category, visibilityOfChecked(event.target.checked))
+        onCheckedChange={(next) =>
+          onChange(category, visibilityOfChecked(next))
         }
       />
       {t("plan.privateToggle")}
@@ -157,7 +160,7 @@ const PlaceBody = ({ kind, offer }: PlaceBodyProps): ReactElement => {
     <>
       <VendorCircle kind={kind} />
       <span className="min-w-0 flex-1">
-        <span className="block text-[13px] font-medium">{name}</span>
+        <span className="block text-base font-medium">{name}</span>
         {/* 年齢の下限は文言に混ぜず、バッジで出す */}
         <span className={`flex flex-wrap items-center gap-2 ${labelClass}`}>
           {offer.city}
@@ -186,7 +189,7 @@ const TripItemBody = ({ row }: TripItemBodyProps): ReactElement => {
       <>
         <VendorCircle kind={offer.mode} />
         <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-medium">
+          <span className="block text-base font-medium">
             {t("plan.transport", {
               from: offer.origin,
               to: offer.destination,
@@ -211,7 +214,7 @@ const TripItemBody = ({ row }: TripItemBodyProps): ReactElement => {
       <>
         <VendorCircle kind="lodging" />
         <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-medium">
+          <span className="block text-base font-medium">
             {t("plan.lodging", {
               hotel: offer.name,
               nights: nightsOf(offer.checkIn, offer.checkOut),
@@ -240,10 +243,10 @@ const TripItemBody = ({ row }: TripItemBodyProps): ReactElement => {
     .exhaustive();
 };
 
-// 前の提案から変わった行と合計に付ける背景 (吹き出しの px-4 の中で左右に 8px はみ出させ、背景を文字より広く見せる)
+// 前の提案から変わった行と合計に付ける背景 (吹き出しの px-5 の中で左右に 8px はみ出させ、背景を文字より広く見せる)
 const changedRowClass = "-mx-2 rounded-md bg-note-bg px-2";
 
-const rowClass = "flex flex-wrap items-center gap-2.5 py-2";
+const rowClass = "flex flex-wrap items-center gap-3 py-2.5";
 
 const totalClass =
   "mt-0.5 flex flex-wrap items-baseline justify-end gap-2 border-t-2 border-divider-strong pt-2.5";
@@ -267,7 +270,7 @@ const TripItemRow = ({
   return (
     <li className={changed ? `${rowClass} ${changedRowClass}` : rowClass}>
       <TripItemBody row={row} />
-      <span className="text-[13px] font-bold tabular-nums">
+      <span className="text-base font-semibold tabular-nums">
         {moneyText(row.offer.price, formatNumber)}
       </span>
       {/* 色だけに頼らないよう、変わった行には読み上げ用の文言を置く */}
@@ -331,18 +334,16 @@ export const PlanDetails = ({
           diff?.total === true ? `${totalClass} ${changedRowClass}` : totalClass
         }
       >
-        <span className="text-xs text-muted">{t("plan.total")}</span>
-        <span className="text-[19px] font-bold tabular-nums">
+        <span className="text-sm text-muted">{t("plan.total")}</span>
+        <span className="text-xl font-semibold tabular-nums">
           {moneyText(plan.total, formatNumber)}
         </span>
       </div>
       <div className="mt-3 border-t border-dashed border-divider-strong pt-2.5">
-        <div className="mb-1 text-xs font-semibold text-accent">
+        <div className="mb-1 text-sm font-medium text-accent">
           {t("plan.rationale")}
         </div>
-        <p className="text-[12px] leading-relaxed text-muted">
-          {plan.rationale}
-        </p>
+        <p className="text-sm text-muted">{plan.rationale}</p>
       </div>
     </div>
   );

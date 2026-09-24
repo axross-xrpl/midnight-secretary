@@ -1,0 +1,22 @@
+# .ts 側 (src/**/styles.ts の共有クラス文字列など) に Tailwind の任意色クラス (bg-[#185fa5] など) を書かない
+# .ts は tsx とは別の language なのでルールを分けている。構文が一意なので src/**/*.ts のすべての文字列を対象にする
+id: no-hex-in-styles
+language: typescript
+severity: error
+message: className に色コードを直書きしない
+note: globals.css の @theme トークン (bg-accent, text-muted, border-border …) を使う。無ければトークンを足す
+files:
+  - src/**/*.ts
+rule:
+  all:
+    - any:
+        - kind: string
+        - kind: template_string
+    - regex: '-\[#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\]'
+    - not:
+        has:
+          any:
+            - kind: string
+            - kind: template_string
+          regex: '-\[#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\]'
+          stopBy: end

@@ -18,6 +18,7 @@ import type {
   IsoDate,
   IsoDateTime,
   MandateId,
+  PaymentRef,
   TripId,
   UserId,
 } from "@/domain/identifiers";
@@ -29,6 +30,7 @@ import type {
 } from "@/domain/identity";
 import type { Locale } from "@/domain/locale";
 import type {
+  Authorization,
   Mandate,
   MandateDraft,
   MandateError,
@@ -1136,6 +1138,94 @@ export const writeBackTrip = async (
   }
 
   return ok({ trip: written });
+};
+
+/**
+ * 受取の確認ができる、支払い済みの出張 (書き戻し後も明細は残るので written も含む)
+ */
+export type SettledTrip = PaidTrip | WrittenTrip;
+
+const settledOf = (trip: Trip): SettledTrip | undefined => {
+  if (trip.status === "paid" || trip.status === "written") {
+    return trip;
+  }
+
+  return undefined;
+};
+
+const withReleased = (
+  trip: SettledTrip,
+  released: Authorization,
+): SettledTrip => {
+  const index = trip.authorizations.findIndex(
+    (authorization) => authorization.paymentRef === released.paymentRef,
+  );
+
+  return { ...trip, authorizations: trip.authorizations.with(index, released) };
+};
+
+/**
+ * 候補 1 件の受取を確認し、預かり中の支払いを受取先へ解放する
+ *
+ * 支払い済み (paid / written) の trip だけが対象で、それ以外は `notPaid`
+ * 解放した authorization で trip の該当行を差し替えて保存する
+ * その出張に無い paymentRef は mandate の `notFound`、解放済みなら `notHeld` になり、trip は変わらない
+ */
+export const confirmReceipt = async (
+  userId: UserId,
+  tripId: TripId,
+  paymentRef: PaymentRef,
+  now: IsoDateTime,
+  deps: SecretaryDeps,
+): Promise<Result<SettledTrip, SecretaryError>> => {
+  const trip = await loadTrip(userId, tripId, deps);
+
+  if (!trip.ok) {
+    return trip;
+  }
+
+  const settled = settledOf(trip.value);
+
+  if (settled === undefined) {
+    return err(fromFlow({ kind: "notPaid", tripId }));
+  }
+
+  const mandate = await linkedMandate(userId, deps);
+
+  if (!mandate.ok) {
+    return mandate;
+  }
+
+  if (mandate.value === undefined) {
+    return err(fromFlow({ kind: "noMandate" }));
+  }
+
+  const held = settled.authorizations.find(
+    (authorization) => authorization.paymentRef === paymentRef,
+  );
+
+  if (held === undefined) {
+    return err(fromMandate({ kind: "notFound", mandateId: mandate.value.id }));
+  }
+
+  const released = await deps.mandate.releaseEscrow(
+    held.mandateId,
+    paymentRef,
+    now,
+  );
+
+  if (!released.ok) {
+    return err(fromMandate(released.error));
+  }
+
+  const confirmed = withReleased(settled, released.value);
+  const saved = await deps.store.putTrip(userId, confirmed);
+
+  if (!saved.ok) {
+    return err(fromStore(saved.error));
+  }
+
+  return ok(confirmed);
 };
 
 /**

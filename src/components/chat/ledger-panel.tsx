@@ -16,13 +16,13 @@ import {
   labelClass,
   privatePillClass,
   publicPillClass,
+  sidebarCardClass,
   sectionLabelClass,
 } from "./styles";
 import type { PublicLedgerView } from "./types";
 import { useFormatNumber } from "./use-format-number";
 
-const sideCardClass =
-  "flex flex-col gap-3.5 rounded-xl border-2 bg-surface p-3.5 px-4";
+const sideCardClass = `${sidebarCardClass} flex flex-col gap-4`;
 
 type PublicSideProps = {
   publicLedger: PublicLedgerView;
@@ -32,16 +32,16 @@ const PublicSide = ({ publicLedger }: PublicSideProps): ReactElement => {
   const t = useTranslations("LedgerPanel");
 
   return (
-    <div className={`${sideCardClass} border-public`}>
+    <div className={`${sideCardClass} bg-public-bg`}>
       <div className="flex flex-col gap-1.5">
         <span className="flex items-center gap-2">
           <span className={publicPillClass}>{t("public.eyebrow")}</span>
         </span>
-        <h3 className="text-[13px] font-bold">{t("public.title")}</h3>
+        <h3 className="text-base font-semibold">{t("public.title")}</h3>
         <p className={labelClass}>{t("public.who")}</p>
       </div>
 
-      <dl className="flex flex-col gap-2.5 text-[12.5px]">
+      <dl className="flex flex-col gap-3 text-sm">
         <div>
           <dt className={faintLabelClass}>{t("public.commitments")}</dt>
           <dd className="flex flex-col gap-0.5">
@@ -80,15 +80,13 @@ const PublicSide = ({ publicLedger }: PublicSideProps): ReactElement => {
         </div>
         <div>
           <dt className={faintLabelClass}>{t("public.count")}</dt>
-          <dd className="text-base font-bold tabular-nums">
+          <dd className="text-base font-semibold tabular-nums">
             {publicLedger.authorizedCount}
           </dd>
         </div>
       </dl>
 
-      <p className="text-[10.5px] leading-relaxed text-faint">
-        {t("public.note")}
-      </p>
+      <p className="text-xs text-faint">{t("public.note")}</p>
     </div>
   );
 };
@@ -103,22 +101,22 @@ const MandateFacts = ({ mandate }: MandateFactsProps): ReactElement => {
   const formatNumber = useFormatNumber();
 
   return (
-    <dl className="grid gap-2.5 text-[12.5px] [grid-template-columns:repeat(auto-fit,minmax(8rem,1fr))]">
+    <dl className="grid gap-3 text-sm [grid-template-columns:repeat(auto-fit,minmax(8rem,1fr))]">
       <div>
         <dt className={faintLabelClass}>{t("private.cap")}</dt>
-        <dd className="font-bold tabular-nums">
+        <dd className="font-semibold tabular-nums">
           {moneyText(mandate.cap, formatNumber)}
         </dd>
       </div>
       <div>
         <dt className={faintLabelClass}>{t("private.spent")}</dt>
-        <dd className="font-bold tabular-nums">
+        <dd className="font-semibold tabular-nums">
           {moneyText(mandate.spent, formatNumber)}
         </dd>
       </div>
       <div>
         <dt className={faintLabelClass}>{t("private.remaining")}</dt>
-        <dd className="font-bold tabular-nums">
+        <dd className="font-semibold tabular-nums">
           {moneyText(remainingOf(mandate), formatNumber)}
         </dd>
       </div>
@@ -152,24 +150,22 @@ const PrivateSide = ({ mandate }: PrivateSideProps): ReactElement => {
   const t = useTranslations("LedgerPanel");
 
   return (
-    <div className={`${sideCardClass} border-private`}>
+    <div className={`${sideCardClass} bg-private-bg`}>
       <div className="flex flex-col gap-1.5">
         <span className="flex items-center gap-2">
           <span className={privatePillClass}>{t("private.eyebrow")}</span>
         </span>
-        <h3 className="text-[13px] font-bold">{t("private.title")}</h3>
+        <h3 className="text-base font-semibold">{t("private.title")}</h3>
         <p className={labelClass}>{t("private.who")}</p>
       </div>
 
       {mandate === undefined ? (
-        <p className="text-[12.5px] text-muted">{t("private.none")}</p>
+        <p className="text-sm text-muted">{t("private.none")}</p>
       ) : (
         <MandateFacts mandate={mandate} />
       )}
 
-      <p className="text-[10.5px] leading-relaxed text-faint">
-        {t("private.note")}
-      </p>
+      <p className="text-xs text-faint">{t("private.note")}</p>
     </div>
   );
 };
@@ -189,12 +185,12 @@ export const LedgerPanel = ({
   const t = useTranslations("LedgerPanel");
 
   return (
-    <section className="flex flex-col gap-2.5">
+    <section className="flex flex-col gap-3">
       <div className="flex flex-col gap-0.5">
         <h2 className={sectionLabelClass}>{t("title")}</h2>
         <p className={labelClass}>{t("subtitle")}</p>
       </div>
-      <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr))]">
+      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr))]">
         <PublicSide publicLedger={publicLedger} />
         <PrivateSide mandate={mandate} />
       </div>

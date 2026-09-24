@@ -17,7 +17,7 @@ const stepCircleClass = {
 
 const stepLabelClass = {
   done: "text-muted",
-  current: "font-bold text-ink",
+  current: "font-semibold text-ink",
   todo: "text-muted",
 } as const satisfies Record<StepStatus, string>;
 
@@ -54,11 +54,11 @@ const StepItem = ({ step, index, status }: StepItemProps): ReactElement => {
         />
       )}
       <span
-        className={`flex h-[18px] w-[18px] flex-none items-center justify-center rounded-full text-[10px] font-bold tabular-nums ${stepCircleClass[status]}`}
+        className={`flex h-5 w-5 flex-none items-center justify-center rounded-full text-xs font-semibold tabular-nums ${stepCircleClass[status]}`}
       >
         {status === "done" ? "✓" : index + 1}
       </span>
-      <span className={`ml-2 text-[12.5px] ${stepLabelClass[status]}`}>
+      <span className={`ml-2 text-sm ${stepLabelClass[status]}`}>
         {t(`steps.${step}`)}
       </span>
     </li>

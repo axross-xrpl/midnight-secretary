@@ -1,4 +1,4 @@
-import type { SecretaryFailure } from "@/lib/secretary-response";
+import type { MoneyResponse, SecretaryFailure } from "@/lib/secretary-response";
 
 /**
  * 公開台帳の見え方
@@ -10,6 +10,11 @@ export type PublicLedgerView = {
   commitments: readonly { mandateId: string; commitment: string }[];
   authorizations: readonly { publicHash: string }[];
   authorizedCount: number;
+  escrows: readonly {
+    publicHash: string;
+    status: "held" | "released";
+    amount: MoneyResponse;
+  }[];
 };
 
 /**

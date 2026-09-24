@@ -1,10 +1,16 @@
 import "server-only";
 
-import type { CalendarEventId, ParseError, TripId } from "@/domain/identifiers";
+import type {
+  CalendarEventId,
+  ParseError,
+  PaymentRef,
+  TripId,
+} from "@/domain/identifiers";
 import {
   parseAmount,
   parseCalendarEventId,
   parseIsoDateTime,
+  parsePaymentRef,
   parseTripId,
 } from "@/domain/identifiers.parse";
 import type { Locale } from "@/domain/locale";
@@ -162,4 +168,15 @@ export const parseWriteBackInput = (
  */
 export const parseTripIdParam = (raw: string): Result<TripId, SchemaError> => {
   return mapErr(parseTripId(raw), schemaErrorOf);
+};
+
+/**
+ * パスの `[paymentRef]` を PaymentRef にする
+ *
+ * 空なら schema の失敗 (path は `["paymentRef"]`)。その出張の支払いかどうかは use case が見る
+ */
+export const parsePaymentRefParam = (
+  raw: string,
+): Result<PaymentRef, SchemaError> => {
+  return mapErr(parsePaymentRef(raw), schemaErrorOf);
 };

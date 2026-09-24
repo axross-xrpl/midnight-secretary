@@ -1,12 +1,13 @@
 import "server-only";
 
+import type { ProfileWriteError } from "@/domain/profile";
 import {
+  databaseWriteErrorResponse,
   duplicateEmailResponse,
   profileConflictResponse,
   profileConstraintResponse,
   profileNotFoundResponse,
 } from "@/lib/api-response";
-import type { ProfileWriteError } from "./write-profile";
 
 export function profileWriteErrorResponse(error: ProfileWriteError) {
   switch (error.kind) {
@@ -18,5 +19,7 @@ export function profileWriteErrorResponse(error: ProfileWriteError) {
       return duplicateEmailResponse();
     case "constraintViolation":
       return profileConstraintResponse();
+    case "unavailable":
+      return databaseWriteErrorResponse(error.cause);
   }
 }

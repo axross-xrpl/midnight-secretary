@@ -18,9 +18,9 @@ type ShellProps = {
 const HomeShell = ({ title, children }: ShellProps): ReactElement => {
   return (
     <div className="flex flex-1 flex-col bg-bg text-ink">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 p-[22px] px-[26px] pb-[26px]">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-10 py-8">
         <header>
-          <h1 className="text-[17px] font-bold">{title}</h1>
+          <h1 className="font-serif text-2xl font-medium">{title}</h1>
         </header>
         {children}
       </div>
@@ -52,11 +52,11 @@ const HomePage = async (): Promise<ReactElement> => {
 
   return (
     <HomeShell title={t("title")}>
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-3">
         <h2 className={sectionLabelClass}>{t("balance.section")}</h2>
         <BalanceCard balance={balance} />
       </section>
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-3">
         <h2 className={sectionLabelClass}>{t("trips.title")}</h2>
         <ConfirmedTripBoard trips={trips} />
       </section>

@@ -1,0 +1,22 @@
+# 任意の角丸 (rounded-[10px] / rounded-tl-[4px] など) を書かない
+# 構文が一意なので className 属性に限らず、ファイル内のすべての文字列を対象にする
+id: no-arbitrary-radius
+language: tsx
+severity: error
+message: 角丸は rounded-sm/md/lg/xl/2xl/full から選ぶ
+note: 9px -> rounded-md, 10px -> rounded-lg, 12px -> rounded-xl。角ごとに変えるなら rounded-tl-sm のように角指定のトークンを組み合わせる
+files:
+  - src/**/*.tsx
+rule:
+  all:
+    - any:
+        - kind: string
+        - kind: template_string
+    - regex: 'rounded(?:-[a-z]{1,2})?-\['
+    - not:
+        has:
+          any:
+            - kind: string
+            - kind: template_string
+          regex: 'rounded(?:-[a-z]{1,2})?-\['
+          stopBy: end

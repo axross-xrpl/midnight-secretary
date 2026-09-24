@@ -1,0 +1,21 @@
+# .ts 側 (src/**/styles.ts の共有クラス文字列など) に任意の角丸 (rounded-[10px] など) を書かない
+id: no-arbitrary-radius-styles
+language: typescript
+severity: error
+message: 角丸は rounded-sm/md/lg/xl/2xl/full から選ぶ
+note: 9px -> rounded-md, 10px -> rounded-lg, 12px -> rounded-xl。角ごとに変えるなら rounded-tl-sm のように角指定のトークンを組み合わせる
+files:
+  - src/**/*.ts
+rule:
+  all:
+    - any:
+        - kind: string
+        - kind: template_string
+    - regex: 'rounded(?:-[a-z]{1,2})?-\['
+    - not:
+        has:
+          any:
+            - kind: string
+            - kind: template_string
+          regex: 'rounded(?:-[a-z]{1,2})?-\['
+          stopBy: end

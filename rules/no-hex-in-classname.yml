@@ -1,0 +1,36 @@
+# JSX の className に色コード (#fff / #185fa5 など) を直書きしない
+# 拾うのは 2 通り:
+#   1. Tailwind の任意値クラス (bg-[#185fa5] など) を含む文字列。構文が一意なのでファイル内のどこでも拾う
+#      (module 定数の inputClass や、className に渡すオブジェクトの値も対象)
+#   2. className 属性の中 (cn() や三項の中も含む) の、素の hex を含む文字列
+id: no-hex-in-classname
+language: tsx
+severity: error
+message: className に色コードを直書きしない
+note: globals.css の @theme トークン (bg-accent, text-muted, border-border …) を使う。無ければトークンを足す
+files:
+  - src/**/*.tsx
+rule:
+  all:
+    - any:
+        - kind: string
+        - kind: template_string
+    - any:
+        - regex: '-\[#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\]'
+        - all:
+            # 3/4/6/8 桁の hex の直後が英数字でないものだけを色とみなす (URL の #section 等は除外)
+            - regex: '#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})(?:[^0-9a-zA-Z_-]|$)'
+            - inside:
+                kind: jsx_attribute
+                stopBy: end
+                has:
+                  kind: property_identifier
+                  regex: ^className$
+    # `${cond ? "text-[#fff]" : ""}` のように内側の文字列が該当するときは外側のテンプレートを重ねて報告しない
+    - not:
+        has:
+          any:
+            - kind: string
+            - kind: template_string
+          regex: '#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})(?:[^0-9a-zA-Z_-]|$)'
+          stopBy: end

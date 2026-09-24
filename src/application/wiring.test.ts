@@ -61,10 +61,16 @@ const stubMandate = (): MandatePort => {
     capabilities: { privateSettlement: false },
     createMandate: async () => err({ kind: "unavailable", cause: "stub" }),
     authorizePayment: async () => err({ kind: "unavailable", cause: "stub" }),
+    releaseEscrow: async () => err({ kind: "unavailable", cause: "stub" }),
     readMandate: async () => ok(undefined),
     isAuthorized: async () => ok(false),
     readPublicLedger: async () =>
-      ok({ commitments: [], authorizations: [], authorizedCount: 0 }),
+      ok({
+        commitments: [],
+        authorizations: [],
+        authorizedCount: 0,
+        escrows: [],
+      }),
   };
 };
 

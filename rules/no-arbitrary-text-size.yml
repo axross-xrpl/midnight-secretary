@@ -1,0 +1,24 @@
+# 任意の文字サイズ (text-[13px] など) を書かない
+# text-[#…] は色なので no-hex-in-classname に任せ、ここでは数値 (+単位) だけを拾う
+# 構文が一意なので className 属性に限らず、ファイル内のすべての文字列を対象にする (module 定数の xxxClass も対象)
+id: no-arbitrary-text-size
+language: tsx
+severity: error
+message: 文字サイズは text-xs〜text-4xl のスケールから選ぶ
+note: .local/design/tokens.md の対応表 (12px 以下 -> text-xs, 13px -> text-sm, 15px -> text-base, 17px -> text-lg …)
+files:
+  - src/**/*.tsx
+rule:
+  all:
+    - any:
+        - kind: string
+        - kind: template_string
+    - regex: 'text-\[(?:length:)?[0-9.]+(?:px|rem|em|pt|%)?\]'
+    # 内側の文字列が該当するときは外側のテンプレートを重ねて報告しない
+    - not:
+        has:
+          any:
+            - kind: string
+            - kind: template_string
+          regex: 'text-\[(?:length:)?[0-9.]+(?:px|rem|em|pt|%)?\]'
+          stopBy: end

@@ -67,7 +67,7 @@ const DETAILS_ID = "age-credential-details";
 
 // 区画の中の控えめな操作 (明細の開閉と読み直し)
 const linkButtonClass =
-  "inline-flex cursor-pointer items-center gap-1 rounded-md text-[11px] font-semibold text-accent underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-default disabled:opacity-60";
+  "inline-flex cursor-pointer items-center gap-1 rounded-md text-sm font-medium text-accent underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-default disabled:opacity-60";
 
 // 開いているかを向きで示す小さな山形
 const Chevron = ({ isOpen }: { isOpen: boolean }): ReactElement => {
@@ -204,7 +204,7 @@ export const AgeCredentialCard = ({
   const issueButton = (
     <button
       type="button"
-      className="self-start rounded-lg bg-[#185fa5] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#144e88] disabled:opacity-60"
+      className="self-start rounded-lg bg-accent px-5 py-2.5 text-base font-semibold text-white transition hover:bg-accent-strong disabled:opacity-60"
       disabled={isPending || !hasBirthDate}
       aria-busy={isPending}
       onClick={handleIssue}
@@ -218,12 +218,12 @@ export const AgeCredentialCard = ({
   );
 
   return (
-    <section className="rounded-2xl border border-[#e5e8ec] bg-white p-5 shadow-sm">
-      <h3 className="text-sm font-semibold">{t("ageCredential.title")}</h3>
-      <p className="mt-1.5 text-xs leading-5 text-slate-500">
+    <section className="rounded-xl border border-border bg-surface p-5">
+      <h3 className="text-lg font-semibold">{t("ageCredential.title")}</h3>
+      <p className="mt-1.5 text-sm text-muted">
         {t("ageCredential.description")}
       </p>
-      <div className="mt-4 flex flex-col items-start gap-2">
+      <div className="mt-4 flex flex-col items-start gap-3">
         {match(state)
           .returnType<ReactElement>()
           .with({ kind: "issued" }, ({ credential }) => (

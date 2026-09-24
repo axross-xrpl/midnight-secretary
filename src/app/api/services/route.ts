@@ -5,6 +5,7 @@ import {
   unauthorizedResponse,
 } from "@/lib/api-response";
 import { hasApiSession } from "@/lib/api-session";
+import { settingsDeps } from "@/server/ports";
 import {
   readServices,
   serviceCategories,
@@ -46,12 +47,15 @@ export async function GET(request: Request) {
   }
 
   try {
-    const services = await readServices({
-      category: parsedQuery.data.category,
-      city: parsedQuery.data.city,
-      query: parsedQuery.data.q,
-      active: parsedQuery.data.active,
-    });
+    const services = await readServices(
+      {
+        category: parsedQuery.data.category,
+        city: parsedQuery.data.city,
+        query: parsedQuery.data.q,
+        active: parsedQuery.data.active,
+      },
+      settingsDeps().catalog,
+    );
 
     return Response.json({ data: services });
   } catch (error) {

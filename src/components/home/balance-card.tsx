@@ -29,9 +29,9 @@ export const BalanceCard = ({ balance }: Props): ReactElement => {
     >
       <div>
         <p className={labelClass}>{t("balance.title")}</p>
-        <p className="mt-1 text-[28px] font-bold tabular-nums">
+        <p className="mt-1 text-3xl font-semibold tabular-nums">
           {formatNumber(balance.amount)}{" "}
-          <span className="text-[15px] font-semibold text-muted">
+          <span className="text-base font-medium text-muted">
             {balance.symbol}
           </span>
         </p>

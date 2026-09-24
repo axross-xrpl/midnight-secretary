@@ -90,7 +90,7 @@ const ChatPage = async ({
   if (!data.ok) {
     return (
       <ChatShell>
-        <div className="flex flex-col gap-5 p-[22px] px-[26px] pb-[26px]">
+        <div className="flex flex-col gap-6 px-10 py-8">
           <Link href={backHref} className={backLinkClass}>
             {`← ${t("back")}`}
           </Link>

@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import type { SecretaryContext, SessionError } from "@/adapters/auth/session";
 import {
   approveTrip,
+  confirmReceipt,
   deleteConfirmedTrip,
   issueAgeCredential,
   payForTrip,
@@ -23,6 +24,7 @@ import { fromPromise } from "@/lib/result";
 import type { SchemaIssue } from "@/lib/schema";
 import {
   parseApproveTripInput,
+  parsePaymentRefParam,
   parseProposeTripInput,
   parseReplanInput,
   parseSetUpMandateInput,
@@ -343,6 +345,50 @@ export const handlePayForTrip = async (
   }
 
   return dataResponse(paid.value, 200);
+};
+
+/**
+ * 支払い済みの出張の候補 1 件について受取を確認し、預かりを受取先へ解放する
+ *
+ * body は無く、解放した行を差し替えた trip を返す
+ */
+export const handleConfirmReceipt = async (
+  request: NextRequest,
+  tripId: string,
+  paymentRef: string,
+  deps: SecretaryHandlerDeps,
+): Promise<Response> => {
+  const context = await deps.resolveContext(request);
+
+  if (!context.ok) {
+    return unauthorizedResponse();
+  }
+
+  const parsedTripId = parseTripIdParam(tripId);
+
+  if (!parsedTripId.ok) {
+    return invalidRequestResponse(parsedTripId.error.issues);
+  }
+
+  const parsedPaymentRef = parsePaymentRefParam(paymentRef);
+
+  if (!parsedPaymentRef.ok) {
+    return invalidRequestResponse(parsedPaymentRef.error.issues);
+  }
+
+  const confirmed = await confirmReceipt(
+    context.value.userId,
+    parsedTripId.value,
+    parsedPaymentRef.value,
+    context.value.now,
+    context.value.deps,
+  );
+
+  if (!confirmed.ok) {
+    return secretaryErrorResponse(confirmed.error);
+  }
+
+  return dataResponse(confirmed.value, 200);
 };
 
 /**

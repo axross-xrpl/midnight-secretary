@@ -42,7 +42,7 @@ Each page of the app says which fakes it's running on.
 | planner | Gemini picks the trips and the offers | a deterministic planner that reads the event title |
 | mandate | `token.compact` / `shielded-token.compact` via the contract server | an in-memory ledger with the same public/private split |
 | store | NeonDB `trips` / `trip_items` | in memory |
-| profile | NeonDB `user_profiles`, wallet address from a connected Midnight wallet | one fixed profile |
+| profile | NeonDB `user_profiles`, wallet address from a connected Midnight wallet | one fixed profile, editable in memory |
 | identity | `age-verification.compact` via the contract server, one pseudonym per traveler | an in-memory credential registry |
 
 In demo mode the age check and the private payment happen in the fakes: they show the flow but prove
@@ -140,6 +140,11 @@ So this README can't promise more than the code does.
 - **One owner, one allowance.** A `token.compact` deployment has one owner key and one
   `sendAllowance`. The cap you grant the secretary is checked by the mandate adapter in the app, not
   by the contract.
+- **The escrow is not on chain.** A booking you have paid for is marked "held" until you press
+  **I received this**, and the sidebar shows the money move from the secretary to the payee. That hold
+  lives in the app's state, not in a contract: the token has already left the allowance at payment
+  time, so confirming a receipt moves a label, not a coin. Putting deposit-on-booking and
+  release-on-confirmation into a circuit is the next step, not this one.
 - **Which identity proved is visible.** The registration map's key is a public argument to its
   `member()` / `lookup()`, so repeated proofs by the same pseudonym are linkable. A Merkle tree of
   commitments would hide it; noted in the circuit's comments, not built.

@@ -1,4 +1,4 @@
-import type { MandateId, PaymentRef } from "./identifiers";
+import type { IsoDateTime, MandateId, PaymentRef } from "./identifiers";
 import { mustParse, parseAmount } from "./identifiers.parse";
 import type {
   Authorization,
@@ -16,13 +16,14 @@ import { err, ok } from "@/lib/result";
 /**
  * `MandatePort` の実装が非決定的な値を注入するための入力
  *
- * fake と real の両方で、mandate/commitment/authorization の id 生成に使う
+ * fake と real の両方で、mandate/commitment/authorization の id 生成と解放の参照の採番に使う
  * (`token.compact` に mandate という概念自体が無いので、real でもここは on-chain ではない)
  */
 export type MandateIds = {
   newMandateId: () => MandateId;
   newCommitment: () => string;
   hashAuthorization: (mandateId: MandateId, paymentRef: string) => string;
+  newReleaseRef: () => string;
 };
 
 /**
@@ -119,6 +120,55 @@ export const commitPayment = (
   state.authorizations = [...state.authorizations, authorization];
 };
 
+const isPayment = (
+  mandateId: MandateId,
+  paymentRef: PaymentRef,
+): ((authorization: Authorization) => boolean) => {
+  return (authorization) =>
+    authorization.mandateId === mandateId &&
+    authorization.paymentRef === paymentRef;
+};
+
+/**
+ * 預かり中の支払いを解放して released に進める (fake と real で共通。real の送金は承認時に済んでいる)
+ *
+ * 承認が無ければ `notFound`、解放済みなら `notHeld`
+ */
+export const releaseIn = (
+  state: MandateLedgerState,
+  ids: MandateIds,
+  mandateId: MandateId,
+  paymentRef: PaymentRef,
+  now: IsoDateTime,
+): Result<Authorization, MandateError> => {
+  const index = state.authorizations.findIndex(
+    isPayment(mandateId, paymentRef),
+  );
+  const held = state.authorizations[index];
+
+  if (held === undefined) {
+    return err({ kind: "notFound", mandateId });
+  }
+
+  if (held.escrow.status !== "held") {
+    return err({ kind: "notHeld", paymentRef });
+  }
+
+  const released: Authorization = {
+    ...held,
+    escrow: {
+      status: "released",
+      heldAt: held.escrow.heldAt,
+      releasedAt: now,
+      releaseRef: ids.newReleaseRef(),
+    },
+  };
+
+  state.authorizations = state.authorizations.with(index, released);
+
+  return ok(released);
+};
+
 export const createMandateIn = (
   state: MandateLedgerState,
   ids: MandateIds,
@@ -136,8 +186,8 @@ export const createMandateIn = (
   return mandate;
 };
 
-// 公開するのは commitment とハッシュだけ
-// 上限額、金額、身元は private な状態に留める
+// 公開するのは commitment、ハッシュ、預かりの状態と額だけ
+// 上限額と身元は private な状態に留める
 // 送金の受取先と tx id も authorization には持つが、ここには載せない
 export const publicLedgerOf = (state: MandateLedgerState): PublicLedgerView => {
   return {
@@ -149,5 +199,10 @@ export const publicLedgerOf = (state: MandateLedgerState): PublicLedgerView => {
       publicHash: authorization.publicHash,
     })),
     authorizedCount: state.authorizations.length,
+    escrows: state.authorizations.map((authorization) => ({
+      publicHash: authorization.publicHash,
+      status: authorization.escrow.status,
+      amount: authorization.amount,
+    })),
   };
 };

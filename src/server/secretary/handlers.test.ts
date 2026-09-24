@@ -40,6 +40,7 @@ import {
   handleApproveTrip,
   handleDeleteConfirmedTrip,
   handleIssueAgeCredential,
+  handleConfirmReceipt,
   handlePayForTrip,
   handleProposeTrip,
   handleReadAgeCredential,
@@ -86,7 +87,7 @@ const testEventIds = (): (() => CalendarEventId) => {
 };
 
 const testMandateIds = (): FakeMandateIds => {
-  const state = { issued: 0, sent: 0 };
+  const state = { issued: 0, sent: 0, released: 0 };
 
   return {
     newMandateId: () => {
@@ -101,6 +102,11 @@ const testMandateIds = (): FakeMandateIds => {
       return `tx-${state.sent}`;
     },
     hashAuthorization: (id, ref) => `hash:${id}:${ref}`,
+    newReleaseRef: () => {
+      state.released = state.released + 1;
+
+      return `release-${state.released}`;
+    },
   };
 };
 
@@ -286,6 +292,18 @@ const payRequest = async (id: string): Promise<Response> => {
   );
 };
 
+const confirmReceiptRequest = async (
+  id: string,
+  paymentRef: string,
+): Promise<Response> => {
+  return handleConfirmReceipt(
+    postRequest(`/api/secretary/trips/${id}/payments/${paymentRef}/confirm`),
+    id,
+    paymentRef,
+    state.deps,
+  );
+};
+
 const writeBackRequest = async (id: string): Promise<Response> => {
   return handleWriteBackTrip(
     postRequest(`/api/secretary/trips/${id}/write-back`, { locale: "ja" }),
@@ -313,6 +331,23 @@ const confirmedTripIds = async (): Promise<readonly string[]> => {
   return confirmed.value.map((trip) => trip.id);
 };
 
+// 支払った出張の最初の支払い参照 (往路) を、共有スキーマを通して取り出す
+const firstPaymentRef = async (id: string): Promise<string> => {
+  const trip = parseTripResponse(await (await payRequest(id)).json());
+
+  if (!trip.ok || trip.value.status !== "paid") {
+    throw new Error("test: the trip could not be paid");
+  }
+
+  const paymentRef = trip.value.authorizations[0]?.paymentRef;
+
+  if (paymentRef === undefined) {
+    throw new Error("test: the paid trip has no authorization");
+  }
+
+  return paymentRef;
+};
+
 // 提案された出張の id を、共有スキーマを通して取り出す
 const proposedTripId = async (event: string): Promise<string> => {
   const trip = parseTripResponse(await (await proposeRequest(event)).json());
@@ -325,7 +360,7 @@ const proposedTripId = async (event: string): Promise<string> => {
 };
 
 describe("サインインしていないとき", () => {
-  test("9 つの handler すべてが 401 を返す", async () => {
+  test("10 の handler すべてが 401 を返す", async () => {
     const deps = signedOutDeps();
     const responses = await Promise.all([
       handleSetUpMandate(postRequest("/api/secretary/mandate", {}), deps),
@@ -341,6 +376,12 @@ describe("サインインしていないとき", () => {
       handleApproveTrip(postRequest("/approve"), UNKNOWN_TRIP_ID, deps),
       handleReplanTrip(postRequest("/replan", {}), UNKNOWN_TRIP_ID, deps),
       handlePayForTrip(postRequest("/pay"), UNKNOWN_TRIP_ID, deps),
+      handleConfirmReceipt(
+        postRequest("/confirm"),
+        UNKNOWN_TRIP_ID,
+        "trip:x:y",
+        deps,
+      ),
       handleWriteBackTrip(
         postRequest("/write-back", {}),
         UNKNOWN_TRIP_ID,
@@ -354,7 +395,7 @@ describe("サインインしていないとき", () => {
     ]);
 
     expect(responses.map((response) => response.status)).toStrictEqual([
-      401, 401, 401, 401, 401, 401, 401, 401, 401,
+      401, 401, 401, 401, 401, 401, 401, 401, 401, 401,
     ]);
     expect(parseSecretaryFailure(await responses[0].json())).toStrictEqual({
       code: "unauthorized",
@@ -540,6 +581,49 @@ describe("承認から書き戻しまで", () => {
     expect(parseTripResponse(await written.json())).toMatchObject({
       ok: true,
       value: { status: "written", writtenEventId: "written-1" },
+    });
+  });
+
+  test("支払い後に受取を確認すると 200 でその行だけ released になり、2 回目は 409 で notHeld を返す", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-2");
+
+    await approveRequest(id);
+    const paymentRef = await firstPaymentRef(id);
+
+    const confirmed = await confirmReceiptRequest(id, paymentRef);
+
+    expect(confirmed.status).toBe(200);
+    expect(parseTripResponse(await confirmed.json())).toMatchObject({
+      ok: true,
+      value: {
+        status: "paid",
+        authorizations: [
+          { escrow: { status: "released", releaseRef: "release-1" } },
+          { escrow: { status: "held" } },
+        ],
+      },
+    });
+
+    const again = await confirmReceiptRequest(id, paymentRef);
+
+    expect(again.status).toBe(409);
+    expect(parseSecretaryFailure(await again.json())).toStrictEqual({
+      code: "secretary",
+      error: { source: "mandate", error: { kind: "notHeld", paymentRef } },
+    });
+  });
+
+  test("支払う前の受取の確認は 409 で notPaid を返す", async () => {
+    await setUpMandateRequest();
+    const id = await proposedTripId("seed-2");
+
+    const confirmed = await confirmReceiptRequest(id, "trip:x:y");
+
+    expect(confirmed.status).toBe(409);
+    expect(parseSecretaryFailure(await confirmed.json())).toStrictEqual({
+      code: "secretary",
+      error: { source: "flow", error: { kind: "notPaid", tripId: id } },
     });
   });
 

@@ -153,6 +153,7 @@ const AUTHORIZATION: Authorization = {
     transactionId: "tx-1",
     recipient: OUTBOUND.payee,
   },
+  escrow: { status: "held", heldAt: at },
 };
 
 const AGE_PROOF: AgeProof = {

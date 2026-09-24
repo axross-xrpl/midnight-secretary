@@ -4,79 +4,84 @@
 /**
  * 中身を置く素のカード (参考実装のプロフィールとタスクのカード)
  */
-export const cardClass =
-  "rounded-xl border border-border bg-surface p-[18px] px-5";
+export const cardClass = "rounded-xl border border-border bg-surface p-6";
+
+/**
+ * サイドバーに置く少し詰めたカード (`cardClass` より padding を 1 段減らす)
+ */
+export const sidebarCardClass =
+  "rounded-xl border border-border bg-surface p-5";
 
 /**
  * 空のときに出す箱
  */
 export const emptyStateClass =
-  "rounded-xl border border-border bg-surface p-6 text-center text-[13px] text-muted";
+  "rounded-xl border border-border bg-surface p-6 text-center text-base text-muted";
 
 /**
  * 一覧の 1 行をそれ自体のカードにしたもの (予定一覧の行)
  */
 export const rowCardClass =
-  "flex flex-wrap items-center gap-3.5 rounded-xl border border-border bg-surface p-3.5 px-5";
+  "flex flex-wrap items-center gap-4 rounded-xl border border-border bg-surface px-6 py-4";
 
 /**
  * 塗りつぶした主要な操作のボタン
  */
 export const primaryButtonClass =
-  "cursor-pointer rounded-[10px] bg-accent px-[18px] py-2 text-[13px] font-semibold text-white disabled:cursor-default disabled:opacity-40";
+  "cursor-pointer rounded-lg bg-accent px-5 py-2.5 text-base font-semibold text-white hover:bg-accent-strong disabled:cursor-default disabled:opacity-40 disabled:hover:bg-accent";
 
 /**
  * 決め手になる段 (承認と支払い) の塗りつぶしボタン
  */
 export const strongButtonClass =
-  "cursor-pointer rounded-[10px] bg-accent px-[18px] py-[9px] text-[13.5px] font-bold text-white disabled:cursor-default disabled:opacity-40";
+  "cursor-pointer rounded-lg bg-accent px-5 py-2.5 text-base font-bold text-white hover:bg-accent-strong disabled:cursor-default disabled:opacity-40 disabled:hover:bg-accent";
 
 /**
  * 枠線だけの補助のボタン
  */
 export const ghostButtonClass =
-  "cursor-pointer rounded-[10px] border border-ghost-border bg-surface px-[18px] py-2 text-[13px] font-medium text-ink disabled:cursor-default disabled:opacity-40";
+  "cursor-pointer rounded-lg border border-ghost-border bg-surface px-5 py-2.5 text-base font-medium text-ink disabled:cursor-default disabled:opacity-40";
 
 /**
  * 一覧の行に置く塗りつぶしボタン (`primaryButtonClass` を行の大きさに合わせたもの)
  */
 export const smallPrimaryButtonClass =
-  "cursor-pointer rounded-[9px] bg-accent px-3.5 py-1.5 text-[12px] font-semibold text-white disabled:cursor-default disabled:opacity-50";
+  "cursor-pointer rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong disabled:cursor-default disabled:opacity-50 disabled:hover:bg-accent";
 
 /**
  * 一覧の行に置く、取り消せない操作を切り出すボタン (薄い赤地に赤い字)
  */
 export const smallDangerGhostButtonClass =
-  "cursor-pointer rounded-[9px] bg-danger-bg px-3.5 py-1.5 text-[12px] font-semibold text-danger disabled:cursor-default disabled:opacity-50";
+  "cursor-pointer rounded-md bg-danger-bg px-4 py-2 text-sm font-semibold text-danger disabled:cursor-default disabled:opacity-50";
 
 /**
  * 一覧の行に置く、取り消せない操作を確かめるボタン (赤く塗る)
  */
 export const smallDangerButtonClass =
-  "cursor-pointer rounded-[9px] bg-danger px-3.5 py-1.5 text-[12px] font-semibold text-white disabled:cursor-default disabled:opacity-50";
+  "cursor-pointer rounded-md bg-danger px-4 py-2 text-sm font-semibold text-white disabled:cursor-default disabled:opacity-50";
 
 /**
  * 一覧の行に置く控えめなボタン (`ghostButtonClass` を行の大きさに合わせたもの)
  */
 export const smallGhostButtonClass =
-  "cursor-pointer rounded-[9px] border border-ghost-border bg-surface px-3.5 py-1.5 text-[12px] font-medium text-ink disabled:cursor-default disabled:opacity-50";
+  "cursor-pointer rounded-md border border-ghost-border bg-surface px-4 py-2 text-sm font-medium text-ink disabled:cursor-default disabled:opacity-50";
 
 /**
  * 区画の上に置く見出し
  */
-export const sectionLabelClass = "text-[12.5px] font-bold text-muted";
+export const sectionLabelClass = "text-sm font-medium text-muted";
 
 /**
  * タイトルの下に置く補足の行
  */
-export const labelClass = "text-[11.5px] text-muted";
+export const labelClass = "text-sm text-muted";
 
 /**
  * 小さく薄い注記
  */
-export const faintLabelClass = "text-[11px] text-faint";
+export const faintLabelClass = "text-xs text-faint";
 
-const pillClass = "rounded-full px-2.5 py-[3px] text-[11px] font-semibold";
+const pillClass = "rounded-full px-2.5 py-0.5 text-xs font-semibold";
 
 /**
  * 何も起きていないことを示すバッジ (未手配)
@@ -107,7 +112,7 @@ export const okPillClass = `${pillClass} bg-ok-bg text-ok`;
  * エラーを出す箱
  */
 export const dangerBoxClass =
-  "rounded-[10px] bg-danger-bg px-4 py-2.5 text-[12.5px] font-semibold text-danger";
+  "rounded-lg bg-danger-bg px-4 py-2.5 text-sm font-semibold text-danger";
 
 /**
  * 出張の候補の種類 (交通手段 2 つ、宿泊、飲食、レジャー)
@@ -131,57 +136,56 @@ export const vendorMark = {
  * 秘書の吹き出しの左に置く丸いアバター
  */
 export const secretaryAvatarClass =
-  "flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accent text-[13px] font-bold text-white";
+  "flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accent text-sm font-bold text-white";
 
 /**
  * 秘書の吹き出し (左、左上だけ角を立てる)
  */
 export const secretaryBubbleClass =
-  "flex min-w-0 max-w-[36rem] flex-col gap-3 rounded-[4px_16px_16px_16px] border border-border bg-surface px-4 py-3 text-[13px] leading-relaxed";
+  "flex min-w-0 max-w-[36rem] flex-col gap-4 rounded-2xl rounded-tl-sm border border-border bg-surface px-5 py-4 text-base";
 
 /**
  * ユーザの吹き出し (右、右上だけ角を立てる)
  */
 export const userBubbleClass =
-  "max-w-[28rem] rounded-[16px_4px_16px_16px] bg-accent px-4 py-[11px] text-[13px] leading-relaxed text-white";
+  "max-w-[28rem] rounded-2xl rounded-tr-sm bg-accent px-5 py-4 text-base text-white";
 
 /**
  * 吹き出しの下に出す時刻
  */
-export const bubbleTimeClass = "pl-1 text-[11px] text-faint";
+export const bubbleTimeClass = "pl-1 text-xs text-faint";
 
 /**
  * 会話のヘッダに置く「予定一覧へ」のリンク
  */
-export const backLinkClass = "self-start text-[12.5px] font-medium text-accent";
+export const backLinkClass = "self-start text-sm font-medium text-accent";
 
 /**
  * 返答ボタンを並べるバー (ページの下端に留まる間も吹き出しが透けないよう面の色を持つ)
  */
 export const replyBarClass =
-  "flex flex-wrap gap-2 rounded-xl border border-border bg-surface p-3 px-4";
+  "flex flex-wrap gap-3 rounded-xl border border-border bg-surface p-4";
 
 /**
  * 秘書の吹き出しの中に置く明細 (支払いの承認、登録した予定) の枠
  */
 export const detailListClass =
-  "flex flex-col divide-y divide-border-sub overflow-hidden rounded-xl border border-border-sub bg-surface text-[12.5px]";
+  "flex flex-col divide-y divide-border-sub overflow-hidden rounded-xl border border-border-sub bg-surface text-sm";
 
 /**
  * 明細の 1 行 (見出しと値)
  */
-export const detailRowClass = "flex flex-wrap items-center gap-3 p-3 px-3.5";
+export const detailRowClass = "flex flex-wrap items-center gap-3 px-4 py-3";
 
 /**
  * 明細の行の見出し
  */
-export const detailKeyClass =
-  "w-[120px] flex-none text-[10.5px] font-bold text-faint";
+export const detailKeyClass = "w-32 flex-none text-sm font-medium text-faint";
 
 /**
  * ID や参照番号など、等幅で出す値
  */
-export const monoValueClass = "font-mono text-[10.5px]";
+export const monoValueClass = "min-w-0 break-all font-mono text-sm";
 
 /**
  * 公開台帳に載るハッシュ (等幅、アクセント色)

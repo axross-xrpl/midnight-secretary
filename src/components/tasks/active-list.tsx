@@ -38,7 +38,7 @@ const ActiveTripItem = async ({ trip }: ItemProps): Promise<ReactElement> => {
   return (
     <li className={rowCardClass}>
       <div className="min-w-0 flex-1">
-        <div className="text-[13.5px] font-semibold">
+        <div className="text-base font-semibold">
           {trip.event.title === "" ? t("noTitle") : trip.event.title}
         </div>
         <div className={labelClass}>
@@ -78,7 +78,7 @@ export const ActiveTripList = async ({
   }
 
   return (
-    <ul className="flex flex-col gap-2">
+    <ul className="flex flex-col gap-3">
       {trips.map((trip) => (
         <ActiveTripItem key={trip.id} trip={trip} />
       ))}

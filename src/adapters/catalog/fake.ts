@@ -1,28 +1,40 @@
 import type {
   CatalogError,
-  DoorToDoor,
+  CatalogManagementPort,
   FareCatalogPort,
-  LodgingOffer,
   OfferQuery,
   OfferSet,
-  PlaceOffer,
   PlaceOfferKind,
+  PlaceServiceRow,
+  ServiceListFilters,
+  ServiceWriteError,
   TransportMode,
-  TransportOffer,
+  TransportServiceRow,
   VerificationKind,
 } from "@/domain/catalog";
 import { nightsBetween } from "@/domain/dates";
-import type { IsoDate, OfferId, WalletAddress } from "@/domain/identifiers";
-import {
-  mustParse,
-  parseAmount,
-  parseOfferId,
-  parseWalletAddress,
-} from "@/domain/identifiers.parse";
-import type { Money } from "@/domain/money";
+import type { IsoDate } from "@/domain/identifiers";
+import type {
+  PlaceServiceCreateInput,
+  PlaceServiceUpdateInput,
+  TransportServiceCreateInput,
+  TransportServiceUpdateInput,
+} from "@/features/services/schemas";
 import type { Result } from "@/lib/result";
 import { err, ok } from "@/lib/result";
-import { jstDateTimeOf } from "../jst";
+import {
+  genreOptionsOf,
+  homeOptionsOf,
+  lodgingOfferFor,
+  matchesPlaceFilters,
+  matchesTransportFilters,
+  matchesUpdatedAt,
+  placeOfferOf,
+  placeValuesOf,
+  serviceListOf,
+  transportOfferOn,
+  transportValuesOf,
+} from "./rows";
 
 /**
  * seed の交通 1 行
@@ -91,90 +103,149 @@ export type FakeCatalogSeed = {
   places: readonly PlaceTemplate[];
 };
 
+/**
+ * Fake が採番するものと時計 (テストでは閉じたカウンタと止まった時計、runtime では randomUUID と実時刻)
+ *
+ * 行の id は Route Handler が uuid として検査するので、その形で返す
+ */
+export type FakeCatalogIds = {
+  newServiceId: () => string;
+  now: () => Date;
+};
+
 // 受取先は売り手側の 2 つ。DB の行と同じダミー値を使う
 const TRANSPORT_PAYEE = "mn_shield-addr_test1demo-transport-seller";
 
 const SERVICE_PAYEE = "mn_shield-addr_test1demo-service-seller";
 
-const offerId = (code: string): OfferId => {
-  return mustParse(parseOfferId(code));
+// seed の template が持たない列の既定値 (管理画面に出すだけで、候補には効かない)
+const STATION_ACCESS_MIN = 5;
+
+type FakeCatalogState = {
+  transport: readonly TransportServiceRow[];
+  places: readonly PlaceServiceRow[];
 };
 
-const payeeOf = (raw: string): WalletAddress => {
-  return mustParse(parseWalletAddress(raw));
-};
-
-/**
- * 金額の通貨
- *
- * DB は円単位の整数を持つが、`Money` の通貨はデモ用の 2 つしか無い
- * real と揃えて MST 建てとして扱う
- */
-const mst = (amount: number): Money => {
-  return { amount: mustParse(parseAmount(amount)), currency: "MST" };
-};
-
-const doorToDoorOf = (template: TransportTemplate): DoorToDoor => {
-  return {
-    totalMin:
-      template.originAccessMin +
-      template.boardingBufferMin +
-      template.durationMin +
-      template.arrivalBufferMin +
-      template.destinationAccessMin,
-    totalPrice: mst(template.price + template.accessFare),
-  };
-};
-
-const transportOfferOn = (
+const transportRowOf = (
   template: TransportTemplate,
-  date: IsoDate,
-): TransportOffer => {
+  ids: FakeCatalogIds,
+): TransportServiceRow => {
+  const now = ids.now();
+
   return {
-    id: offerId(template.code),
+    id: ids.newServiceId(),
+    code: template.code,
+    name: template.name,
     mode: template.mode,
-    // DB は事業者の列を持たないので、real と同じく名称をそのまま使う
-    vendor: template.name,
-    payee: payeeOf(TRANSPORT_PAYEE),
-    origin: template.fromSpot,
-    destination: template.toSpot,
-    departAt: jstDateTimeOf(date, template.departTime),
-    arriveAt: jstDateTimeOf(date, template.arriveTime),
-    price: mst(template.price),
-    doorToDoor: doorToDoorOf(template),
+    fromCity: template.fromCity,
+    toCity: template.toCity,
+    fromSpot: template.fromSpot,
+    toSpot: template.toSpot,
+    departTime: template.departTime,
+    arriveTime: template.arriveTime,
+    durationMin: template.durationMin,
+    price: template.price,
+    originAccessMin: template.originAccessMin,
+    boardingBufferMin: template.boardingBufferMin,
+    arrivalBufferMin: template.arrivalBufferMin,
+    destinationAccessMin: template.destinationAccessMin,
+    accessFare: template.accessFare,
+    seatClass: null,
+    walletAddress: TRANSPORT_PAYEE,
+    active: true,
+    createdAt: now,
+    updatedAt: now,
   };
 };
 
-const lodgingOfferFor = (
+// kind ごとに使わない列は null (DB の seed と同じ決まり)
+const EMPTY_PLACE_COLUMNS = {
+  itemName: null,
+  genre: null,
+  openFrom: null,
+  openTo: null,
+  checkinFrom: null,
+  checkoutBy: null,
+  rating: null,
+  breakfastIncluded: null,
+  hasAlcohol: null,
+  seats: null,
+  ageLimit: null,
+};
+
+const lodgingRowOf = (
   template: LodgingTemplate,
-  query: OfferQuery,
-  nights: number,
-): LodgingOffer => {
+  ids: FakeCatalogIds,
+): PlaceServiceRow => {
+  const now = ids.now();
+
   return {
-    id: offerId(template.code),
-    vendor: template.name,
-    payee: payeeOf(SERVICE_PAYEE),
+    ...EMPTY_PLACE_COLUMNS,
+    id: ids.newServiceId(),
+    code: template.code,
+    kind: "hotel",
     name: template.name,
     city: template.city,
-    checkIn: query.departOn,
-    checkOut: query.returnOn,
-    price: mst(template.pricePerNight * nights),
+    address: `${template.city}市内`,
+    nearestStation: `${template.city}駅`,
+    stationAccessMin: STATION_ACCESS_MIN,
+    price: template.pricePerNight,
+    requiredVerifications: [...template.requiredVerifications],
+    itemName: "シングル",
+    checkinFrom: "15:00",
+    checkoutBy: "10:00",
     rating: template.rating,
-    requiredVerifications: template.requiredVerifications,
+    breakfastIncluded: false,
+    walletAddress: SERVICE_PAYEE,
+    active: true,
+    createdAt: now,
+    updatedAt: now,
   };
 };
 
-const placeOfferOf = (template: PlaceTemplate): PlaceOffer => {
+const placeRowOf = (
+  template: PlaceTemplate,
+  ids: FakeCatalogIds,
+): PlaceServiceRow => {
+  const now = ids.now();
+  const requiresAge = template.requiredVerifications.includes("age");
+
   return {
-    id: offerId(template.code),
+    ...EMPTY_PLACE_COLUMNS,
+    id: ids.newServiceId(),
+    code: template.code,
     kind: template.kind,
-    payee: payeeOf(SERVICE_PAYEE),
     name: template.name,
     city: template.city,
+    address: `${template.city}市内`,
+    nearestStation: `${template.city}駅`,
+    stationAccessMin: STATION_ACCESS_MIN,
+    price: template.price,
+    requiredVerifications: [...template.requiredVerifications],
     genre: template.genre,
-    price: mst(template.price),
-    requiredVerifications: template.requiredVerifications,
-    ...(template.ageLimit === undefined ? {} : { ageLimit: template.ageLimit }),
+    ...(template.kind === "restaurant"
+      ? { itemName: "おすすめコース", hasAlcohol: requiresAge }
+      : {}),
+    openFrom: template.kind === "restaurant" ? "11:00" : "10:00",
+    openTo: template.kind === "restaurant" ? "22:00" : "18:00",
+    ageLimit: template.ageLimit ?? null,
+    walletAddress: SERVICE_PAYEE,
+    active: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+};
+
+const seedState = (
+  seed: FakeCatalogSeed,
+  ids: FakeCatalogIds,
+): FakeCatalogState => {
+  return {
+    transport: seed.transport.map((template) => transportRowOf(template, ids)),
+    places: [
+      ...seed.lodging.map((template) => lodgingRowOf(template, ids)),
+      ...seed.places.map((template) => placeRowOf(template, ids)),
+    ],
   };
 };
 
@@ -192,72 +263,289 @@ const matchesPlaceName = (
   return city === value || spot === value;
 };
 
+const activeOnly = <T extends { active: boolean }>(row: T): boolean => {
+  return row.active;
+};
+
 const transportBetween = (
-  seed: FakeCatalogSeed,
+  state: FakeCatalogState,
   origin: string,
   destination: string,
   date: IsoDate,
-): readonly TransportOffer[] => {
-  return seed.transport
+) => {
+  return state.transport
+    .filter(activeOnly)
     .filter(
-      (template) =>
-        matchesPlaceName(template.fromCity, template.fromSpot, origin) &&
-        matchesPlaceName(template.toCity, template.toSpot, destination),
+      (row) =>
+        matchesPlaceName(row.fromCity, row.fromSpot, origin) &&
+        matchesPlaceName(row.toCity, row.toSpot, destination),
     )
-    .map((template) => transportOfferOn(template, date));
+    .map((row) => transportOfferOn(row, date))
+    .filter((offer) => offer !== undefined);
 };
 
-const lodgingFor = (
-  seed: FakeCatalogSeed,
-  query: OfferQuery,
-  nights: number,
-): readonly LodgingOffer[] => {
-  if (nights <= 0) {
-    return [];
-  }
-
-  return seed.lodging
-    .filter((template) => template.city === query.destination)
-    .map((template) => lodgingOfferFor(template, query, nights));
-};
-
-const placesFor = (
-  seed: FakeCatalogSeed,
-  kind: PlaceOfferKind,
+const activePlacesOf = (
+  state: FakeCatalogState,
+  kind: string,
   city: string,
-): readonly PlaceOffer[] => {
-  return seed.places
-    .filter((template) => template.kind === kind && template.city === city)
-    .map(placeOfferOf);
+): readonly PlaceServiceRow[] => {
+  return state.places
+    .filter(activeOnly)
+    .filter((row) => row.kind === kind && row.city === city);
 };
 
 const findOffers = (
-  seed: FakeCatalogSeed,
+  state: FakeCatalogState,
+  destinations: readonly string[],
   query: OfferQuery,
 ): Result<OfferSet, CatalogError> => {
-  if (!seed.destinations.includes(query.destination)) {
+  if (!destinations.includes(query.destination)) {
     return err({ kind: "unknownDestination", destination: query.destination });
   }
 
   const nights = nightsBetween(query.departOn, query.returnOn);
+  const lodging =
+    nights > 0 ? activePlacesOf(state, "hotel", query.destination) : [];
 
   return ok({
     outbound: transportBetween(
-      seed,
+      state,
       query.origin,
       query.destination,
       query.departOn,
     ),
     inbound: transportBetween(
-      seed,
+      state,
       query.destination,
       query.origin,
       query.returnOn,
     ),
-    lodging: lodgingFor(seed, query, nights),
-    dining: placesFor(seed, "restaurant", query.destination),
-    leisure: placesFor(seed, "leisure", query.destination),
+    lodging: lodging.map((row) => lodgingOfferFor(row, query, nights)),
+    dining: activePlacesOf(state, "restaurant", query.destination).map((row) =>
+      placeOfferOf(row, "restaurant"),
+    ),
+    leisure: activePlacesOf(state, "leisure", query.destination).map((row) =>
+      placeOfferOf(row, "leisure"),
+    ),
   });
+};
+
+// 行はリクエストより長く残す必要があるので、このクロージャに閉じた入れ物へ代入する
+const putTransport = (
+  state: FakeCatalogState,
+  rows: readonly TransportServiceRow[],
+): void => {
+  state.transport = rows;
+};
+
+const putPlaces = (
+  state: FakeCatalogState,
+  rows: readonly PlaceServiceRow[],
+): void => {
+  state.places = rows;
+};
+
+const hasCode = <T extends { code: string }>(
+  rows: readonly T[],
+  code: string,
+): boolean => {
+  return rows.some((row) => row.code === code);
+};
+
+const replaced = <T extends { id: string }>(
+  rows: readonly T[],
+  next: T,
+): T[] => {
+  return rows.map((row) => (row.id === next.id ? next : row));
+};
+
+const createTransport = (
+  state: FakeCatalogState,
+  ids: FakeCatalogIds,
+  input: TransportServiceCreateInput,
+): Result<TransportServiceRow, ServiceWriteError> => {
+  if (hasCode(state.transport, input.code)) {
+    return err({ kind: "duplicateCode" });
+  }
+
+  const now = ids.now();
+  const row: TransportServiceRow = {
+    id: ids.newServiceId(),
+    ...transportValuesOf(input),
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  putTransport(state, [...state.transport, row]);
+
+  return ok(row);
+};
+
+const updateTransport = (
+  state: FakeCatalogState,
+  ids: FakeCatalogIds,
+  id: string,
+  input: TransportServiceUpdateInput,
+): Result<TransportServiceRow, ServiceWriteError> => {
+  const current = state.transport.find((row) => row.id === id);
+
+  if (current === undefined) {
+    return err({ kind: "notFound" });
+  }
+
+  if (current.mode !== input.mode) {
+    return err({ kind: "immutableCategory" });
+  }
+
+  if (!matchesUpdatedAt(current, input.updatedAt)) {
+    return err({ kind: "conflict" });
+  }
+
+  if (current.code !== input.code && hasCode(state.transport, input.code)) {
+    return err({ kind: "duplicateCode" });
+  }
+
+  const row: TransportServiceRow = {
+    ...current,
+    ...transportValuesOf(input),
+    updatedAt: ids.now(),
+  };
+
+  putTransport(state, replaced(state.transport, row));
+
+  return ok(row);
+};
+
+const disableTransport = (
+  state: FakeCatalogState,
+  ids: FakeCatalogIds,
+  id: string,
+  updatedAt: string,
+): Result<TransportServiceRow, ServiceWriteError> => {
+  const current = state.transport.find((row) => row.id === id);
+
+  if (current === undefined) {
+    return err({ kind: "notFound" });
+  }
+
+  if (!matchesUpdatedAt(current, updatedAt)) {
+    return err({ kind: "conflict" });
+  }
+
+  const row: TransportServiceRow = {
+    ...current,
+    active: false,
+    updatedAt: ids.now(),
+  };
+
+  putTransport(state, replaced(state.transport, row));
+
+  return ok(row);
+};
+
+const createPlace = (
+  state: FakeCatalogState,
+  ids: FakeCatalogIds,
+  input: PlaceServiceCreateInput,
+): Result<PlaceServiceRow, ServiceWriteError> => {
+  if (hasCode(state.places, input.code)) {
+    return err({ kind: "duplicateCode" });
+  }
+
+  const now = ids.now();
+  const row: PlaceServiceRow = {
+    id: ids.newServiceId(),
+    ...placeValuesOf(input),
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  putPlaces(state, [...state.places, row]);
+
+  return ok(row);
+};
+
+const updatePlace = (
+  state: FakeCatalogState,
+  ids: FakeCatalogIds,
+  id: string,
+  input: PlaceServiceUpdateInput,
+): Result<PlaceServiceRow, ServiceWriteError> => {
+  const current = state.places.find((row) => row.id === id);
+
+  if (current === undefined) {
+    return err({ kind: "notFound" });
+  }
+
+  if (current.kind !== input.kind) {
+    return err({ kind: "immutableCategory" });
+  }
+
+  if (!matchesUpdatedAt(current, input.updatedAt)) {
+    return err({ kind: "conflict" });
+  }
+
+  if (current.code !== input.code && hasCode(state.places, input.code)) {
+    return err({ kind: "duplicateCode" });
+  }
+
+  const row: PlaceServiceRow = {
+    ...current,
+    ...placeValuesOf(input),
+    updatedAt: ids.now(),
+  };
+
+  putPlaces(state, replaced(state.places, row));
+
+  return ok(row);
+};
+
+const disablePlace = (
+  state: FakeCatalogState,
+  ids: FakeCatalogIds,
+  id: string,
+  updatedAt: string,
+): Result<PlaceServiceRow, ServiceWriteError> => {
+  const current = state.places.find((row) => row.id === id);
+
+  if (current === undefined) {
+    return err({ kind: "notFound" });
+  }
+
+  if (!matchesUpdatedAt(current, updatedAt)) {
+    return err({ kind: "conflict" });
+  }
+
+  const row: PlaceServiceRow = {
+    ...current,
+    active: false,
+    updatedAt: ids.now(),
+  };
+
+  putPlaces(state, replaced(state.places, row));
+
+  return ok(row);
+};
+
+const listServices = (state: FakeCatalogState, filters: ServiceListFilters) => {
+  return serviceListOf(
+    state.transport.filter((row) => matchesTransportFilters(row, filters)),
+    state.places.filter((row) => matchesPlaceFilters(row, filters)),
+  );
+};
+
+// 採番を省いたときの既定 (テストでは決定的な uuid、時計は実時刻)
+const defaultIds = (): FakeCatalogIds => {
+  const state = { issued: 0 };
+
+  return {
+    newServiceId: () => {
+      state.issued = state.issued + 1;
+
+      return `00000000-0000-4000-8000-${String(state.issued).padStart(12, "0")}`;
+    },
+    now: () => new Date(),
+  };
 };
 
 /**
@@ -703,20 +991,49 @@ export const seedCatalog = (): FakeCatalogSeed => {
 };
 
 /**
- * seed を読むだけのカタログ
+ * seed をメモリの行にして読み書きするカタログ
  *
- * `findOffers` は seed の現地時刻にクエリの日付を当てはめる
- * seed はサービス行の id (uuid) を持たないので `resolveServiceIds` は必ず失敗する
- * (demo では確定旅程を DB に書かず、Fake の store がメモリに持つ)
+ * `findOffers` は有効な行の現地時刻にクエリの日付を当てはめる (Neon と同じ行の形を経由する)
+ * 管理画面の書き込みはこのメモリの行に入り、候補にもそのまま現れる。再起動すると seed に戻る
+ * `resolveServiceIds` は必ず失敗する (demo では確定旅程を DB に書かず、Fake の store がメモリに持つ)
  */
-export const createFakeCatalog = (seed: FakeCatalogSeed): FareCatalogPort => {
+export const createFakeCatalog = (
+  seed: FakeCatalogSeed,
+  ids: FakeCatalogIds = defaultIds(),
+): FareCatalogPort & CatalogManagementPort => {
+  const state = seedState(seed, ids);
+
   return {
     listDestinations: async () => ok(seed.destinations),
-    findOffers: async (query) => findOffers(seed, query),
+    findOffers: async (query) => findOffers(state, seed.destinations, query),
     resolveServiceIds: async (codes) =>
       err({
         kind: "unavailable",
         cause: { reason: "fakeCatalogHasNoServiceIds", codes },
       }),
+    listServices: async (filters) => ok(listServices(state, filters)),
+    getTransportService: async (id) =>
+      ok(state.transport.find((row) => row.id === id)),
+    getPlaceService: async (id) =>
+      ok(state.places.find((row) => row.id === id)),
+    listHomeOptions: async () =>
+      ok(
+        homeOptionsOf(
+          state.transport
+            .filter(activeOnly)
+            .map((row) => ({ city: row.fromCity, spot: row.fromSpot })),
+        ),
+      ),
+    listGenreOptions: async () =>
+      ok(genreOptionsOf(state.places.filter(activeOnly))),
+    createTransportService: async (input) => createTransport(state, ids, input),
+    updateTransportService: async (id, input) =>
+      updateTransport(state, ids, id, input),
+    disableTransportService: async (id, updatedAt) =>
+      disableTransport(state, ids, id, updatedAt),
+    createPlaceService: async (input) => createPlace(state, ids, input),
+    updatePlaceService: async (id, input) => updatePlace(state, ids, id, input),
+    disablePlaceService: async (id, updatedAt) =>
+      disablePlace(state, ids, id, updatedAt),
   };
 };

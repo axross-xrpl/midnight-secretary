@@ -408,7 +408,12 @@
       "amount": "金額",
       "authorizedAt": "承認日時",
       "visibility": "公開範囲",
-      "transaction": "トランザクション"
+      "transaction": "トランザクション",
+      "escrow": "預かり",
+      "escrowHeld": "秘書が預かり中",
+      "escrowReleased": "受取先へ送金済み",
+      "confirmReceipt": "受け取りました",
+      "confirming": "確認中…"
     },
     "ageProof": {
       "identity": "公開 ID",
@@ -453,6 +458,31 @@
       "note": "オフチェーンに保持し、オンチェーンで証明します。公開側との唯一の接点がコミットメントです。"
     }
   },
+  "MoneyFlow": {
+    "title": "お金の居場所",
+    "subtitle": "あなたの支払い枠から秘書を経て、それぞれの受取先へ。",
+    "traveler": {
+      "title": "あなた",
+      "granted": "秘書に渡した枠",
+      "none": "支払い枠はまだありません。"
+    },
+    "secretary": {
+      "title": "秘書",
+      "holding": "受取先のために預かり中",
+      "unspent": "未使用"
+    },
+    "payees": {
+      "title": "受取先",
+      "none": "計画はまだありません。",
+      "received": "受取済みの合計"
+    },
+    "status": {
+      "unpaid": "未払い",
+      "held": "預かり中",
+      "released": "受取済み"
+    },
+    "note": "支払いは、サービスを受け取ったと確認するまで秘書が預かります。このビルドでは預かりはコントラクトではなくアプリが持っています。"
+  },
   "SecretaryError": {
     "calendar": {
       "unauthenticated": "カレンダーを読むには Google でサインインし直してください。",
@@ -486,6 +516,7 @@
       "overBudget": "{requested} の支払いは枠に収まりません。上限 {cap} のうち {spent} を使用済みです。",
       "expired": "支払い枠は期限切れです。",
       "alreadyAuthorized": "この支払いはすでに承認済みです。",
+      "notHeld": "この支払いはすでに受取先へ送金済みです。",
       "proofFailed": "証明の生成に失敗しました。もう一度お試しください。",
       "unavailable": "支払い枠のコントラクトにいま接続できません。"
     },
@@ -507,7 +538,8 @@
       "privateSettlementUnsupported": "この支払い枠では非公開の支払いを扱えません。すべて公開で承認してください。",
       "ageCredentialMissing": "年齢確認証明書がまだ発行されていません。<link>設定画面</link>で発行してください。",
       "birthDateMissing": "年齢を証明するには、プロフィールに生年月日の登録が必要です。",
-      "replanNotNeeded": "この計画は組み直す必要がありません。ページを読み直してください。"
+      "replanNotNeeded": "この計画は組み直す必要がありません。ページを読み直してください。",
+      "notPaid": "この出張はまだ支払っていないので、受け取りの確認はできません。"
     },
     "identity": {
       "notRegistered": "年齢確認の登録がまだありません。",

@@ -2,8 +2,13 @@ import { createHash, randomUUID } from "node:crypto";
 import type { SecretaryDeps } from "@/application/deps";
 import type { EnvLike, PortSources, SourcesError } from "@/application/sources";
 import { parsePortSources, SOURCE_ENV_KEYS } from "@/application/sources";
-import type { RequestContext, SecretaryFactories } from "@/application/wiring";
-import { buildSecretaryDeps } from "@/application/wiring";
+import type {
+  RequestContext,
+  SecretaryFactories,
+  SettingsDeps,
+  SettingsFactories,
+} from "@/application/wiring";
+import { buildSecretaryDeps, buildSettingsDeps } from "@/application/wiring";
 import { addDays, yearsBefore } from "@/domain/dates";
 import {
   mustParse,
@@ -20,7 +25,7 @@ import { jstDateOf } from "./jst";
  */
 export type SecretaryRuntime = {
   sources: PortSources;
-  factories: SecretaryFactories;
+  factories: SecretaryFactories & SettingsFactories;
 };
 
 type RuntimeSlot = {
@@ -68,6 +73,11 @@ const createRuntime = (env: EnvLike): SecretaryRuntime => {
         DEMO_ADULT_AGE,
       ),
       newTripId: () => mustParse(parseTripId(randomUUID())),
+      catalogIds: {
+        newServiceId: () => randomUUID(),
+        now: () => new Date(),
+      },
+      profileClock: () => mustParse(parseIsoDateTime(new Date().toISOString())),
       newEventId: () => mustParse(parseCalendarEventId(`seed-${randomUUID()}`)),
       mandateIds: {
         newMandateId: () =>
@@ -78,6 +88,7 @@ const createRuntime = (env: EnvLike): SecretaryRuntime => {
           createHash("sha256")
             .update(`${mandateId}:${paymentRef}`)
             .digest("hex"),
+        newReleaseRef: () => `release-${randomUUID()}`,
       },
       identityIds: {
         // identity は公開されるので、ユーザ id をそのまま出さずハッシュにする
@@ -118,4 +129,13 @@ export const secretaryDepsFor = (context: RequestContext): SecretaryDeps => {
   const runtime = getSecretaryRuntime();
 
   return buildSecretaryDeps(runtime.sources, runtime.factories, context);
+};
+
+/**
+ * runtime からリクエスト 1 件分の設定画面の deps を組み立てる
+ */
+export const settingsDepsFor = (context: RequestContext): SettingsDeps => {
+  const runtime = getSecretaryRuntime();
+
+  return buildSettingsDeps(runtime.sources, runtime.factories, context);
 };

@@ -6,11 +6,22 @@ import type { ContractServerHealth } from "@/lib/dev-contracts/network";
 
 const POLL_INTERVAL_MS = 15_000;
 
-export default function ContractServerStatus() {
+type ContractServerStatusProps = {
+  /** mandate か identity が real のときだけ true。両方 Fake なら contract server は要らないので出さない */
+  enabled: boolean;
+};
+
+export default function ContractServerStatus({
+  enabled,
+}: ContractServerStatusProps) {
   const t = useTranslations("ContractServerStatus");
   const [health, setHealth] = useState<ContractServerHealth | null>(null);
 
   useEffect(() => {
+    if (!enabled) {
+      return undefined;
+    }
+
     let cancelled = false;
 
     const check = async () => {
@@ -31,18 +42,21 @@ export default function ContractServerStatus() {
       cancelled = true;
       clearInterval(id);
     };
-  }, []);
+  }, [enabled]);
+
+  if (!enabled) {
+    return undefined;
+  }
 
   const ready = health?.status === "ready";
   const label =
     health === null ? t("checking") : ready ? t("ready") : t("unreachable");
-  const dotClass =
-    health === null ? "bg-zinc-400" : ready ? "bg-green-500" : "bg-red-500";
+  const dotClass = health === null ? "bg-faint" : ready ? "bg-ok" : "bg-danger";
 
   return (
     <span
       title={health?.status === "unreachable" ? health.message : undefined}
-      className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400"
+      className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted"
     >
       <span className={`h-2 w-2 rounded-full ${dotClass}`} aria-hidden />
       {label}

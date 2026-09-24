@@ -49,3 +49,10 @@ next-env.d.ts
 
 # working documents
 docs/work
+
+# playwright
+/test-results/
+/playwright-report/
+
+# ローカル専用の資料 (git 管理外)
+.local/

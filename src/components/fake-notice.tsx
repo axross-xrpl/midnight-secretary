@@ -28,7 +28,7 @@ export const FakeNotice = async ({
   return (
     <p
       role="status"
-      className="border-b border-amber-300/60 bg-amber-50 px-16 py-2 text-sm text-amber-900 dark:border-amber-400/20 dark:bg-amber-950/40 dark:text-amber-200"
+      className="border-b border-border bg-warn-bg px-6 py-2 text-sm text-warn sm:px-16"
     >
       {t("message", { ports })}
     </p>

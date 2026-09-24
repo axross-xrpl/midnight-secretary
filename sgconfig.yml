@@ -1,0 +1,4 @@
+# ast-grep の設定。ルールは rules/ 配下に 1 ファイル 1 ルールで置く
+# 実行: npm run lint:design (= ast-grep scan)
+ruleDirs:
+  - rules

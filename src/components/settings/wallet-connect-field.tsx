@@ -58,14 +58,12 @@ export function WalletConnectField({
   if (value !== "") {
     return (
       <div className="space-y-1.5">
-        <div className="flex items-center gap-2 rounded-lg border border-[#e5e8ec] bg-slate-50 px-3 py-2">
-          <span className="truncate font-mono text-sm text-slate-700">
-            {value}
-          </span>
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-card-inner px-3 py-2">
+          <span className="truncate font-mono text-sm text-ink">{value}</span>
           <button
             type="button"
             onClick={() => onChange("")}
-            className="ml-auto shrink-0 text-xs font-semibold text-[#185fa5] underline"
+            className="ml-auto shrink-0 text-sm font-medium text-accent underline"
           >
             {t("wallet.disconnect")}
           </button>
@@ -80,11 +78,11 @@ export function WalletConnectField({
         type="button"
         onClick={() => void connect()}
         disabled={status === "connecting"}
-        className="rounded-lg bg-[#185fa5] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#144e88] disabled:opacity-60"
+        className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-strong disabled:opacity-60"
       >
         {status === "connecting" ? t("wallet.connecting") : t("wallet.connect")}
       </button>
-      {failure !== null && <p className="text-xs text-red-700">{failure}</p>}
+      {failure !== null && <p className="text-sm text-danger">{failure}</p>}
     </div>
   );
 }

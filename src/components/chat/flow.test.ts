@@ -187,6 +187,15 @@ describe("reduceFlow", () => {
     ).toBe(INITIAL_FLOW_STATE);
   });
 
+  test("tripUpdated は進行中でなくても表示する出張を差し替える", () => {
+    expect(
+      reduceFlow(INITIAL_FLOW_STATE, { type: "tripUpdated", trip: PAID }),
+    ).toStrictEqual({ ...INITIAL_FLOW_STATE, fresh: PAID });
+    expect(
+      reduceFlow(busyState("writeBack"), { type: "tripUpdated", trip: PAID }),
+    ).toStrictEqual({ ...busyState("writeBack"), fresh: PAID });
+  });
+
   test("fail は進行中の 1 手を引き継ぎ、dismiss で消える", () => {
     const failed = reduceFlow(busyState("pay"), {
       type: "fail",

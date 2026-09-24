@@ -172,6 +172,7 @@ const authorizationFor = (offer: OfferId): Authorization => {
       transactionId: `tx:${offer}`,
       recipient: payee("wallet-any"),
     },
+    escrow: { status: "held", heldAt: at("2026-09-09T00:00:00Z") },
   };
 };
 

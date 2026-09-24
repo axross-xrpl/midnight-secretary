@@ -1,3 +1,11 @@
+import type { GenreOptions, HomeOption } from "@/features/profile/options";
+import type { ServiceCategory } from "@/features/services/constants";
+import type {
+  PlaceServiceCreateInput,
+  PlaceServiceUpdateInput,
+  TransportServiceCreateInput,
+  TransportServiceUpdateInput,
+} from "@/features/services/schemas";
 import type { Result } from "@/lib/result";
 import type { SchemaError } from "@/lib/schema";
 import type {
@@ -174,4 +182,225 @@ const withoutAgeVerification = (offer: PlaceOffer): boolean => {
  */
 export const withoutAgeRestrictedDining = (offers: OfferSet): OfferSet => {
   return { ...offers, dining: offers.dining.filter(withoutAgeVerification) };
+};
+
+/**
+ * `transport_services` の 1 行
+ *
+ * サービス管理画面の詳細と、書き込みの戻り値
+ * DB と JSON の境界の形なので、空の列は undefined ではなく null のまま持つ (画面のスキーマも nullable)
+ * 時刻は "HH:MM" または "HH:MM:SS"
+ */
+export type TransportServiceRow = {
+  id: string;
+  code: string;
+  name: string;
+  mode: string;
+  fromCity: string;
+  toCity: string;
+  fromSpot: string;
+  toSpot: string;
+  departTime: string | null;
+  arriveTime: string | null;
+  durationMin: number;
+  price: number;
+  originAccessMin: number;
+  boardingBufferMin: number;
+  arrivalBufferMin: number | null;
+  destinationAccessMin: number;
+  accessFare: number | null;
+  seatClass: string | null;
+  walletAddress: string;
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+/**
+ * `place_services` の 1 行 (宿泊・飲食・レジャー)
+ *
+ * `TransportServiceRow` と同じく境界の形で、kind ごとに使わない列は null
+ */
+export type PlaceServiceRow = {
+  id: string;
+  code: string;
+  kind: string;
+  name: string;
+  city: string;
+  address: string;
+  nearestStation: string;
+  stationAccessMin: number;
+  price: number;
+  requiredVerifications: string[];
+  itemName: string | null;
+  genre: string | null;
+  openFrom: string | null;
+  openTo: string | null;
+  checkinFrom: string | null;
+  checkoutBy: string | null;
+  rating: number | null;
+  breakfastIncluded: boolean | null;
+  hasAlcohol: boolean | null;
+  seats: string | null;
+  ageLimit: number | null;
+  walletAddress: string;
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+/**
+ * サービス一覧の絞り込み
+ *
+ * `active` を省くと有効な行だけ、`"all"` で無効な行も含める
+ * `city` は交通なら出発・到着のどちらか、場所系なら所在地に当てる
+ * `query` は名称・code・地点名の部分一致 (大文字小文字を区別しない)
+ */
+export type ServiceListFilters = {
+  category?: ServiceCategory;
+  city?: string;
+  query?: string;
+  active?: boolean | "all";
+};
+
+/**
+ * サービス一覧の 1 行
+ *
+ * 交通と場所系を 1 つの形に揃えたもの。種別ごとに無い値は null
+ */
+export type ServiceListItem = {
+  id: string;
+  category: ServiceCategory;
+  code: string;
+  name: string;
+  price: number;
+  /** 交通は区間、場所系は都市 */
+  location: string;
+  /** 場所系の最寄り駅。交通は null */
+  station: string | null;
+  /** 最寄り駅からの時間。交通は null */
+  stationAccessMin: number | null;
+  /** 場所系が要求する本人確認。交通は常に空 */
+  requiredVerifications: VerificationKind[];
+  ageLimit: number | null;
+  active: boolean;
+  updatedAt: Date;
+};
+
+/**
+ * サービスの書き込みで起こりうる失敗
+ *
+ * `conflict` は取得時の `updatedAt` と行が食い違ったとき (同時編集)
+ * `immutableCategory` は作成後に種別を変えようとしたとき
+ * `unavailable` は DB に届かなかったときで、原因をそのまま持つ
+ */
+export type ServiceWriteError =
+  | { kind: "notFound" }
+  | { kind: "conflict" }
+  | { kind: "immutableCategory" }
+  | { kind: "duplicateCode" }
+  | { kind: "constraintViolation" }
+  | { kind: "unavailable"; cause: unknown };
+
+/**
+ * 絞り込みに合うサービスを、種別の論理順 (鉄道・航空・宿泊・飲食・レジャー) に名前順で返す
+ */
+export type ListServices = (
+  filters: ServiceListFilters,
+) => Promise<Result<readonly ServiceListItem[], CatalogError>>;
+
+/**
+ * 交通 1 行を id で引く (無ければ undefined)
+ */
+export type GetTransportService = (
+  id: string,
+) => Promise<Result<TransportServiceRow | undefined, CatalogError>>;
+
+/**
+ * 場所系 1 行を id で引く (無ければ undefined)
+ */
+export type GetPlaceService = (
+  id: string,
+) => Promise<Result<PlaceServiceRow | undefined, CatalogError>>;
+
+/**
+ * 拠点として選べる都市と起点を、有効な交通の出発地から導く
+ */
+export type ListHomeOptions = () => Promise<
+  Result<readonly HomeOption[], CatalogError>
+>;
+
+/**
+ * 好み・趣味に選べるジャンルを、有効な飲食・レジャーの genre から導く
+ */
+export type ListGenreOptions = () => Promise<
+  Result<GenreOptions, CatalogError>
+>;
+
+/**
+ * 交通を 1 行追加する
+ */
+export type CreateTransportService = (
+  input: TransportServiceCreateInput,
+) => Promise<Result<TransportServiceRow, ServiceWriteError>>;
+
+/**
+ * 交通 1 行を、取得時の `updatedAt` が一致するときだけ書き換える
+ */
+export type UpdateTransportService = (
+  id: string,
+  input: TransportServiceUpdateInput,
+) => Promise<Result<TransportServiceRow, ServiceWriteError>>;
+
+/**
+ * 交通 1 行を無効にする (行は消さない)
+ */
+export type DisableTransportService = (
+  id: string,
+  updatedAt: string,
+) => Promise<Result<TransportServiceRow, ServiceWriteError>>;
+
+/**
+ * 場所系を 1 行追加する
+ */
+export type CreatePlaceService = (
+  input: PlaceServiceCreateInput,
+) => Promise<Result<PlaceServiceRow, ServiceWriteError>>;
+
+/**
+ * 場所系 1 行を、取得時の `updatedAt` が一致するときだけ書き換える
+ */
+export type UpdatePlaceService = (
+  id: string,
+  input: PlaceServiceUpdateInput,
+) => Promise<Result<PlaceServiceRow, ServiceWriteError>>;
+
+/**
+ * 場所系 1 行を無効にする (行は消さない)
+ */
+export type DisablePlaceService = (
+  id: string,
+  updatedAt: string,
+) => Promise<Result<PlaceServiceRow, ServiceWriteError>>;
+
+/**
+ * サービス管理画面から見たカタログ
+ *
+ * `FareCatalogPort` と同じ行を、候補ではなく行のまま読み書きする
+ * 同じ adapter が両方を実装し、`SECRETARY_CATALOG` で一緒に切り替わる
+ * `listDestinations` は `FareCatalogPort` と同じもので、拠点に選べる都市の一覧にも使う
+ */
+export type CatalogManagementPort = {
+  listDestinations: ListDestinations;
+  listServices: ListServices;
+  getTransportService: GetTransportService;
+  getPlaceService: GetPlaceService;
+  listHomeOptions: ListHomeOptions;
+  listGenreOptions: ListGenreOptions;
+  createTransportService: CreateTransportService;
+  updateTransportService: UpdateTransportService;
+  disableTransportService: DisableTransportService;
+  createPlaceService: CreatePlaceService;
+  updatePlaceService: UpdatePlaceService;
+  disablePlaceService: DisablePlaceService;
 };

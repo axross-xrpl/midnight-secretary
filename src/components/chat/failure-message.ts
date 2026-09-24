@@ -37,6 +37,7 @@ const PLAIN_FAILURE_KEYS = [
   "mandate.notFound",
   "mandate.expired",
   "mandate.alreadyAuthorized",
+  "mandate.notHeld",
   "mandate.proofFailed",
   "mandate.unavailable",
   "money.currencyMismatch",
@@ -53,6 +54,7 @@ const PLAIN_FAILURE_KEYS = [
   "flow.birthDateMissing",
   // `flow.ageCredentialMissing` は設定画面へのリンクを含むので、ここには入れず variant を分ける
   "flow.replanNotNeeded",
+  "flow.notPaid",
   "identity.notRegistered",
   "identity.alreadyRegistered",
   "identity.proofFailed",

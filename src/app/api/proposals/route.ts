@@ -25,6 +25,7 @@ import type {
   ServiceCandidate,
   ServiceKind,
 } from "@/lib/types";
+import { settingsDeps } from "@/server/ports";
 import { readPlanningProfile } from "@/server/profile/read-profile";
 
 export const dynamic = "force-dynamic";
@@ -209,7 +210,9 @@ export async function POST(request: Request): Promise<Response> {
   try {
     [candidatesByKind, profile] = await Promise.all([
       findCandidatesByKind(parsed.data.filters),
-      user === null ? Promise.resolve(null) : readPlanningProfile(user.userId),
+      user === null
+        ? Promise.resolve(null)
+        : readPlanningProfile(user.userId, settingsDeps().profile),
     ]);
   } catch (error) {
     console.error("[proposals] database read failed", {

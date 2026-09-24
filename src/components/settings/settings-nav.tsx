@@ -20,7 +20,7 @@ export function SettingsNav() {
   const pathname = usePathname();
 
   return (
-    <nav aria-label={t("title")} className="space-y-1 text-sm">
+    <nav aria-label={t("title")} className="space-y-1 text-base">
       {pages.map(({ href, label }) => {
         const isCurrent = pathname === href || pathname.startsWith(`${href}/`);
 
@@ -31,15 +31,15 @@ export function SettingsNav() {
             aria-current={isCurrent ? "page" : undefined}
             className={`block rounded-lg px-3 py-2.5 transition ${
               isCurrent
-                ? "bg-blue-50 font-semibold text-[#185fa5]"
-                : "text-slate-600 hover:bg-slate-50"
+                ? "bg-accent-bg font-semibold text-accent"
+                : "text-muted hover:bg-card-inner"
             }`}
           >
             {t(label)}
           </Link>
         );
       })}
-      <span className="block rounded-lg px-3 py-2.5 text-slate-400">
+      <span className="block rounded-lg px-3 py-2.5 text-faint">
         {t("wallet")}
       </span>
     </nav>

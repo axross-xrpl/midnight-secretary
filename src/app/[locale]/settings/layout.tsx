@@ -11,11 +11,11 @@ export default async function SettingsLayout({
   // overflow は付けない。ページ全体をスクロールさせて、本文側の sticky を効かせる
   // (overflow-hidden な祖先があると、sticky はその動かない領域を基準にしてしまう)
   return (
-    <div className="flex flex-1 bg-[#f5f6f8] text-slate-950">
-      <aside className="hidden w-56 shrink-0 border-r border-[#e5e8ec] bg-white lg:block">
+    <div className="flex flex-1 bg-bg text-ink">
+      <aside className="hidden w-56 shrink-0 border-r border-border bg-surface lg:block">
         {/* スクロールしてもナビは画面に残す */}
         <div className="sticky top-0 px-5 py-8">
-          <h1 className="mb-6 px-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+          <h1 className="mb-6 px-3 text-sm font-medium uppercase tracking-[0.18em] text-muted">
             {t("title")}
           </h1>
           <SettingsNav />

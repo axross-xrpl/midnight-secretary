@@ -4,183 +4,31 @@ import { getDb } from "@/db/client";
 import { placeServices, transportServices } from "@/db/schema";
 import type {
   CatalogError,
-  DoorToDoor,
+  CatalogManagementPort,
   FareCatalogPort,
-  LodgingOffer,
   OfferQuery,
   OfferSet,
-  PlaceOffer,
-  PlaceOfferKind,
-  TransportMode,
-  TransportOffer,
-  VerificationKind,
 } from "@/domain/catalog";
 import { nightsBetween } from "@/domain/dates";
-import type { IsoDate, OfferId, WalletAddress } from "@/domain/identifiers";
-import {
-  mustParse,
-  parseAmount,
-  parseOfferId,
-  parseWalletAddress,
-} from "@/domain/identifiers.parse";
-import type { Money } from "@/domain/money";
+import type { OfferId } from "@/domain/identifiers";
 import type { Result } from "@/lib/result";
 import { err, ok } from "@/lib/result";
-import { jstDateTimeOf } from "../jst";
-
-/**
- * 金額の通貨
- *
- * DB は円単位の整数を持つが、`Money` の通貨はデモ用の 2 つしか無い
- * 金額の大きさは同じなので、fake と揃えて MST 建てとして扱う
- */
-const mst = (amount: number): Money => {
-  return { amount: mustParse(parseAmount(amount)), currency: "MST" };
-};
-
-const VERIFICATION_KINDS: readonly string[] = [
-  "age",
-  "nationality",
-  "residence",
-];
-
-// DB の CHECK で 3 値に絞られているが、型の上では text[] なのでここで絞る
-const verificationsOf = (
-  raw: readonly string[],
-): readonly VerificationKind[] => {
-  return raw.filter((value): value is VerificationKind =>
-    VERIFICATION_KINDS.includes(value),
-  );
-};
-
-// time 型は "HH:MM:SS" で来るので、JST の現地時刻が要る形に切る
-const hourMinute = (value: string): string => {
-  return value.slice(0, 5);
-};
-
-const offerId = (code: string): OfferId => {
-  return mustParse(parseOfferId(code));
-};
-
-const payeeOf = (walletAddress: string): WalletAddress => {
-  return mustParse(parseWalletAddress(walletAddress));
-};
-
-const optional = <T>(value: T | null): T | undefined => {
-  return value === null ? undefined : value;
-};
-
-type TransportRow = {
-  code: string;
-  name: string;
-  mode: string;
-  fromSpot: string;
-  toSpot: string;
-  departTime: string | null;
-  arriveTime: string | null;
-  durationMin: number;
-  price: number;
-  originAccessMin: number;
-  boardingBufferMin: number;
-  arrivalBufferMin: number | null;
-  destinationAccessMin: number;
-  accessFare: number | null;
-  walletAddress: string;
-};
-
-type PlaceRow = {
-  code: string;
-  kind: string;
-  name: string;
-  city: string;
-  genre: string | null;
-  price: number;
-  requiredVerifications: string[];
-  rating: number | null;
-  ageLimit: number | null;
-  walletAddress: string;
-};
-
-/**
- * 拠点から目的地までの所要と総額
- *
- * 内訳は交通の行が自己完結して持つので、移動条件のテーブルを引かない
- */
-const doorToDoorOf = (row: TransportRow): DoorToDoor => {
-  return {
-    totalMin:
-      row.originAccessMin +
-      row.boardingBufferMin +
-      row.durationMin +
-      (row.arrivalBufferMin ?? 0) +
-      row.destinationAccessMin,
-    totalPrice: mst(row.price + (row.accessFare ?? 0)),
-  };
-};
-
-/**
- * 交通 1 行を候補にする
- *
- * 時刻を持たない行は旅程に置けないので候補から外す
- * `vendor` は DB に列が無い (事業者マスタを持たない設計) ので名称をそのまま使う
- */
-const transportOfferOn = (
-  row: TransportRow,
-  date: IsoDate,
-): TransportOffer | undefined => {
-  if (row.departTime === null || row.arriveTime === null) {
-    return undefined;
-  }
-
-  return {
-    id: offerId(row.code),
-    mode: row.mode as TransportMode,
-    vendor: row.name,
-    payee: payeeOf(row.walletAddress),
-    origin: row.fromSpot,
-    destination: row.toSpot,
-    departAt: jstDateTimeOf(date, hourMinute(row.departTime)),
-    arriveAt: jstDateTimeOf(date, hourMinute(row.arriveTime)),
-    price: mst(row.price),
-    doorToDoor: doorToDoorOf(row),
-  };
-};
-
-const lodgingOfferFor = (
-  row: PlaceRow,
-  query: OfferQuery,
-  nights: number,
-): LodgingOffer => {
-  return {
-    id: offerId(row.code),
-    vendor: row.name,
-    payee: payeeOf(row.walletAddress),
-    name: row.name,
-    city: row.city,
-    checkIn: query.departOn,
-    checkOut: query.returnOn,
-    price: mst(row.price * nights),
-    ...(row.rating === null ? {} : { rating: row.rating }),
-    requiredVerifications: verificationsOf(row.requiredVerifications),
-  };
-};
-
-const placeOfferOf = (row: PlaceRow, kind: PlaceOfferKind): PlaceOffer => {
-  const genre = optional(row.genre);
-  const ageLimit = optional(row.ageLimit);
-
-  return {
-    id: offerId(row.code),
-    kind,
-    payee: payeeOf(row.walletAddress),
-    name: row.name,
-    city: row.city,
-    ...(genre === undefined ? {} : { genre }),
-    price: mst(row.price),
-    requiredVerifications: verificationsOf(row.requiredVerifications),
-    ...(ageLimit === undefined ? {} : { ageLimit }),
-  };
-};
+import {
+  asWriteResult,
+  disablePlace,
+  disableTransport,
+  insertPlace,
+  insertTransport,
+  readGenreOptionRows,
+  readHomeOptionRows,
+  readPlaceRow,
+  readServiceList,
+  readTransportRow,
+  updatePlace,
+  updateTransport,
+} from "./neon-management";
+import type { PlaceOfferRow, TransportOfferRow } from "./rows";
+import { lodgingOfferFor, placeOfferOf, transportOfferOn } from "./rows";
 
 const TRANSPORT_COLUMNS = {
   code: transportServices.code,
@@ -228,7 +76,7 @@ const findTransport = async (
   db: Db,
   origin: string,
   destination: string,
-): Promise<readonly TransportRow[]> => {
+): Promise<readonly TransportOfferRow[]> => {
   return db
     .select(TRANSPORT_COLUMNS)
     .from(transportServices)
@@ -254,7 +102,7 @@ const findPlaces = async (
   db: Db,
   kind: string,
   city: string,
-): Promise<readonly PlaceRow[]> => {
+): Promise<readonly PlaceOfferRow[]> => {
   return db
     .select(PLACE_COLUMNS)
     .from(placeServices)
@@ -352,22 +200,29 @@ const offerSetFor = async (
   });
 };
 
+// 接続も getDb() の中で起きるので、呼び出しごと try で包む
+const asReadResult = async <T>(
+  operation: (db: Db) => Promise<T>,
+): Promise<Result<T, CatalogError>> => {
+  try {
+    return ok(await operation(getDb()));
+  } catch (cause) {
+    return err({ kind: "unavailable", cause });
+  }
+};
+
 /**
- * NeonDB を読むカタログ
+ * NeonDB を読み書きするカタログ
  *
  * 候補はここで閉じた集合にして `PlannerPort` に渡す。LLM は id だけを返し、
  * 価格や存在しない候補が紛れ込むのは `assemblePlan` が止める
  * 無効な行 (`active = false`) は候補に出さない
+ * サービス管理画面の読み書きは同じ表を行のまま扱う (`neon-management.ts`)
  */
-export const createNeonCatalog = (): FareCatalogPort => {
+export const createNeonCatalog = (): FareCatalogPort &
+  CatalogManagementPort => {
   return {
-    listDestinations: async () => {
-      try {
-        return ok(await readDestinations(getDb()));
-      } catch (cause) {
-        return err({ kind: "unavailable", cause });
-      }
-    },
+    listDestinations: async () => asReadResult(readDestinations),
 
     findOffers: async (query) => {
       try {
@@ -384,5 +239,25 @@ export const createNeonCatalog = (): FareCatalogPort => {
         return err({ kind: "unavailable", cause });
       }
     },
+
+    listServices: async (filters) =>
+      asReadResult((db) => readServiceList(db, filters)),
+    getTransportService: async (id) =>
+      asReadResult((db) => readTransportRow(db, id)),
+    getPlaceService: async (id) => asReadResult((db) => readPlaceRow(db, id)),
+    listHomeOptions: async () => asReadResult(readHomeOptionRows),
+    listGenreOptions: async () => asReadResult(readGenreOptionRows),
+    createTransportService: async (input) =>
+      asWriteResult(() => insertTransport(getDb(), input)),
+    updateTransportService: async (id, input) =>
+      asWriteResult(() => updateTransport(getDb(), id, input)),
+    disableTransportService: async (id, updatedAt) =>
+      asWriteResult(() => disableTransport(getDb(), id, updatedAt)),
+    createPlaceService: async (input) =>
+      asWriteResult(() => insertPlace(getDb(), input)),
+    updatePlaceService: async (id, input) =>
+      asWriteResult(() => updatePlace(getDb(), id, input)),
+    disablePlaceService: async (id, updatedAt) =>
+      asWriteResult(() => disablePlace(getDb(), id, updatedAt)),
   };
 };

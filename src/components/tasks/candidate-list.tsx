@@ -22,7 +22,7 @@ const CandidateItem = async ({ event }: ItemProps): Promise<ReactElement> => {
   return (
     <li className={rowCardClass}>
       <div className="min-w-0 flex-1">
-        <div className="text-[13.5px] font-semibold">
+        <div className="text-base font-semibold">
           {event.title === "" ? t("noTitle") : event.title}
         </div>
         <div className={labelClass}>
@@ -59,7 +59,7 @@ export const CandidateList = async ({
   }
 
   return (
-    <ul className="flex flex-col gap-2">
+    <ul className="flex flex-col gap-3">
       {events.map((event) => (
         <CandidateItem key={event.id} event={event} />
       ))}

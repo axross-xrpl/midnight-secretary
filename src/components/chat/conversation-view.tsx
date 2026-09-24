@@ -13,7 +13,10 @@ import type {
   MoneyResponse,
   TripResponse,
 } from "@/lib/secretary-response";
+import type { TripUpdatedHandler } from "./authorization-list";
 import { BubbleItem } from "./bubble";
+import type { ConsentRequest } from "./consent-dialog";
+import { ConsentDialog } from "./consent-dialog";
 import type { Bubble, Reply } from "./conversation";
 import { conversationOf } from "./conversation";
 import { effectiveTrip, INITIAL_FLOW_STATE, reduceFlow } from "./flow";
@@ -25,6 +28,7 @@ import {
   TIMED_OPTIONS,
 } from "./format";
 import { LedgerPanel } from "./ledger-panel";
+import { MoneyFlowPanel } from "./money-flow-panel";
 import { MandateCard } from "./mandate-card";
 import { defaultMandateDraft } from "./mandate-defaults";
 import type { VisibilityChangeHandler } from "./plan-details";
@@ -39,15 +43,16 @@ import {
 import { StepIndicator } from "./step-indicator";
 import {
   backLinkClass,
-  cardClass,
   ghostButtonClass,
   labelClass,
   primaryButtonClass,
   replyBarClass,
   sectionLabelClass,
+  sidebarCardClass,
   strongButtonClass,
 } from "./styles";
 import type {
+  Activity,
   MandateCapabilities,
   PublicLedgerView,
   RequestFailure,
@@ -78,6 +83,24 @@ const tailOf = (bubbles: readonly Bubble[]): string => {
   }
 
   return `${bubbles.length}:${last.speaker}:${last.line.kind}`;
+};
+
+// 証明を送るかの返事待ちなら、問いの相手 (年齢確認を求める店) と年齢の下限。それ以外は undefined
+const consentRequestOf = (
+  activity: Activity,
+  trip: TripResponse | undefined,
+): ConsentRequest | undefined => {
+  if (activity.kind !== "awaitingConsent" || trip === undefined) {
+    return undefined;
+  }
+
+  const requirement = adultRequirementOfResponse(trip.plan);
+
+  if (requirement === undefined) {
+    return undefined;
+  }
+
+  return { place: requirement.offer.name, ageLimit: requirement.ageLimit };
 };
 
 type EventWhenProps = {
@@ -189,6 +212,8 @@ export const Conversation = (props: ConversationProps): ReactElement => {
     visibility: state.visibility,
   });
   const busy = state.activity.kind === "busy";
+  // 返事待ちの間は返答をモーダルに移すので、返答バーは出さない
+  const consent = consentRequestOf(state.activity, trip);
   const tail = tailOf(conversation.bubbles);
   // DOM の ref は React の契約で初期値に null が要る
   const conversationRef = useRef<HTMLDivElement | null>(null);
@@ -316,6 +341,11 @@ export const Conversation = (props: ConversationProps): ReactElement => {
       .exhaustive();
   };
 
+  // 受取の確認は明細の行から呼ばれるので、差し替わった出張をここで会話の状態に流す
+  const onTripUpdated: TripUpdatedHandler = (updated) => {
+    dispatch({ type: "tripUpdated", trip: updated });
+  };
+
   const onVisibilityChange: VisibilityChangeHandler = (category, value) => {
     dispatch({ type: "setVisibility", category, value });
   };
@@ -325,14 +355,14 @@ export const Conversation = (props: ConversationProps): ReactElement => {
     <div className="chat-layout">
       <div
         ref={conversationRef}
-        className="chat-layout__conversation flex flex-col gap-5"
+        className="chat-layout__conversation flex flex-col gap-6"
       >
         <header className="flex flex-col gap-3">
           <Link href={props.backHref} className={backLinkClass}>
             {`← ${t("back")}`}
           </Link>
           <div className="flex flex-col gap-1">
-            <h1 className="text-[17px] font-bold">
+            <h1 className="font-serif text-2xl font-medium">
               {t("title", { title: props.event.title })}
             </h1>
             <p className={labelClass}>
@@ -349,17 +379,19 @@ export const Conversation = (props: ConversationProps): ReactElement => {
           className="chat-layout__log min-h-0 flex-1"
           aria-label={t("log")}
         >
-          <ol className="flex flex-col gap-[18px]">
+          <ol className="flex flex-col gap-5">
             {conversation.bubbles.map((bubble, index) => (
               <BubbleItem
                 key={bubbleKey(bubble, index)}
                 bubble={bubble}
                 onVisibilityChange={onVisibilityChange}
+                onTripUpdated={onTripUpdated}
               />
             ))}
           </ol>
         </section>
-        {conversation.replies.length === 0 ? undefined : (
+        {conversation.replies.length === 0 ||
+        consent !== undefined ? undefined : (
           <footer className={`chat-layout__replies ${replyBarClass}`}>
             {conversation.replies.map((reply) => (
               <ReplyButton
@@ -372,18 +404,34 @@ export const Conversation = (props: ConversationProps): ReactElement => {
           </footer>
         )}
       </div>
-      <aside className="chat-layout__sidebar flex flex-col gap-5">
-        <section className={`${cardClass} flex flex-col gap-3`}>
+      {consent === undefined ? undefined : (
+        <ConsentDialog
+          request={consent}
+          onDecline={() => dispatch({ type: "declineConsent" })}
+        >
+          {conversation.replies.map((reply) => (
+            <ReplyButton
+              key={reply.kind}
+              reply={reply}
+              disabled={busy}
+              onReply={onReply}
+            />
+          ))}
+        </ConsentDialog>
+      )}
+      <aside className="chat-layout__sidebar flex flex-col gap-6">
+        <section className={`${sidebarCardClass} flex flex-col gap-4`}>
           <h2 className={sectionLabelClass}>{t("progress")}</h2>
           <StepIndicator activity={state.activity} trip={trip} />
         </section>
         {mandate === undefined ? (
-          <p className={`${cardClass} text-[12.5px] text-muted`}>
+          <p className={`${sidebarCardClass} text-sm text-muted`}>
             {t("noMandate")}
           </p>
         ) : (
           <MandateCard mandate={mandate} />
         )}
+        <MoneyFlowPanel mandate={mandate} trip={trip} />
         <LedgerPanel publicLedger={props.publicLedger} mandate={mandate} />
       </aside>
     </div>

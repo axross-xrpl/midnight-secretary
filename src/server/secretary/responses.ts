@@ -178,6 +178,7 @@ export const statusOf = (error: SecretaryError): number => {
             "mandateExists",
             "eventAlreadyArranged",
             "wrongStatus",
+            "notPaid",
           ),
         },
       },
@@ -199,7 +200,10 @@ export const statusOf = (error: SecretaryError): number => {
     )
     .with({ source: "mandate", error: { kind: "notFound" } }, () => 404)
     .with(
-      { source: "mandate", error: { kind: "alreadyAuthorized" } },
+      {
+        source: "mandate",
+        error: { kind: P.union("alreadyAuthorized", "notHeld") },
+      },
       () => 409,
     )
     .with(

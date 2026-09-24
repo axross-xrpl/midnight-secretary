@@ -19,7 +19,7 @@ import { requestProfileSave } from "./request-profile-save";
 import { WalletConnectField } from "./wallet-connect-field";
 
 const inputClass =
-  "w-full rounded-lg border border-[#e5e8ec] px-3 py-2 text-sm outline-none transition focus:border-[#185fa5] focus:ring-2 focus:ring-blue-100";
+  "w-full rounded-lg border border-border px-3 py-2 text-base outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-border";
 
 /**
  * 入力中の値
@@ -186,17 +186,17 @@ export function ProfileForm({
     errorFields.has(field) ? t(`errors.field.${field}`) : null;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,720px)_minmax(0,320px)]">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,56rem)_minmax(0,320px)]">
       <form
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
           void save();
         }}
-        className="rounded-2xl border border-[#e5e8ec] bg-white p-6 shadow-sm sm:p-8"
+        className="rounded-xl border border-border bg-surface p-6 sm:p-8"
       >
         {banner !== null && (
-          <div className="mb-6 flex items-start justify-between gap-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800 ring-1 ring-inset ring-red-200">
+          <div className="mb-6 flex items-start justify-between gap-4 rounded-lg bg-danger-bg px-4 py-3 text-sm text-danger">
             <p>{t(`errors.${banner}`)}</p>
             {needsReload(banner) && (
               <button
@@ -211,14 +211,14 @@ export function ProfileForm({
         )}
 
         {initialProfile === null && (
-          <p className="mb-6 rounded-lg bg-blue-50 px-4 py-3 text-sm text-[#185fa5]">
+          <p className="mb-6 rounded-lg bg-accent-bg px-4 py-3 text-sm text-accent">
             {t("newProfileNotice")}
           </p>
         )}
 
         <Section title={t("sections.basic")}>
           <Field label={t("labels.email")}>
-            <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+            <p className="rounded-lg bg-card-inner px-3 py-2 text-sm text-muted">
               {email}
             </p>
             <Hint>{t("hints.email")}</Hint>
@@ -284,7 +284,7 @@ export function ProfileForm({
                       residencePref: event.target.value as ResidenceOption | "",
                     })
                   }
-                  className={`${inputClass} bg-white`}
+                  className={`${inputClass} bg-surface`}
                 >
                   <option value="">{t("unselected")}</option>
                   {residenceOptions.map((option) => (
@@ -308,7 +308,7 @@ export function ProfileForm({
                 id={id}
                 value={values.homeCity}
                 onChange={(event) => selectHomeCity(event.target.value)}
-                className={`${inputClass} bg-white`}
+                className={`${inputClass} bg-surface`}
               >
                 <option value="">{t("unselected")}</option>
                 {homeOptions.map(({ city }) => (
@@ -326,7 +326,7 @@ export function ProfileForm({
                 value={values.homeSpot}
                 onChange={(event) => update({ homeSpot: event.target.value })}
                 disabled={spotOptions.length === 0}
-                className={`${inputClass} bg-white disabled:bg-slate-50 disabled:text-slate-400`}
+                className={`${inputClass} bg-surface disabled:bg-card-inner disabled:text-faint`}
               >
                 <option value="">{t("unselected")}</option>
                 {spotOptions.map((spot) => (
@@ -384,8 +384,8 @@ export function ProfileForm({
                   key={option}
                   className={`cursor-pointer rounded-lg px-3 py-2 text-sm ring-1 ring-inset transition ${
                     values.priority === option
-                      ? "bg-blue-50 font-semibold text-[#185fa5] ring-blue-200"
-                      : "bg-white text-slate-600 ring-[#e5e8ec] hover:bg-slate-50"
+                      ? "bg-accent-bg font-semibold text-accent ring-accent-border"
+                      : "bg-surface text-muted ring-border hover:bg-card-inner"
                   }`}
                 >
                   <input
@@ -402,7 +402,7 @@ export function ProfileForm({
               <button
                 type="button"
                 onClick={() => update({ priority: "" })}
-                className="rounded-lg px-3 py-2 text-sm text-slate-500 underline"
+                className="rounded-lg px-3 py-2 text-sm text-muted underline"
               >
                 {t("clearPriority")}
               </button>
@@ -425,14 +425,14 @@ export function ProfileForm({
         </Section>
 
         {/* 長いフォームなので、スクロールしても保存できるよう下端に貼り付ける */}
-        <div className="sticky bottom-0 -mx-6 flex items-center justify-end gap-4 border-t border-[#e5e8ec] bg-white px-6 py-4 sm:-mx-8 sm:px-8">
+        <div className="sticky bottom-0 -mx-6 flex items-center justify-end gap-4 border-t border-border bg-surface px-6 py-4 sm:-mx-8 sm:px-8">
           {status === "saved" && !isDirty && (
-            <p className="text-sm text-slate-600">{t("saved")}</p>
+            <p className="text-sm text-muted">{t("saved")}</p>
           )}
           <button
             type="submit"
             disabled={status === "saving"}
-            className="rounded-lg bg-[#185fa5] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#144e88] disabled:opacity-60"
+            className="rounded-lg bg-accent px-5 py-2.5 text-base font-semibold text-white transition hover:bg-accent-strong disabled:opacity-60"
           >
             {status === "saving" ? t("saving") : t("save")}
           </button>
@@ -464,10 +464,10 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="mb-8 border-b border-[#e5e8ec] pb-8 last-of-type:border-b-0">
-      <h3 className="text-sm font-semibold">{title}</h3>
+    <section className="mb-8 border-b border-border pb-8 last-of-type:border-b-0">
+      <h3 className="text-lg font-semibold">{title}</h3>
       {description !== undefined && (
-        <p className="mt-1.5 text-xs leading-5 text-slate-500">{description}</p>
+        <p className="mt-1.5 text-sm text-muted">{description}</p>
       )}
       <div className="mt-4 space-y-5">{children}</div>
     </section>
@@ -475,7 +475,7 @@ function Section({
 }
 
 function Hint({ children }: { children: React.ReactNode }) {
-  return <p className="mt-1.5 text-xs leading-5 text-slate-500">{children}</p>;
+  return <p className="mt-1.5 text-sm text-muted">{children}</p>;
 }
 
 /**
@@ -509,7 +509,7 @@ function Field({
           {children}
         </>
       )}
-      {error && <p className="mt-1.5 text-xs text-red-700">{error}</p>}
+      {error && <p className="mt-1.5 text-sm text-danger">{error}</p>}
     </div>
   );
 }
@@ -571,10 +571,10 @@ function GenreField({
               onClick={() => toggle(option)}
               aria-pressed={isSelected}
               disabled={!isSelected && isFull}
-              className={`rounded-full px-3 py-1.5 text-xs ring-1 ring-inset transition disabled:opacity-50 ${
+              className={`rounded-full px-3 py-1.5 text-sm ring-1 ring-inset transition disabled:opacity-50 ${
                 isSelected
-                  ? "bg-blue-50 font-semibold text-[#185fa5] ring-blue-200"
-                  : "bg-white text-slate-600 ring-[#e5e8ec] hover:bg-slate-50"
+                  ? "bg-accent-bg font-semibold text-accent ring-accent-border"
+                  : "bg-surface text-muted ring-border hover:bg-card-inner"
               }`}
             >
               {option}
@@ -584,7 +584,7 @@ function GenreField({
         {extras.map((value) => (
           <span
             key={value}
-            className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-[#185fa5] ring-1 ring-inset ring-blue-200"
+            className="inline-flex items-center gap-1 rounded-full bg-accent-bg px-3 py-1.5 text-sm font-semibold text-accent ring-1 ring-inset ring-accent-border"
           >
             {value}
             <button
@@ -611,13 +611,13 @@ function GenreField({
           disabled={isFull}
           placeholder={t("genrePlaceholder")}
           aria-label={t("addGenre")}
-          className={`${inputClass} max-w-56 disabled:bg-slate-50`}
+          className={`${inputClass} max-w-56 disabled:bg-card-inner`}
         />
         <button
           type="button"
           onClick={() => add(draft)}
           disabled={isFull}
-          className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-[#185fa5] ring-1 ring-inset ring-[#e5e8ec] transition hover:bg-slate-50 disabled:opacity-50"
+          className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-accent ring-1 ring-inset ring-border transition hover:bg-card-inner disabled:opacity-50"
         >
           <Plus className="size-3.5" />
           {t("addGenre")}
