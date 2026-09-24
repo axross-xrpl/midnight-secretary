@@ -16,17 +16,11 @@ import { getDb } from "@/db/client";
 import type { PlaceService, TransportService } from "@/db/schema";
 import { placeServices, transportServices } from "@/db/schema";
 import type { GenreOptions, HomeOption } from "@/features/profile/options";
-import type {
-  PlaceKind,
-  TransportMode,
-  VerificationKind,
-} from "@/features/services/constants";
+import type { PlaceKind } from "@/features/services/constants";
 import {
   isTransportCategory,
   placeKinds,
   serviceCategories,
-  transportModes,
-  verificationKinds,
 } from "@/features/services/constants";
 import type {
   PlaceServiceCreateInput,
@@ -47,6 +41,7 @@ import { filterMap, isDefined } from "@/lib/array";
 import type { Result } from "@/lib/result";
 import { err, ok } from "@/lib/result";
 import { postgresErrorCode } from "../pg-error";
+import { transportModeOf, verificationsOf } from "./offers";
 
 type Db = ReturnType<typeof getDb>;
 
@@ -89,18 +84,8 @@ type GenreRow = Pick<PlaceService, "kind" | "genre">;
 
 type OriginRow = { city: string; spot: string };
 
-// mode / kind は DB の CHECK で絞られているが、型の上では text なのでここで絞る
+// kind は DB の CHECK で絞られているが、型の上では text なのでここで絞る (mode と本人確認は offers.ts の関数で絞る)
 // CHECK を外れた値は不変条件の違反なので throw し、呼び出し側で unavailable にする
-const transportModeOf = (raw: string): TransportMode => {
-  const mode = transportModes.find((value) => value === raw);
-
-  if (mode === undefined) {
-    throw new Error(`bug: transport_services.mode is ${raw}`);
-  }
-
-  return mode;
-};
-
 const placeKindOf = (raw: string): PlaceKind => {
   const kind = placeKinds.find((value) => value === raw);
 
@@ -109,15 +94,6 @@ const placeKindOf = (raw: string): PlaceKind => {
   }
 
   return kind;
-};
-
-const isVerificationKind = (value: string): value is VerificationKind => {
-  return verificationKinds.some((kind) => kind === value);
-};
-
-// required_verifications も CHECK で 3 値に絞られているが、型の上では text[] なので、秘書側の neon.ts と同じく知らない値を落とす
-const verificationsOf = (raw: readonly string[]): VerificationKind[] => {
-  return raw.filter(isVerificationKind);
 };
 
 const transportDetailOf = (

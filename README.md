@@ -42,7 +42,7 @@ Each page of the app says which fakes it's running on.
 | planner | Gemini picks the trips and the offers | a deterministic planner that reads the event title |
 | mandate | `token.compact` / `shielded-token.compact` via the contract server | an in-memory ledger with the same public/private split |
 | store | NeonDB `trips` / `trip_items` | in memory |
-| profile | NeonDB `user_profiles`, wallet address from a connected Midnight wallet | one fixed profile |
+| profile | NeonDB `user_profiles`, wallet address from a connected Midnight wallet | one seeded profile, editable in memory |
 | identity | `age-verification.compact` via the contract server, one pseudonym per traveler | an in-memory credential registry |
 
 In demo mode the age check and the private payment happen in the fakes: they show the flow but prove

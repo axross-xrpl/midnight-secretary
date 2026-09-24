@@ -68,6 +68,8 @@ const createRuntime = (env: EnvLike): SecretaryRuntime => {
     ),
     newTripId: () => mustParse(parseTripId(randomUUID())),
     newEventId: () => mustParse(parseCalendarEventId(`seed-${randomUUID()}`)),
+    newServiceId: () => randomUUID(),
+    clock: () => mustParse(parseIsoDateTime(new Date().toISOString())),
     mandateIds: {
       newMandateId: () => mustParse(parseMandateId(`mandate-${randomUUID()}`)),
       newCommitment: () => randomUUID().replaceAll("-", ""),

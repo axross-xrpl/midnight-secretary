@@ -1,5 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { sequentialTripIds, UNKNOWN_TRIP_ID } from "@/testing/ids";
+import {
+  sequentialTripIds,
+  testCatalogIds,
+  UNKNOWN_TRIP_ID,
+} from "@/testing/ids";
 import {
   createFakeCalendar,
   seedCalendarEvents,
@@ -11,13 +15,13 @@ import { jstDateOf } from "@/adapters/jst";
 import type { FakeMandateIds } from "@/adapters/mandate/fake";
 import { createFakeMandate } from "@/adapters/mandate/fake";
 import { createFakePlanner } from "@/adapters/planner/fake";
-import { createFakeProfile } from "@/adapters/profile/fake";
 import { createFakeStore } from "@/adapters/store/fake";
 import type { CalendarPort } from "@/domain/calendar";
 import type { LodgingOffer, PlaceOffer } from "@/domain/catalog";
 import { addDays, yearsBefore } from "@/domain/dates";
 import type {
   CalendarEventId,
+  IsoDate,
   IsoDateTime,
   MandateId,
   TripId,
@@ -172,6 +176,24 @@ const testMandateIds = (): FakeMandateIds => {
   };
 };
 
+/**
+ * 生年月日と好みを返すだけのプロフィールの Stub
+ *
+ * 省いた値は未登録として undefined を返す
+ * fake のプロフィールは画面の行を丸ごと持つので、生年月日だけがあって好みが無い状態を表せない
+ */
+type ProfileStubValues = {
+  birthDate?: IsoDate;
+  preferences?: TravelerPreferences;
+};
+
+const stubProfile = (values: ProfileStubValues): ProfilePort => {
+  return {
+    readBirthDate: async () => ok(values.birthDate),
+    readPreferences: async () => ok(values.preferences),
+  };
+};
+
 // 採番はテスト設定に閉じているので、identity はユーザ id から、証明の参照は閉じたカウンタで作る
 const testIdentityIds = (): FakeIdentityIds => {
   const state = { proved: 0 };
@@ -193,12 +215,12 @@ const testDeps = (): SecretaryDeps => {
       events: seedCalendarEvents(NOW),
       newEventId: testEventIds(),
     }),
-    catalog: createFakeCatalog(seedCatalog()),
+    catalog: createFakeCatalog(seedCatalog(), testCatalogIds(NOW)),
     planner: createFakePlanner(),
     mandate: createFakeMandate({ mandates: [], ids: testMandateIds() }),
     store: createFakeStore(),
     identity: createFakeIdentity({ ids: testIdentityIds() }),
-    profile: createFakeProfile({ birthDate: BIRTH_DATE }),
+    profile: stubProfile({ birthDate: BIRTH_DATE }),
     newTripId: sequentialTripIds(),
   };
 };
@@ -804,7 +826,7 @@ describe("issueAgeCredential", () => {
   });
 
   test("プロフィールに生年月日が無ければ birthDateMissing で、登録もしない", async () => {
-    const deps = { ...testDeps(), profile: createFakeProfile({}) };
+    const deps = { ...testDeps(), profile: stubProfile({}) };
 
     expect(await issueAgeCredential(USER, NOW, deps)).toStrictEqual({
       ok: false,
@@ -1025,7 +1047,7 @@ describe("approveTrip", () => {
 
     await mustIssueCredential(deps);
 
-    const withoutProfile = { ...deps, profile: createFakeProfile({}) };
+    const withoutProfile = { ...deps, profile: stubProfile({}) };
     const approved = mustOk(
       await approveTrip(approveInput(proposed.id), withoutProfile),
     );
@@ -1756,7 +1778,7 @@ describe("planner に渡す好み", () => {
     const deps = {
       ...testDeps(),
       planner: recorder.planner,
-      profile: createFakeProfile({
+      profile: stubProfile({
         birthDate: BIRTH_DATE,
         preferences: PROFILE_PREFERENCES,
       }),
@@ -1804,7 +1826,7 @@ describe("planner に渡す好み", () => {
     const deps = {
       ...testDeps(),
       planner: recorder.planner,
-      profile: createFakeProfile({ birthDate: BIRTH_DATE, preferences }),
+      profile: stubProfile({ birthDate: BIRTH_DATE, preferences }),
     };
 
     await mustSetUpMandate(deps, ENOUGH_CAP);

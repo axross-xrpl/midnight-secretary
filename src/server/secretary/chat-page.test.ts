@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { sequentialTripIds, tripIdOf } from "@/testing/ids";
+import { sequentialTripIds, testCatalogIds, tripIdOf } from "@/testing/ids";
 import type { SecretaryContext } from "@/adapters/auth/session";
 import {
   createFakeCalendar,
@@ -12,13 +12,13 @@ import { jstDateOf } from "@/adapters/jst";
 import type { FakeMandateIds } from "@/adapters/mandate/fake";
 import { createFakeMandate } from "@/adapters/mandate/fake";
 import { createFakePlanner } from "@/adapters/planner/fake";
-import { createFakeProfile } from "@/adapters/profile/fake";
 import { createFakeStore } from "@/adapters/store/fake";
 import type { SecretaryDeps } from "@/application/deps";
 import { proposeTrip, setUpMandate } from "@/application/secretary";
 import { addDays, yearsBefore } from "@/domain/dates";
 import type {
   CalendarEventId,
+  IsoDate,
   IsoDateTime,
   MandateId,
   UserId,
@@ -32,9 +32,10 @@ import {
   parseUserId,
 } from "@/domain/identifiers.parse";
 import type { MandateDraft } from "@/domain/mandate";
+import type { ProfilePort } from "@/domain/profile";
 import type { SecretaryStore } from "@/domain/store";
 import type { Result } from "@/lib/result";
-import { err } from "@/lib/result";
+import { err, ok } from "@/lib/result";
 import { chatRange, loadChatData } from "./chat-page";
 
 const at = (raw: string): IsoDateTime => {
@@ -90,6 +91,23 @@ const testMandateIds = (): FakeMandateIds => {
   };
 };
 
+/**
+ * 生年月日だけを返すプロフィールの Stub (好みは未登録)
+ *
+ * 生年月日を省くと未登録として undefined を返す
+ * fake のプロフィールは画面の行を丸ごと持つので、生年月日だけがあって好みが無い状態を表せない
+ */
+type ProfileStubValues = {
+  birthDate?: IsoDate;
+};
+
+const stubProfile = (values: ProfileStubValues): ProfilePort => {
+  return {
+    readBirthDate: async () => ok(values.birthDate),
+    readPreferences: async () => ok(undefined),
+  };
+};
+
 // 採番はテスト設定に閉じているので、identity はユーザ id から、証明の参照は閉じたカウンタで作る
 const testIdentityIds = (): FakeIdentityIds => {
   const state = { proved: 0 };
@@ -111,12 +129,12 @@ const testContext = (): SecretaryContext => {
       events: seedCalendarEvents(NOW),
       newEventId: testEventIds(),
     }),
-    catalog: createFakeCatalog(seedCatalog()),
+    catalog: createFakeCatalog(seedCatalog(), testCatalogIds(NOW)),
     planner: createFakePlanner(),
     mandate: createFakeMandate({ mandates: [], ids: testMandateIds() }),
     store: createFakeStore(),
     identity: createFakeIdentity({ ids: testIdentityIds() }),
-    profile: createFakeProfile({ birthDate: BIRTH_DATE }),
+    profile: stubProfile({ birthDate: BIRTH_DATE }),
     newTripId: sequentialTripIds(),
   };
 

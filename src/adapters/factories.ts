@@ -13,6 +13,7 @@ import type {
   IsoDateTime,
 } from "@/domain/identifiers";
 import type { TravelerPreferences } from "@/domain/plan";
+import type { ProfileDto } from "@/features/profile/schemas";
 import type { ProfileSettingsPort } from "@/features/profile/settings-port";
 import type { CatalogSettingsPort } from "@/features/services/settings-port";
 import { payToken } from "@/lib/dev-contracts/token";
@@ -23,6 +24,7 @@ import {
   registerAge,
 } from "@/lib/dev-contracts/age-verification";
 import { err } from "@/lib/result";
+import { DEV_USER } from "./auth/dev";
 import { createFakeCalendar, seedCalendarEvents } from "./calendar/fake";
 import { createGoogleCalendar } from "./calendar/google";
 import { createFakeCatalog, seedCatalog } from "./catalog/fake";
@@ -46,8 +48,9 @@ import { createNeonStore } from "./store/neon";
 /**
  * adapter に渡すプロセス全体の入力で、環境変数と開始時刻と id の生成関数
  *
- * id は非決定的なので注入する
+ * id と時刻は非決定的なので注入する
  * `demoBirthDate` は Fake のプロフィールが全ユーザに返す生年月日で、起動日から決める
+ * `newServiceId` と `clock` は Fake のカタログとプロフィールが、設定画面で書いた行の id と更新時刻に使う
  * 各レーンは自分の adapter が入るときに自分のフィールドを追加する
  */
 export type ProcessResources = {
@@ -56,6 +59,8 @@ export type ProcessResources = {
   demoBirthDate: IsoDate;
   newTripId: NewTripId;
   newEventId: () => CalendarEventId;
+  newServiceId: () => string;
+  clock: () => IsoDateTime;
   mandateIds: FakeMandateIds;
   identityIds: FakeIdentityIds;
 };
@@ -95,6 +100,26 @@ const DEMO_PREFERENCES = {
   leisureGenres: ["history"],
 } as const satisfies TravelerPreferences;
 
+// demo のプロフィールの行で、秘書には `preferencesOf` を通して DEMO_PREFERENCES と同じ好みに見える (交通手段は行に列が無いので seed で足す)
+// メールアドレスは dev サインインのユーザと同じにする
+const demoProfileOf = (resources: ProcessResources): ProfileDto => {
+  return {
+    email: DEV_USER.email,
+    fullName: null,
+    address: null,
+    birthDate: resources.demoBirthDate,
+    residencePref: null,
+    homeCity: DEMO_PREFERENCES.homeStation,
+    homeSpot: DEMO_PREFERENCES.homeStation,
+    diningGenres: [...DEMO_PREFERENCES.diningGenres],
+    leisureGenres: [...DEMO_PREFERENCES.leisureGenres],
+    budget: null,
+    priority: null,
+    walletAddress: null,
+    updatedAt: resources.startedAt,
+  };
+};
+
 // Google のトークンが無いリクエストはユーザのカレンダーに届かないので、空のふりをするよりそう伝える方がよい
 const UNAUTHENTICATED_CALENDAR: CalendarPort = {
   listEvents: async () => err({ kind: "unauthenticated" }),
@@ -132,7 +157,11 @@ export const createProcessFactories = (
     events: seedCalendarEvents(resources.startedAt),
     newEventId: resources.newEventId,
   });
-  const fakeCatalog = createFakeCatalog(seedCatalog());
+  // 秘書と設定画面が同じインスタンスを使うので、設定画面で変えた料金が次の提案に効く
+  const fakeCatalog = createFakeCatalog(seedCatalog(), {
+    newServiceId: resources.newServiceId,
+    now: resources.clock,
+  });
   // DB のハンドルは getDb() が保持するので、ここでは接続せず port だけ作る
   const neonCatalog = createNeonCatalog();
   const fakePlanner = createFakePlanner();
@@ -169,9 +198,11 @@ export const createProcessFactories = (
     prove: proveAge,
     accountRefOf: resources.identityIds.identityOf,
   });
+  // カタログと同じく秘書と設定画面で共有するので、設定画面で保存した生年月日が次の年齢判定に効く
   const fakeProfile = createFakeProfile({
-    birthDate: resources.demoBirthDate,
-    preferences: DEMO_PREFERENCES,
+    profile: demoProfileOf(resources),
+    now: resources.clock,
+    preferredTransport: DEMO_PREFERENCES.preferredTransport,
   });
   // カタログと同じく、接続は readProfile の getDb() が持つ
   const neonProfile = createNeonProfile();
@@ -190,16 +221,9 @@ export const createProcessFactories = (
       profile: { real: () => neonProfile, fake: () => fakeProfile },
       newTripId: resources.newTripId,
     },
-    // TODO: fake は次のコミットで秘書と共有する fake に向ける (今は移す前と同じく fake でも Neon を読む)
     settings: {
-      catalog: {
-        real: () => neonCatalogSettings,
-        fake: () => neonCatalogSettings,
-      },
-      profile: {
-        real: () => neonProfileSettings,
-        fake: () => neonProfileSettings,
-      },
+      catalog: { real: () => neonCatalogSettings, fake: () => fakeCatalog },
+      profile: { real: () => neonProfileSettings, fake: () => fakeProfile },
     },
   };
 };

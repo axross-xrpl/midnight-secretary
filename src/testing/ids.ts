@@ -1,5 +1,6 @@
+import type { FakeCatalogIds } from "@/adapters/catalog/fake";
 import type { NewTripId } from "@/application/deps";
-import type { TripId } from "@/domain/identifiers";
+import type { IsoDateTime, TripId } from "@/domain/identifiers";
 import { mustParse, parseTripId } from "@/domain/identifiers.parse";
 
 /**
@@ -36,5 +37,34 @@ export const sequentialTripIds = (): NewTripId => {
     state.issued = state.issued + 1;
 
     return tripIdOf(state.issued);
+  };
+};
+
+/**
+ * テストで使う、読める固定のサービス行の id (UUID の形)
+ *
+ * Route Handler と画面はサービス行の id を uuid として検査するので、連番を UUID の形に埋める
+ * 出張 id (`tripIdAt`) と混ざらないよう、連番は末尾の 12 桁に置く
+ */
+export const serviceIdAt = (n: number): string => {
+  return `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+};
+
+/**
+ * 連番のサービス行の id と止まった時計を返す、Fake のカタログの採番の Stub
+ *
+ * n 回目の `newServiceId` は `serviceIdAt(n)` を返し、`now` は常に引数の時刻を返す
+ * 採番はテスト設定に閉じているので、閉じたカウンタで数える
+ */
+export const testCatalogIds = (now: IsoDateTime): FakeCatalogIds => {
+  const state = { issued: 0 };
+
+  return {
+    newServiceId: () => {
+      state.issued = state.issued + 1;
+
+      return serviceIdAt(state.issued);
+    },
+    now: () => now,
   };
 };
