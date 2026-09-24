@@ -1,6 +1,5 @@
 import type {
   CatalogError,
-  DoorToDoor,
   FareCatalogPort,
   LodgingOffer,
   OfferQuery,
@@ -12,17 +11,31 @@ import type {
   VerificationKind,
 } from "@/domain/catalog";
 import { nightsBetween } from "@/domain/dates";
-import type { IsoDate, OfferId, WalletAddress } from "@/domain/identifiers";
+import type { IsoDate, IsoDateTime } from "@/domain/identifiers";
+import type { GenreOptions, HomeOption } from "@/features/profile/options";
+import type { PlaceKind } from "@/features/services/constants";
 import {
-  mustParse,
-  parseAmount,
-  parseOfferId,
-  parseWalletAddress,
-} from "@/domain/identifiers.parse";
-import type { Money } from "@/domain/money";
+  isTransportCategory,
+  serviceCategories,
+} from "@/features/services/constants";
+import type {
+  PlaceServiceCreateInput,
+  PlaceServiceDetailDto,
+  PlaceServiceUpdateInput,
+  ServiceListItemDto,
+  TransportServiceCreateInput,
+  TransportServiceDetailDto,
+  TransportServiceUpdateInput,
+} from "@/features/services/schemas";
+import type {
+  CatalogSettingsPort,
+  ServiceListFilters,
+  ServiceWriteError,
+} from "@/features/services/settings-port";
+import { filterMap } from "@/lib/array";
 import type { Result } from "@/lib/result";
 import { err, ok } from "@/lib/result";
-import { jstDateTimeOf } from "../jst";
+import { lodgingOfferFor, placeOfferOf, transportOfferOn } from "./offers";
 
 /**
  * seed の交通 1 行
@@ -85,10 +98,30 @@ export type PlaceTemplate = {
  * fake と real の結果が揃うよう、NeonDB の有効な行をそのまま写している
  */
 export type FakeCatalogSeed = {
-  destinations: readonly string[];
   transport: readonly TransportTemplate[];
   lodging: readonly LodgingTemplate[];
   places: readonly PlaceTemplate[];
+};
+
+/**
+ * fake が採番するものと時計
+ *
+ * テストでは閉じたカウンタと止まった時計、runtime では randomUUID と実時刻を渡す
+ * 行の id は Route Handler が uuid として検査するので、uuid の形で返す
+ */
+export type FakeCatalogIds = {
+  newServiceId: () => string;
+  now: () => IsoDateTime;
+};
+
+/**
+ * fake が持つサービスの行
+ *
+ * 設定画面の DTO の形で持ち、秘書の候補も同じ行から作る
+ */
+type FakeCatalogState = {
+  transport: readonly TransportServiceDetailDto[];
+  places: readonly PlaceServiceDetailDto[];
 };
 
 // 受取先は売り手側の 2 つ。DB の行と同じダミー値を使う
@@ -96,86 +129,144 @@ const TRANSPORT_PAYEE = "mn_shield-addr_test1demo-transport-seller";
 
 const SERVICE_PAYEE = "mn_shield-addr_test1demo-service-seller";
 
-const offerId = (code: string): OfferId => {
-  return mustParse(parseOfferId(code));
-};
+// seed は最寄り駅までの時間を持たないので、設定画面で読める既定の値を置く
+const SEED_STATION_ACCESS_MIN = 5;
 
-const payeeOf = (raw: string): WalletAddress => {
-  return mustParse(parseWalletAddress(raw));
-};
-
-/**
- * 金額の通貨
- *
- * DB は円単位の整数を持つが、`Money` の通貨はデモ用の 2 つしか無い
- * real と揃えて MST 建てとして扱う
- */
-const mst = (amount: number): Money => {
-  return { amount: mustParse(parseAmount(amount)), currency: "MST" };
-};
-
-const doorToDoorOf = (template: TransportTemplate): DoorToDoor => {
-  return {
-    totalMin:
-      template.originAccessMin +
-      template.boardingBufferMin +
-      template.durationMin +
-      template.arrivalBufferMin +
-      template.destinationAccessMin,
-    totalPrice: mst(template.price + template.accessFare),
-  };
-};
-
-const transportOfferOn = (
+const transportRowOf = (
   template: TransportTemplate,
-  date: IsoDate,
-): TransportOffer => {
+  ids: FakeCatalogIds,
+): TransportServiceDetailDto => {
   return {
-    id: offerId(template.code),
+    id: ids.newServiceId(),
+    code: template.code,
+    name: template.name,
     mode: template.mode,
-    // DB は事業者の列を持たないので、real と同じく名称をそのまま使う
-    vendor: template.name,
-    payee: payeeOf(TRANSPORT_PAYEE),
-    origin: template.fromSpot,
-    destination: template.toSpot,
-    departAt: jstDateTimeOf(date, template.departTime),
-    arriveAt: jstDateTimeOf(date, template.arriveTime),
-    price: mst(template.price),
-    doorToDoor: doorToDoorOf(template),
+    fromCity: template.fromCity,
+    toCity: template.toCity,
+    fromSpot: template.fromSpot,
+    toSpot: template.toSpot,
+    departTime: template.departTime,
+    arriveTime: template.arriveTime,
+    durationMin: template.durationMin,
+    price: template.price,
+    originAccessMin: template.originAccessMin,
+    boardingBufferMin: template.boardingBufferMin,
+    arrivalBufferMin: template.arrivalBufferMin,
+    destinationAccessMin: template.destinationAccessMin,
+    accessFare: template.accessFare,
+    seatClass: null,
+    walletAddress: TRANSPORT_PAYEE,
+    active: true,
+    updatedAt: ids.now(),
   };
 };
 
-const lodgingOfferFor = (
+// seed は住所と最寄り駅を持たないので、どちらも都市で埋める
+const lodgingRowOf = (
   template: LodgingTemplate,
-  query: OfferQuery,
-  nights: number,
-): LodgingOffer => {
+  ids: FakeCatalogIds,
+): PlaceServiceDetailDto => {
   return {
-    id: offerId(template.code),
-    vendor: template.name,
-    payee: payeeOf(SERVICE_PAYEE),
+    id: ids.newServiceId(),
+    code: template.code,
     name: template.name,
+    kind: "hotel",
     city: template.city,
-    checkIn: query.departOn,
-    checkOut: query.returnOn,
-    price: mst(template.pricePerNight * nights),
+    address: template.city,
+    nearestStation: template.city,
+    stationAccessMin: SEED_STATION_ACCESS_MIN,
+    price: template.pricePerNight,
+    requiredVerifications: [...template.requiredVerifications],
+    itemName: null,
+    genre: null,
+    openFrom: null,
+    openTo: null,
+    checkinFrom: null,
+    checkoutBy: null,
     rating: template.rating,
-    requiredVerifications: template.requiredVerifications,
+    breakfastIncluded: null,
+    hasAlcohol: null,
+    seats: null,
+    ageLimit: null,
+    walletAddress: SERVICE_PAYEE,
+    active: true,
+    updatedAt: ids.now(),
   };
 };
 
-const placeOfferOf = (template: PlaceTemplate): PlaceOffer => {
+const placeRowOf = (
+  template: PlaceTemplate,
+  ids: FakeCatalogIds,
+): PlaceServiceDetailDto => {
   return {
-    id: offerId(template.code),
-    kind: template.kind,
-    payee: payeeOf(SERVICE_PAYEE),
+    id: ids.newServiceId(),
+    code: template.code,
     name: template.name,
+    kind: template.kind,
     city: template.city,
+    address: template.city,
+    nearestStation: template.city,
+    stationAccessMin: SEED_STATION_ACCESS_MIN,
+    price: template.price,
+    requiredVerifications: [...template.requiredVerifications],
+    itemName: null,
     genre: template.genre,
-    price: mst(template.price),
-    requiredVerifications: template.requiredVerifications,
-    ...(template.ageLimit === undefined ? {} : { ageLimit: template.ageLimit }),
+    openFrom: null,
+    openTo: null,
+    checkinFrom: null,
+    checkoutBy: null,
+    rating: null,
+    breakfastIncluded: null,
+    hasAlcohol: null,
+    seats: null,
+    ageLimit: template.ageLimit ?? null,
+    walletAddress: SERVICE_PAYEE,
+    active: true,
+    updatedAt: ids.now(),
   };
+};
+
+// 宿泊も飲食・レジャーも place_services の行なので、場所系の行として 1 つに並べる
+const initialStateOf = (
+  seed: FakeCatalogSeed,
+  ids: FakeCatalogIds,
+): FakeCatalogState => {
+  return {
+    transport: seed.transport.map((template) => transportRowOf(template, ids)),
+    places: [
+      ...seed.lodging.map((template) => lodgingRowOf(template, ids)),
+      ...seed.places.map((template) => placeRowOf(template, ids)),
+    ],
+  };
+};
+
+// real は ORDER BY で並べるので、fake も文字コード順に並べる
+const compareText = (a: string, b: string): number => {
+  if (a < b) {
+    return -1;
+  }
+
+  if (a > b) {
+    return 1;
+  }
+
+  return 0;
+};
+
+const byCode = (a: { code: string }, b: { code: string }): number => {
+  return compareText(a.code, b.code);
+};
+
+const byName = (a: { name: string }, b: { name: string }): number => {
+  return compareText(a.name, b.name);
+};
+
+const distinctSorted = (values: readonly string[]): string[] => {
+  return [...new Set(values)].toSorted(compareText);
+};
+
+const isActive = (row: { active: boolean }): boolean => {
+  return row.active;
 };
 
 /**
@@ -192,23 +283,45 @@ const matchesPlaceName = (
   return city === value || spot === value;
 };
 
+// 目的地は有効な交通の到着都市 (real の listDestinations と同じ導き方)
+const destinationsOf = (state: FakeCatalogState): string[] => {
+  return distinctSorted(
+    state.transport.filter(isActive).map((row) => row.toCity),
+  );
+};
+
 const transportBetween = (
-  seed: FakeCatalogSeed,
+  state: FakeCatalogState,
   origin: string,
   destination: string,
   date: IsoDate,
 ): readonly TransportOffer[] => {
-  return seed.transport
-    .filter(
-      (template) =>
-        matchesPlaceName(template.fromCity, template.fromSpot, origin) &&
-        matchesPlaceName(template.toCity, template.toSpot, destination),
-    )
-    .map((template) => transportOfferOn(template, date));
+  return filterMap(
+    state.transport
+      .filter(isActive)
+      .filter(
+        (row) =>
+          matchesPlaceName(row.fromCity, row.fromSpot, origin) &&
+          matchesPlaceName(row.toCity, row.toSpot, destination),
+      )
+      .toSorted(byCode),
+    (row) => transportOfferOn(row, date),
+  );
+};
+
+const placesIn = (
+  state: FakeCatalogState,
+  kind: PlaceKind,
+  city: string,
+): readonly PlaceServiceDetailDto[] => {
+  return state.places
+    .filter(isActive)
+    .filter((row) => row.kind === kind && row.city === city)
+    .toSorted(byCode);
 };
 
 const lodgingFor = (
-  seed: FakeCatalogSeed,
+  state: FakeCatalogState,
   query: OfferQuery,
   nights: number,
 ): readonly LodgingOffer[] => {
@@ -216,26 +329,24 @@ const lodgingFor = (
     return [];
   }
 
-  return seed.lodging
-    .filter((template) => template.city === query.destination)
-    .map((template) => lodgingOfferFor(template, query, nights));
+  return placesIn(state, "hotel", query.destination).map((row) =>
+    lodgingOfferFor(row, query, nights),
+  );
 };
 
 const placesFor = (
-  seed: FakeCatalogSeed,
+  state: FakeCatalogState,
   kind: PlaceOfferKind,
   city: string,
 ): readonly PlaceOffer[] => {
-  return seed.places
-    .filter((template) => template.kind === kind && template.city === city)
-    .map(placeOfferOf);
+  return placesIn(state, kind, city).map((row) => placeOfferOf(row, kind));
 };
 
 const findOffers = (
-  seed: FakeCatalogSeed,
+  state: FakeCatalogState,
   query: OfferQuery,
 ): Result<OfferSet, CatalogError> => {
-  if (!seed.destinations.includes(query.destination)) {
+  if (!destinationsOf(state).includes(query.destination)) {
     return err({ kind: "unknownDestination", destination: query.destination });
   }
 
@@ -243,21 +354,458 @@ const findOffers = (
 
   return ok({
     outbound: transportBetween(
-      seed,
+      state,
       query.origin,
       query.destination,
       query.departOn,
     ),
     inbound: transportBetween(
-      seed,
+      state,
       query.destination,
       query.origin,
       query.returnOn,
     ),
-    lodging: lodgingFor(seed, query, nights),
-    dining: placesFor(seed, "restaurant", query.destination),
-    leisure: placesFor(seed, "leisure", query.destination),
+    lodging: lodgingFor(state, query, nights),
+    dining: placesFor(state, "restaurant", query.destination),
+    leisure: placesFor(state, "leisure", query.destination),
   });
+};
+
+// 空文字の絞り込みは絞らないのと同じに扱う (real と同じ)
+const presentOf = (value: string | undefined): string | undefined => {
+  if (value === undefined || value === "") {
+    return undefined;
+  }
+
+  return value;
+};
+
+// `active` を省くと有効な行だけ、`"all"` なら有効フラグで絞らない
+const matchesActive = (
+  active: boolean,
+  filters: ServiceListFilters,
+): boolean => {
+  if (filters.active === "all") {
+    return true;
+  }
+
+  return active === (filters.active ?? true);
+};
+
+// real の ILIKE '%query%' と同じく、大文字小文字を区別しない部分一致
+const containsQuery = (
+  values: readonly string[],
+  query: string | undefined,
+): boolean => {
+  if (query === undefined) {
+    return true;
+  }
+
+  const needle = query.toLowerCase();
+
+  return values.some((value) => value.toLowerCase().includes(needle));
+};
+
+// 交通は出発・到着のどちらかが一致すればその都市の便として扱う
+const matchesTransportFilters = (
+  row: TransportServiceDetailDto,
+  filters: ServiceListFilters,
+): boolean => {
+  const city = presentOf(filters.city);
+
+  if (!matchesActive(row.active, filters)) {
+    return false;
+  }
+
+  if (filters.category !== undefined && row.mode !== filters.category) {
+    return false;
+  }
+
+  if (city !== undefined && row.fromCity !== city && row.toCity !== city) {
+    return false;
+  }
+
+  return containsQuery(
+    [row.name, row.code, row.fromSpot, row.toSpot, row.fromCity, row.toCity],
+    presentOf(filters.query),
+  );
+};
+
+const matchesPlaceFilters = (
+  row: PlaceServiceDetailDto,
+  filters: ServiceListFilters,
+): boolean => {
+  const city = presentOf(filters.city);
+
+  if (!matchesActive(row.active, filters)) {
+    return false;
+  }
+
+  if (filters.category !== undefined && row.kind !== filters.category) {
+    return false;
+  }
+
+  if (city !== undefined && row.city !== city) {
+    return false;
+  }
+
+  return containsQuery(
+    [row.name, row.code, row.city, row.nearestStation],
+    presentOf(filters.query),
+  );
+};
+
+const transportListItemOf = (
+  row: TransportServiceDetailDto,
+): ServiceListItemDto => {
+  return {
+    id: row.id,
+    category: row.mode,
+    code: row.code,
+    name: row.name,
+    price: row.price,
+    location: `${row.fromSpot} → ${row.toSpot}`,
+    station: null,
+    stationAccessMin: null,
+    requiredVerifications: [],
+    ageLimit: null,
+    active: row.active,
+    updatedAt: row.updatedAt,
+  };
+};
+
+const placeListItemOf = (row: PlaceServiceDetailDto): ServiceListItemDto => {
+  return {
+    id: row.id,
+    category: row.kind,
+    code: row.code,
+    name: row.name,
+    price: row.price,
+    location: row.city,
+    station: row.nearestStation,
+    stationAccessMin: row.stationAccessMin,
+    requiredVerifications: row.requiredVerifications,
+    ageLimit: row.ageLimit,
+    active: row.active,
+    updatedAt: row.updatedAt,
+  };
+};
+
+// 種別の論理順 (鉄道 -> 航空 -> 宿泊 -> 飲食 -> レジャー) に並べる
+// toSorted は安定なので、名前順に並べた種別の中の順序はそのまま残る
+const byCategory = (a: ServiceListItemDto, b: ServiceListItemDto): number => {
+  return (
+    serviceCategories.indexOf(a.category) -
+    serviceCategories.indexOf(b.category)
+  );
+};
+
+const serviceListOf = (
+  state: FakeCatalogState,
+  filters: ServiceListFilters,
+): ServiceListItemDto[] => {
+  // 種別で絞ると、片方の行は見る必要が無くなる (real と同じ)
+  const wantsTransport =
+    filters.category === undefined || isTransportCategory(filters.category);
+  const wantsPlace =
+    filters.category === undefined || !isTransportCategory(filters.category);
+  const transport = wantsTransport
+    ? state.transport.filter((row) => matchesTransportFilters(row, filters))
+    : [];
+  const places = wantsPlace
+    ? state.places.filter((row) => matchesPlaceFilters(row, filters))
+    : [];
+
+  return [
+    ...transport.toSorted(byName).map(transportListItemOf),
+    ...places.toSorted(byName).map(placeListItemOf),
+  ].toSorted(byCategory);
+};
+
+// 拠点は有効な交通の出発地から、都市順、都市の中は起点順で作る (real と同じ)
+const homeOptionsOf = (state: FakeCatalogState): HomeOption[] => {
+  const origins = state.transport.filter(isActive);
+
+  return distinctSorted(origins.map((row) => row.fromCity)).map((city) => ({
+    city,
+    spots: distinctSorted(
+      origins.filter((row) => row.fromCity === city).map((row) => row.fromSpot),
+    ),
+  }));
+};
+
+// genre の空は DTO では null なので、境界で undefined に寄せて落とす
+const genreOf = (row: PlaceServiceDetailDto): string | undefined => {
+  return row.genre ?? undefined;
+};
+
+const genresOf = (state: FakeCatalogState, kind: PlaceKind): string[] => {
+  return distinctSorted(
+    filterMap(
+      state.places.filter(isActive).filter((row) => row.kind === kind),
+      genreOf,
+    ),
+  );
+};
+
+const genreOptionsOf = (state: FakeCatalogState): GenreOptions => {
+  return {
+    dining: genresOf(state, "restaurant"),
+    leisure: genresOf(state, "leisure"),
+  };
+};
+
+// code は各テーブルの中で一意 (交通と場所系の間では重なってよい)
+const codeTaken = (
+  rows: readonly { id: string; code: string }[],
+  code: string,
+  ownId: string | undefined,
+): boolean => {
+  return rows.some((row) => row.code === code && row.id !== ownId);
+};
+
+// real は timestamptz を 1 ミリ秒の幅で突き合わせるので、fake はミリ秒の一致で比べる
+const sameInstant = (a: string, b: string): boolean => {
+  return Date.parse(a) === Date.parse(b);
+};
+
+const transportValuesOf = (input: TransportServiceCreateInput) => {
+  return {
+    code: input.code,
+    name: input.name,
+    mode: input.mode,
+    fromCity: input.fromCity,
+    toCity: input.toCity,
+    fromSpot: input.fromSpot,
+    toSpot: input.toSpot,
+    departTime: input.departTime ?? null,
+    arriveTime: input.arriveTime ?? null,
+    durationMin: input.durationMin,
+    price: input.price,
+    originAccessMin: input.originAccessMin,
+    boardingBufferMin: input.boardingBufferMin,
+    arrivalBufferMin: input.arrivalBufferMin ?? null,
+    destinationAccessMin: input.destinationAccessMin,
+    accessFare: input.accessFare ?? null,
+    seatClass: input.seatClass ?? null,
+    walletAddress: input.walletAddress,
+    active: input.active,
+  };
+};
+
+const placeValuesOf = (input: PlaceServiceCreateInput) => {
+  return {
+    code: input.code,
+    name: input.name,
+    kind: input.kind,
+    city: input.city,
+    address: input.address,
+    nearestStation: input.nearestStation,
+    stationAccessMin: input.stationAccessMin,
+    price: input.price,
+    requiredVerifications: input.requiredVerifications,
+    itemName: input.itemName ?? null,
+    genre: input.genre ?? null,
+    openFrom: input.openFrom ?? null,
+    openTo: input.openTo ?? null,
+    checkinFrom: input.checkinFrom ?? null,
+    checkoutBy: input.checkoutBy ?? null,
+    rating: input.rating ?? null,
+    breakfastIncluded: input.breakfastIncluded ?? null,
+    hasAlcohol: input.hasAlcohol ?? null,
+    seats: input.seats ?? null,
+    ageLimit: input.ageLimit ?? null,
+    walletAddress: input.walletAddress,
+    active: input.active,
+  };
+};
+
+// 行はリクエストより長く残す必要があるので、このクロージャに閉じた入れ物へ代入する
+const putTransport = (
+  state: FakeCatalogState,
+  transport: readonly TransportServiceDetailDto[],
+): void => {
+  state.transport = transport;
+};
+
+// 行はリクエストより長く残す必要があるので、このクロージャに閉じた入れ物へ代入する
+const putPlaces = (
+  state: FakeCatalogState,
+  places: readonly PlaceServiceDetailDto[],
+): void => {
+  state.places = places;
+};
+
+const createTransport = (
+  state: FakeCatalogState,
+  ids: FakeCatalogIds,
+  input: TransportServiceCreateInput,
+): Result<TransportServiceDetailDto, ServiceWriteError> => {
+  if (codeTaken(state.transport, input.code, undefined)) {
+    return err({ kind: "duplicateCode" });
+  }
+
+  const created: TransportServiceDetailDto = {
+    id: ids.newServiceId(),
+    ...transportValuesOf(input),
+    updatedAt: ids.now(),
+  };
+
+  putTransport(state, [...state.transport, created]);
+
+  return ok(created);
+};
+
+// 判定の順は real と同じ: 行が無い -> 種別が違う -> 取得時の updatedAt が古い -> code の重複 (UPDATE が当たったときだけ一意制約が効く)
+const updateTransport = (
+  state: FakeCatalogState,
+  ids: FakeCatalogIds,
+  id: string,
+  input: TransportServiceUpdateInput,
+): Result<TransportServiceDetailDto, ServiceWriteError> => {
+  const current = state.transport.find((row) => row.id === id);
+
+  if (current === undefined) {
+    return err({ kind: "notFound" });
+  }
+
+  if (current.mode !== input.mode) {
+    return err({ kind: "immutableCategory" });
+  }
+
+  if (!sameInstant(current.updatedAt, input.updatedAt)) {
+    return err({ kind: "conflict" });
+  }
+
+  if (codeTaken(state.transport, input.code, id)) {
+    return err({ kind: "duplicateCode" });
+  }
+
+  const updated: TransportServiceDetailDto = {
+    id,
+    ...transportValuesOf(input),
+    updatedAt: ids.now(),
+  };
+
+  putTransport(
+    state,
+    state.transport.with(state.transport.indexOf(current), updated),
+  );
+
+  return ok(updated);
+};
+
+const disableTransport = (
+  state: FakeCatalogState,
+  ids: FakeCatalogIds,
+  id: string,
+  updatedAt: string,
+): Result<TransportServiceDetailDto, ServiceWriteError> => {
+  const current = state.transport.find((row) => row.id === id);
+
+  if (current === undefined) {
+    return err({ kind: "notFound" });
+  }
+
+  if (!sameInstant(current.updatedAt, updatedAt)) {
+    return err({ kind: "conflict" });
+  }
+
+  const disabled: TransportServiceDetailDto = {
+    ...current,
+    active: false,
+    updatedAt: ids.now(),
+  };
+
+  putTransport(
+    state,
+    state.transport.with(state.transport.indexOf(current), disabled),
+  );
+
+  return ok(disabled);
+};
+
+const createPlace = (
+  state: FakeCatalogState,
+  ids: FakeCatalogIds,
+  input: PlaceServiceCreateInput,
+): Result<PlaceServiceDetailDto, ServiceWriteError> => {
+  if (codeTaken(state.places, input.code, undefined)) {
+    return err({ kind: "duplicateCode" });
+  }
+
+  const created: PlaceServiceDetailDto = {
+    id: ids.newServiceId(),
+    ...placeValuesOf(input),
+    updatedAt: ids.now(),
+  };
+
+  putPlaces(state, [...state.places, created]);
+
+  return ok(created);
+};
+
+// 判定の順は交通の更新と同じ
+const updatePlace = (
+  state: FakeCatalogState,
+  ids: FakeCatalogIds,
+  id: string,
+  input: PlaceServiceUpdateInput,
+): Result<PlaceServiceDetailDto, ServiceWriteError> => {
+  const current = state.places.find((row) => row.id === id);
+
+  if (current === undefined) {
+    return err({ kind: "notFound" });
+  }
+
+  if (current.kind !== input.kind) {
+    return err({ kind: "immutableCategory" });
+  }
+
+  if (!sameInstant(current.updatedAt, input.updatedAt)) {
+    return err({ kind: "conflict" });
+  }
+
+  if (codeTaken(state.places, input.code, id)) {
+    return err({ kind: "duplicateCode" });
+  }
+
+  const updated: PlaceServiceDetailDto = {
+    id,
+    ...placeValuesOf(input),
+    updatedAt: ids.now(),
+  };
+
+  putPlaces(state, state.places.with(state.places.indexOf(current), updated));
+
+  return ok(updated);
+};
+
+const disablePlace = (
+  state: FakeCatalogState,
+  ids: FakeCatalogIds,
+  id: string,
+  updatedAt: string,
+): Result<PlaceServiceDetailDto, ServiceWriteError> => {
+  const current = state.places.find((row) => row.id === id);
+
+  if (current === undefined) {
+    return err({ kind: "notFound" });
+  }
+
+  if (!sameInstant(current.updatedAt, updatedAt)) {
+    return err({ kind: "conflict" });
+  }
+
+  const disabled: PlaceServiceDetailDto = {
+    ...current,
+    active: false,
+    updatedAt: ids.now(),
+  };
+
+  putPlaces(state, state.places.with(state.places.indexOf(current), disabled));
+
+  return ok(disabled);
 };
 
 /**
@@ -268,8 +816,6 @@ const findOffers = (
  */
 export const seedCatalog = (): FakeCatalogSeed => {
   return {
-    destinations: ["大阪", "東京"],
-
     transport: [
       {
         code: "air-ana-017",
@@ -703,20 +1249,43 @@ export const seedCatalog = (): FakeCatalogSeed => {
 };
 
 /**
- * seed を読むだけのカタログ
+ * メモリ上の行を読み書きするカタログ
  *
- * `findOffers` は seed の現地時刻にクエリの日付を当てはめる
- * seed はサービス行の id (uuid) を持たないので `resolveServiceIds` は必ず失敗する
- * (demo では確定旅程を DB に書かず、Fake の store がメモリに持つ)
+ * 秘書の `FareCatalogPort` と設定画面の `CatalogSettingsPort` を同じ行で満たすので、設定画面で料金を変えたり行を無効にしたりすると次の提案に効く
+ * 行は作るときに seed の template から作り、再起動すると seed に戻る
+ * `findOffers` は有効な行の現地時刻にクエリの日付を当てはめる
+ * 行の id は確定旅程の明細に写す DB の行ではないので `resolveServiceIds` は必ず失敗する (demo では確定旅程を DB に書かず、Fake の store がメモリに持つ)
  */
-export const createFakeCatalog = (seed: FakeCatalogSeed): FareCatalogPort => {
+export const createFakeCatalog = (
+  seed: FakeCatalogSeed,
+  ids: FakeCatalogIds,
+): FareCatalogPort & CatalogSettingsPort => {
+  const state = initialStateOf(seed, ids);
+
   return {
-    listDestinations: async () => ok(seed.destinations),
-    findOffers: async (query) => findOffers(seed, query),
+    listDestinations: async () => ok(destinationsOf(state)),
+    findOffers: async (query) => findOffers(state, query),
     resolveServiceIds: async (codes) =>
       err({
         kind: "unavailable",
         cause: { reason: "fakeCatalogHasNoServiceIds", codes },
       }),
+    listServices: async (filters) => ok(serviceListOf(state, filters)),
+    getTransportService: async (id) =>
+      ok(state.transport.find((row) => row.id === id)),
+    getPlaceService: async (id) =>
+      ok(state.places.find((row) => row.id === id)),
+    listSupportedCities: async () => ok(destinationsOf(state)),
+    listHomeOptions: async () => ok(homeOptionsOf(state)),
+    listGenreOptions: async () => ok(genreOptionsOf(state)),
+    createTransportService: async (input) => createTransport(state, ids, input),
+    updateTransportService: async (id, input) =>
+      updateTransport(state, ids, id, input),
+    disableTransportService: async (id, updatedAt) =>
+      disableTransport(state, ids, id, updatedAt),
+    createPlaceService: async (input) => createPlace(state, ids, input),
+    updatePlaceService: async (id, input) => updatePlace(state, ids, id, input),
+    disablePlaceService: async (id, updatedAt) =>
+      disablePlace(state, ids, id, updatedAt),
   };
 };

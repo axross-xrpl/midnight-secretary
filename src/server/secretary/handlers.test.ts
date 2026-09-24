@@ -1,6 +1,10 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, test } from "vitest";
-import { sequentialTripIds, UNKNOWN_TRIP_ID } from "@/testing/ids";
+import {
+  sequentialTripIds,
+  testCatalogIds,
+  UNKNOWN_TRIP_ID,
+} from "@/testing/ids";
 import type { SecretaryContext } from "@/adapters/auth/session";
 import {
   createFakeCalendar,
@@ -13,12 +17,12 @@ import { jstDateOf } from "@/adapters/jst";
 import type { FakeMandateIds } from "@/adapters/mandate/fake";
 import { createFakeMandate } from "@/adapters/mandate/fake";
 import { createFakePlanner } from "@/adapters/planner/fake";
-import { createFakeProfile } from "@/adapters/profile/fake";
 import { createFakeStore } from "@/adapters/store/fake";
 import type { SecretaryDeps } from "@/application/deps";
 import { addDays, yearsBefore } from "@/domain/dates";
 import type {
   CalendarEventId,
+  IsoDate,
   IsoDateTime,
   MandateId,
 } from "@/domain/identifiers";
@@ -30,6 +34,8 @@ import {
   parseTripId,
   parseUserId,
 } from "@/domain/identifiers.parse";
+import type { ProfilePort } from "@/domain/profile";
+import { ok } from "@/lib/result";
 import {
   parseMandateResponse,
   parseSecretaryFailure,
@@ -104,6 +110,23 @@ const testMandateIds = (): FakeMandateIds => {
   };
 };
 
+/**
+ * 生年月日だけを返すプロフィールの Stub (好みは未登録)
+ *
+ * 生年月日を省くと未登録として undefined を返す
+ * fake のプロフィールは画面の行を丸ごと持つので、生年月日だけがあって好みが無い状態を表せない
+ */
+type ProfileStubValues = {
+  birthDate?: IsoDate;
+};
+
+const stubProfile = (values: ProfileStubValues): ProfilePort => {
+  return {
+    readBirthDate: async () => ok(values.birthDate),
+    readPreferences: async () => ok(undefined),
+  };
+};
+
 // 採番はテスト設定に閉じているので、identity はユーザ id から、証明の参照は閉じたカウンタで作る
 const testIdentityIds = (): FakeIdentityIds => {
   const state = { proved: 0 };
@@ -124,12 +147,12 @@ const testDeps = (): SecretaryDeps => {
       events: seedCalendarEvents(NOW),
       newEventId: testEventIds(),
     }),
-    catalog: createFakeCatalog(seedCatalog()),
+    catalog: createFakeCatalog(seedCatalog(), testCatalogIds(NOW)),
     planner: createFakePlanner(),
     mandate: createFakeMandate({ mandates: [], ids: testMandateIds() }),
     store: createFakeStore(),
     identity: createFakeIdentity({ ids: testIdentityIds() }),
-    profile: createFakeProfile({ birthDate: BIRTH_DATE }),
+    profile: stubProfile({ birthDate: BIRTH_DATE }),
     newTripId: sequentialTripIds(),
   };
 };
@@ -410,7 +433,7 @@ describe("年齢確認証明書", () => {
     // このテストだけ生年月日の無いプロフィールに差し替えるので、beforeEach の入れ物へ再代入する
     state.context = {
       ...state.context,
-      deps: { ...state.context.deps, profile: createFakeProfile({}) },
+      deps: { ...state.context.deps, profile: stubProfile({}) },
     };
     state.deps = handlerDepsFor(state.context);
 

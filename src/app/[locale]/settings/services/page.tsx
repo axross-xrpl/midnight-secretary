@@ -1,10 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { ServiceManager } from "@/components/settings/service-manager";
 import { requireSession } from "@/lib/require-session";
-import {
-  readServices,
-  readSupportedCities,
-} from "@/server/services/read-services";
+import { settingsDeps, valueOrThrow } from "@/server/settings/deps";
 
 export default async function ServicesSettingsPage({
   searchParams,
@@ -12,11 +9,12 @@ export default async function ServicesSettingsPage({
   searchParams: Promise<{ service?: string }>;
 }) {
   await requireSession();
+  const deps = settingsDeps();
 
   const [{ service }, services, supportedCities, t] = await Promise.all([
     searchParams,
-    readServices(),
-    readSupportedCities(),
+    deps.catalog.listServices({}).then(valueOrThrow),
+    deps.catalog.listSupportedCities().then(valueOrThrow),
     getTranslations("ServiceManagement"),
   ]);
 
@@ -32,10 +30,7 @@ export default async function ServicesSettingsPage({
         </p>
       </div>
       <ServiceManager
-        initialServices={services.map((item) => ({
-          ...item,
-          updatedAt: item.updatedAt.toISOString(),
-        }))}
+        initialServices={services}
         initialSelectedServiceId={service}
         supportedCities={supportedCities}
       />

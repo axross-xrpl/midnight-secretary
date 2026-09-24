@@ -1,12 +1,11 @@
 import {
-  databaseWriteErrorResponse,
   invalidRequestResponse,
   unauthorizedResponse,
 } from "@/lib/api-response";
 import { hasApiSession } from "@/lib/api-session";
 import { placeServiceCreateSchema } from "@/features/services/schemas";
-import { createPlaceService } from "@/server/services/write-services";
 import { serviceWriteErrorResponse } from "@/server/services/write-response";
+import { settingsDeps } from "@/server/settings/deps";
 
 export async function POST(request: Request) {
   if (!(await hasApiSession())) {
@@ -25,12 +24,10 @@ export async function POST(request: Request) {
     return invalidRequestResponse(parsedBody.error.flatten());
   }
 
-  try {
-    const result = await createPlaceService(parsedBody.data);
-    return result.ok
-      ? Response.json({ data: result.value }, { status: 201 })
-      : serviceWriteErrorResponse(result.error);
-  } catch (error) {
-    return databaseWriteErrorResponse(error);
-  }
+  const result = await settingsDeps().catalog.createPlaceService(
+    parsedBody.data,
+  );
+  return result.ok
+    ? Response.json({ data: result.value }, { status: 201 })
+    : serviceWriteErrorResponse(result.error);
 }

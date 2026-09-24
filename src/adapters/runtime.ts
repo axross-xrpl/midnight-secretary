@@ -12,7 +12,8 @@ import {
   parseMandateId,
   parseTripId,
 } from "@/domain/identifiers.parse";
-import { createSecretaryFactories } from "./factories";
+import type { SettingsDeps, SettingsFactories } from "./factories";
+import { buildSettingsDeps, createProcessFactories } from "./factories";
 import { jstDateOf } from "./jst";
 
 /**
@@ -21,6 +22,7 @@ import { jstDateOf } from "./jst";
 export type SecretaryRuntime = {
   sources: PortSources;
   factories: SecretaryFactories;
+  settingsFactories: SettingsFactories;
 };
 
 type RuntimeSlot = {
@@ -57,35 +59,36 @@ const createRuntime = (env: EnvLike): SecretaryRuntime => {
   }
 
   const startedAt = mustParse(parseIsoDateTime(new Date().toISOString()));
+  const factories = createProcessFactories({
+    env,
+    startedAt,
+    demoBirthDate: yearsBefore(
+      addDays(jstDateOf(startedAt), DEMO_BIRTHDAY_IN_DAYS),
+      DEMO_ADULT_AGE,
+    ),
+    newTripId: () => mustParse(parseTripId(randomUUID())),
+    newEventId: () => mustParse(parseCalendarEventId(`seed-${randomUUID()}`)),
+    newServiceId: () => randomUUID(),
+    clock: () => mustParse(parseIsoDateTime(new Date().toISOString())),
+    mandateIds: {
+      newMandateId: () => mustParse(parseMandateId(`mandate-${randomUUID()}`)),
+      newCommitment: () => randomUUID().replaceAll("-", ""),
+      newTransactionId: () => `fake-tx-${randomUUID()}`,
+      hashAuthorization: (mandateId, paymentRef) =>
+        createHash("sha256").update(`${mandateId}:${paymentRef}`).digest("hex"),
+    },
+    identityIds: {
+      // identity は公開されるので、ユーザ id をそのまま出さずハッシュにする
+      identityOf: (userId) =>
+        createHash("sha256").update(`age-id:${userId}`).digest("hex"),
+      newProofRef: () => randomUUID(),
+    },
+  });
 
   return {
     sources: sources.value,
-    factories: createSecretaryFactories({
-      env,
-      startedAt,
-      demoBirthDate: yearsBefore(
-        addDays(jstDateOf(startedAt), DEMO_BIRTHDAY_IN_DAYS),
-        DEMO_ADULT_AGE,
-      ),
-      newTripId: () => mustParse(parseTripId(randomUUID())),
-      newEventId: () => mustParse(parseCalendarEventId(`seed-${randomUUID()}`)),
-      mandateIds: {
-        newMandateId: () =>
-          mustParse(parseMandateId(`mandate-${randomUUID()}`)),
-        newCommitment: () => randomUUID().replaceAll("-", ""),
-        newTransactionId: () => `fake-tx-${randomUUID()}`,
-        hashAuthorization: (mandateId, paymentRef) =>
-          createHash("sha256")
-            .update(`${mandateId}:${paymentRef}`)
-            .digest("hex"),
-      },
-      identityIds: {
-        // identity は公開されるので、ユーザ id をそのまま出さずハッシュにする
-        identityOf: (userId) =>
-          createHash("sha256").update(`age-id:${userId}`).digest("hex"),
-        newProofRef: () => randomUUID(),
-      },
-    }),
+    factories: factories.secretary,
+    settingsFactories: factories.settings,
   };
 };
 
@@ -118,4 +121,13 @@ export const secretaryDepsFor = (context: RequestContext): SecretaryDeps => {
   const runtime = getSecretaryRuntime();
 
   return buildSecretaryDeps(runtime.sources, runtime.factories, context);
+};
+
+/**
+ * runtime からリクエスト 1 件分の設定画面の deps を組み立てる
+ */
+export const settingsDepsFor = (context: RequestContext): SettingsDeps => {
+  const runtime = getSecretaryRuntime();
+
+  return buildSettingsDeps(runtime.sources, runtime.settingsFactories, context);
 };

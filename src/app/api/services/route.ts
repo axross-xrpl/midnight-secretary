@@ -1,14 +1,12 @@
 import { z } from "zod";
+import { serviceCategories } from "@/features/services/constants";
 import {
   databaseReadErrorResponse,
   invalidRequestResponse,
   unauthorizedResponse,
 } from "@/lib/api-response";
 import { hasApiSession } from "@/lib/api-session";
-import {
-  readServices,
-  serviceCategories,
-} from "@/server/services/read-services";
+import { settingsDeps } from "@/server/settings/deps";
 
 const optionalTrimmedText = (maximumLength: number) =>
   z.preprocess(
@@ -45,16 +43,16 @@ export async function GET(request: Request) {
     return invalidRequestResponse(parsedQuery.error.flatten());
   }
 
-  try {
-    const services = await readServices({
-      category: parsedQuery.data.category,
-      city: parsedQuery.data.city,
-      query: parsedQuery.data.q,
-      active: parsedQuery.data.active,
-    });
+  const services = await settingsDeps().catalog.listServices({
+    category: parsedQuery.data.category,
+    city: parsedQuery.data.city,
+    query: parsedQuery.data.q,
+    active: parsedQuery.data.active,
+  });
 
-    return Response.json({ data: services });
-  } catch (error) {
-    return databaseReadErrorResponse(error);
+  if (!services.ok) {
+    return databaseReadErrorResponse(services.error.cause);
   }
+
+  return Response.json({ data: services.value });
 }

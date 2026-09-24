@@ -1,12 +1,11 @@
 import { profileSaveSchema } from "@/features/profile/schemas";
 import {
-  databaseWriteErrorResponse,
   invalidRequestResponse,
   unauthorizedResponse,
 } from "@/lib/api-response";
 import { getApiSessionUser } from "@/lib/api-session";
 import { profileWriteErrorResponse } from "@/server/profile/write-response";
-import { saveProfile } from "@/server/profile/write-profile";
+import { settingsDeps } from "@/server/settings/deps";
 
 export async function PUT(request: Request) {
   const user = await getApiSessionUser();
@@ -27,12 +26,11 @@ export async function PUT(request: Request) {
     return invalidRequestResponse(parsedBody.error.flatten());
   }
 
-  try {
-    const result = await saveProfile(user, parsedBody.data);
-    return result.ok
-      ? Response.json({ data: result.value })
-      : profileWriteErrorResponse(result.error);
-  } catch (error) {
-    return databaseWriteErrorResponse(error);
-  }
+  const result = await settingsDeps().profile.saveProfile(
+    { userId: user.userId, email: user.email },
+    parsedBody.data,
+  );
+  return result.ok
+    ? Response.json({ data: result.value })
+    : profileWriteErrorResponse(result.error);
 }

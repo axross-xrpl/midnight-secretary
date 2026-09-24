@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { testCatalogIds } from "@/testing/ids";
 import type { CalendarEvent } from "@/domain/calendar";
 import type { OfferSet } from "@/domain/catalog";
 import {
@@ -24,7 +25,10 @@ import {
   interpretPrompt,
 } from "./gemini-prompts";
 
-const catalog = createFakeCatalog(seedCatalog());
+// 行の更新時刻は候補に出ないので、どの時刻でもよい
+const SEEDED_AT = mustParse(parseIsoDateTime("2026-09-09T09:00:00+09:00"));
+
+const catalog = createFakeCatalog(seedCatalog(), testCatalogIds(SEEDED_AT));
 
 const interpretContext: InterpretContext = {
   locale: "ja",
