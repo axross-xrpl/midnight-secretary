@@ -1,4 +1,15 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+/* Base UI の状態属性を Tailwind の variant にする (shadcn/tailwind.css から要る 4 つだけを写した) */
+@custom-variant data-open (&:where([data-open]:not([data-open="false"])));
+@custom-variant data-closed (&:where([data-closed]:not([data-closed="false"])));
+@custom-variant data-checked (
+  &:where([data-checked]:not([data-checked="false"]))
+);
+@custom-variant data-unchecked (
+  &:where([data-unchecked]:not([data-unchecked="false"]))
+);
 
 :root {
   --background: #ffffff;

@@ -14,6 +14,8 @@ import type {
   TripResponse,
 } from "@/lib/secretary-response";
 import { BubbleItem } from "./bubble";
+import type { ConsentRequest } from "./consent-dialog";
+import { ConsentDialog } from "./consent-dialog";
 import type { Bubble, Reply } from "./conversation";
 import { conversationOf } from "./conversation";
 import { effectiveTrip, INITIAL_FLOW_STATE, reduceFlow } from "./flow";
@@ -48,6 +50,7 @@ import {
   strongButtonClass,
 } from "./styles";
 import type {
+  Activity,
   MandateCapabilities,
   PublicLedgerView,
   RequestFailure,
@@ -78,6 +81,24 @@ const tailOf = (bubbles: readonly Bubble[]): string => {
   }
 
   return `${bubbles.length}:${last.speaker}:${last.line.kind}`;
+};
+
+// 証明を送るかの返事待ちなら、問いの相手 (年齢確認を求める店) と年齢の下限。それ以外は undefined
+const consentRequestOf = (
+  activity: Activity,
+  trip: TripResponse | undefined,
+): ConsentRequest | undefined => {
+  if (activity.kind !== "awaitingConsent" || trip === undefined) {
+    return undefined;
+  }
+
+  const requirement = adultRequirementOfResponse(trip.plan);
+
+  if (requirement === undefined) {
+    return undefined;
+  }
+
+  return { place: requirement.offer.name, ageLimit: requirement.ageLimit };
 };
 
 type EventWhenProps = {
@@ -189,6 +210,8 @@ export const Conversation = (props: ConversationProps): ReactElement => {
     visibility: state.visibility,
   });
   const busy = state.activity.kind === "busy";
+  // 返事待ちの間は返答をモーダルに移すので、返答バーは出さない
+  const consent = consentRequestOf(state.activity, trip);
   const tail = tailOf(conversation.bubbles);
   // DOM の ref は React の契約で初期値に null が要る
   const conversationRef = useRef<HTMLDivElement | null>(null);
@@ -320,6 +343,18 @@ export const Conversation = (props: ConversationProps): ReactElement => {
     dispatch({ type: "setVisibility", category, value });
   };
 
+  // 返答バーにもモーダルにも同じ返答を並べる
+  const replyButtons = conversation.replies.map((reply) => (
+    <ReplyButton
+      key={reply.kind}
+      reply={reply}
+      disabled={busy}
+      onReply={onReply}
+    />
+  ));
+  const showsReplyBar =
+    conversation.replies.length > 0 && consent === undefined;
+
   // DOM は会話が先で、2 カラムのときだけ CSS がサイドバーを左に置く
   return (
     <div className="chat-layout">
@@ -359,17 +394,18 @@ export const Conversation = (props: ConversationProps): ReactElement => {
             ))}
           </ol>
         </section>
-        {conversation.replies.length === 0 ? undefined : (
+        {showsReplyBar ? (
           <footer className={`chat-layout__replies ${replyBarClass}`}>
-            {conversation.replies.map((reply) => (
-              <ReplyButton
-                key={reply.kind}
-                reply={reply}
-                disabled={busy}
-                onReply={onReply}
-              />
-            ))}
+            {replyButtons}
           </footer>
+        ) : undefined}
+        {consent === undefined ? undefined : (
+          <ConsentDialog
+            request={consent}
+            onDecline={() => dispatch({ type: "declineConsent" })}
+          >
+            {replyButtons}
+          </ConsentDialog>
         )}
       </div>
       <aside className="chat-layout__sidebar flex flex-col gap-5">

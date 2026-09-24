@@ -2,7 +2,9 @@
 
 import { useFormatter, useTranslations } from "next-intl";
 import type { ReactElement } from "react";
+import { useId } from "react";
 import { match } from "ts-pattern";
+import { Switch } from "@/components/ui/switch";
 import type {
   PlaceOfferResponse,
   SettlementVisibilityResponse,
@@ -76,19 +78,20 @@ const PrivateToggle = ({
   onChange,
 }: PrivateToggleProps): ReactElement => {
   const t = useTranslations("Conversation");
+  // label と switch を for で結び、Base UI がその label を switch の aria-labelledby にする
+  const id = useId();
 
   return (
-    <label className={`flex flex-none items-center gap-1.5 ${labelClass}`}>
-      {/* switch は checked の対応づけを暗黙に頼らず aria-checked も持たせる */}
-      <input
-        type="checkbox"
-        role="switch"
-        className="cursor-pointer accent-accent disabled:cursor-default disabled:opacity-40"
+    <label
+      htmlFor={id}
+      className={`flex flex-none cursor-pointer items-center gap-1.5 ${labelClass}`}
+    >
+      <Switch
+        id={id}
         checked={checked}
-        aria-checked={checked}
         disabled={disabled}
-        onChange={(event) =>
-          onChange(category, visibilityOfChecked(event.target.checked))
+        onCheckedChange={(next) =>
+          onChange(category, visibilityOfChecked(next))
         }
       />
       {t("plan.privateToggle")}
