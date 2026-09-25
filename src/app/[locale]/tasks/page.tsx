@@ -39,8 +39,7 @@ const TasksShell = ({ title, tab, children }: ShellProps): ReactElement => {
         <header>
           <h1 className="text-[17px] font-bold">{title}</h1>
         </header>
-        <TasksTabs active={tab} />
-        {children}
+        <TasksTabs active={tab}>{children}</TasksTabs>
       </div>
     </div>
   );
