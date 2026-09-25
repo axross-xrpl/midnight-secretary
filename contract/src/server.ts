@@ -5,6 +5,7 @@ globalThis.WebSocket = WebSocket;
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { randomBytes } from "node:crypto";
 
 import {
   setNetworkId,
@@ -194,6 +195,18 @@ function resolveRecipient(arg: string, networkId: string): ResolvedRecipient {
     };
   }
   return { coinPublicKey: hexToBytes(arg) };
+}
+
+// shielded-token.compact's mint_and_send derives its coin's nonce as
+// evolveNonce(nonceIndex, localNonceSeed()) -- purely deterministic, with no
+// on-chain counter. A hardcoded nonceIndex (0n, as this used to be) makes two
+// mint_and_send calls with the same (recipient, amount) produce the exact
+// same coin commitment; the second submission then collides with the first
+// one already in the tree, which the node rejects as a Zswap-level error
+// (node error 103 -- "double-spend, unknown Merkle root"). A fresh random
+// 128-bit index per call makes that collision astronomically unlikely.
+function randomNonceIndex(): bigint {
+  return BigInt(`0x${randomBytes(16).toString("hex")}`);
 }
 
 // Every route below acts as the same deployer account, so serialize all of
@@ -706,7 +719,7 @@ async function main() {
               txCtx,
               recipient,
               FAUCET_AMOUNT,
-              0n,
+              randomNonceIndex(),
             );
           },
           { additionalCoinEncPublicKeyMappings },
@@ -761,7 +774,7 @@ async function main() {
               txCtx,
               recipient,
               amount,
-              0n,
+              randomNonceIndex(),
             );
           },
           { additionalCoinEncPublicKeyMappings },
